@@ -1,0 +1,598 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  Building2,
+  ArrowLeft,
+  Save,
+  MapPin,
+  Mail,
+  Phone,
+  FileText,
+  User,
+  Briefcase,
+} from 'lucide-react';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import { useToast } from '@/hooks/useToast';
+import { entityService, UpdateEntityPayload } from '@/services/entityService';
+import { adminService, MasterDataItem, UserItem } from '@/services/adminService';
+import { ROUTES } from '@/constants/routes';
+
+export const EntityEditPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const toast = useToast();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [entityTypes, setEntityTypes] = useState<MasterDataItem[]>([]);
+  const [states, setStates] = useState<MasterDataItem[]>([]);
+  const [districts, setDistricts] = useState<MasterDataItem[]>([]);
+  const [users, setUsers] = useState<UserItem[]>([]);
+
+  // Form State
+  const [formData, setFormData] = useState<UpdateEntityPayload>({
+    name: '',
+    code: '',
+    entityCode: '',
+    entityType: '',
+    owner: null,
+    registrationNumber: '',
+    gstin: '',
+    pan: '',
+    cin: '',
+    contactPerson: '',
+    contactEmail: '',
+    contactPhone: '',
+    description: '',
+    status: 'active',
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      district: '',
+      state: '',
+      pincode: '',
+      country: 'India',
+    },
+  });
+
+  // Load existing entity and prerequisites
+  useEffect(() => {
+    if (!id) return;
+
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [entityRes, typesRes, statesRes, districtsRes, usersRes] =
+          await Promise.all([
+            entityService.getEntityById(id),
+            adminService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
+            adminService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
+            adminService.getMasterData({ category: 'district' }).catch(() => ({ items: [] })),
+            adminService.getUsers({ limit: 100 }).catch(() => ({ users: [] })),
+          ]);
+
+        const ent = entityRes.entity;
+        setEntityTypes((typesRes.items || []).filter((t: MasterDataItem) => t.status === 'active'));
+        setStates((statesRes.items || []).filter((s: MasterDataItem) => s.status === 'active'));
+        setDistricts((districtsRes.items || []).filter((d: MasterDataItem) => d.status === 'active'));
+        setUsers(usersRes.users || []);
+
+        setFormData({
+          name: ent.name,
+          code: ent.entityCode || ent.code,
+          entityCode: ent.entityCode || ent.code,
+          entityType: ent.entityType?.code || (ent.entityType as any)?._id || '',
+          owner: ent.owner?._id || null,
+          registrationNumber: ent.registrationNumber || '',
+          gstin: ent.gstin || '',
+          pan: ent.pan || '',
+          cin: ent.cin || '',
+          contactPerson: ent.contactPerson || '',
+          contactEmail: ent.contactEmail || '',
+          contactPhone: ent.contactPhone || '',
+          description: ent.description || '',
+          status: ent.status,
+          address: {
+            line1: ent.address?.line1 || '',
+            line2: ent.address?.line2 || '',
+            city: ent.address?.city || '',
+            district: ent.address?.district || '',
+            state: ent.address?.state || '',
+            pincode: ent.address?.pincode || '',
+            country: ent.address?.country || 'India',
+          },
+        });
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to load entity details for editing');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [id, toast]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    if (name.startsWith('address.')) {
+      const field = name.split('.')[1];
+      setFormData((prev) => ({
+        ...prev,
+        address: {
+          ...prev.address!,
+          [field]: value,
+        },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+
+    if (!formData.name?.trim()) {
+      toast.error('Entity name is required');
+      return;
+    }
+    if (!formData.entityType) {
+      toast.error('Please select an Entity Type');
+      return;
+    }
+    if (!formData.contactEmail?.trim()) {
+      toast.error('Contact email is required');
+      return;
+    }
+    if (!formData.contactPhone?.trim()) {
+      toast.error('Contact phone is required');
+      return;
+    }
+    if (!formData.address?.line1?.trim()) {
+      toast.error('Street address line 1 is required');
+      return;
+    }
+    if (!formData.address?.city?.trim()) {
+      toast.error('City is required');
+      return;
+    }
+    if (!formData.address?.state?.trim()) {
+      toast.error('State is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload: UpdateEntityPayload = {
+        ...formData,
+        code: formData.code?.trim() || undefined,
+        entityCode: formData.code?.trim() || undefined,
+        owner: formData.owner || null,
+        registrationNumber: formData.registrationNumber?.trim() || undefined,
+        gstin: formData.gstin?.trim() || undefined,
+        pan: formData.pan?.trim() || undefined,
+        cin: formData.cin?.trim() || undefined,
+        contactPerson: formData.contactPerson?.trim() || undefined,
+        description: formData.description?.trim() || undefined,
+      };
+
+      const res = await entityService.updateEntity(id, payload);
+      toast.success(res.message || 'Entity updated successfully');
+      navigate(`/entities/${id}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update entity');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+        <div className="w-10 h-10 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+        <p className="text-sm text-slate-400">Loading entity details for editing...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+      {/* Top Navigation & Breadcrumbs */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(`/entities/${id}`)}
+            leftIcon={<ArrowLeft size={16} />}
+          >
+            Back to Entity
+          </Button>
+          <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
+          <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+            <span className="hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer" onClick={() => navigate(ROUTES.ENTITIES)}>
+              Entities
+            </span>
+            <span>/</span>
+            <span
+              className="hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+              onClick={() => navigate(`/entities/${id}`)}
+            >
+              {formData.name || 'Details'}
+            </span>
+            <span>/</span>
+            <span className="text-slate-900 dark:text-slate-100 font-medium">Edit</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="md"
+            onClick={() => navigate(`/entities/${id}`)}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={handleSubmit}
+            isLoading={isSubmitting}
+            leftIcon={<Save size={16} />}
+          >
+            Save Changes
+          </Button>
+        </div>
+      </div>
+
+      {/* Page Title */}
+      <div className="flex items-start gap-4">
+        <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-600/20 border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 shadow-sm dark:shadow-none">
+          <Building2 size={28} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Edit Business Entity</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Update organizational information, corporate identifiers, contact points, and headquarters address.
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Section 1: Core Entity Details */}
+        <Card padding="lg">
+          <Card.Header
+            title="Entity Information"
+            description="Official corporate registration details and organizational classification"
+            icon={<Briefcase size={18} className="text-indigo-600 dark:text-indigo-400" />}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="md:col-span-2">
+              <Input
+                label="Entity Name *"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="e.g. Apex Global Solutions Private Limited"
+                required
+              />
+            </div>
+
+            <div>
+              <Input
+                label="Entity Code"
+                name="code"
+                value={formData.code}
+                onChange={handleChange}
+                placeholder="e.g. APEX-CORP"
+                hint="Unique uppercase identifier for this legal entity."
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Entity Type *
+              </label>
+              <select
+                name="entityType"
+                value={formData.entityType}
+                onChange={handleChange}
+                required
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              >
+                {entityTypes.map((type) => (
+                  <option key={type._id} value={type.code}>
+                    {type.label} ({type.code})
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
+                Derived directly from Master Data settings.
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Designated Entity Owner
+              </label>
+              <select
+                name="owner"
+                value={formData.owner || ''}
+                onChange={handleChange}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              >
+                <option value="">Select an Owner (Optional)</option>
+                {users.map((u) => (
+                  <option key={u._id} value={u._id}>
+                    {u.firstName} {u.lastName} ({u.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Operational Status *
+              </label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Description / Business Scope
+              </label>
+              <textarea
+                name="description"
+                rows={3}
+                value={formData.description}
+                onChange={handleChange}
+                placeholder="Brief summary of business operations, principal activities, or corporate scope..."
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* Section 2: Statutory & Regulatory Identification */}
+        <Card padding="lg">
+          <Card.Header
+            title="Statutory & Corporate Identification"
+            description="National tax, company registration numbers, and corporate credentials"
+            icon={<FileText size={18} className="text-indigo-600 dark:text-indigo-400" />}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <Input
+              label="GSTIN"
+              name="gstin"
+              value={formData.gstin}
+              onChange={handleChange}
+              placeholder="e.g. 27AAAAA0000A1Z5"
+            />
+            <Input
+              label="PAN"
+              name="pan"
+              value={formData.pan}
+              onChange={handleChange}
+              placeholder="e.g. AAAAA0000A"
+            />
+            <Input
+              label="CIN"
+              name="cin"
+              value={formData.cin}
+              onChange={handleChange}
+              placeholder="e.g. U72200MH2020PTC123456"
+            />
+            <Input
+              label="Registration Number"
+              name="registrationNumber"
+              value={formData.registrationNumber}
+              onChange={handleChange}
+              placeholder="e.g. REG-IND-9874"
+            />
+          </div>
+        </Card>
+
+        {/* Section 3: Contact Details */}
+        <Card padding="lg">
+          <Card.Header
+            title="Communication & Contact Information"
+            description="Primary corporate point of contact, official correspondence email, and phone"
+            icon={<Mail size={18} className="text-indigo-400" />}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <Input
+              label="Contact Person"
+              name="contactPerson"
+              value={formData.contactPerson}
+              onChange={handleChange}
+              placeholder="e.g. Rajesh Kumar"
+              leftAddon={<User size={15} className="text-slate-400" />}
+            />
+            <Input
+              label="Contact Email *"
+              name="contactEmail"
+              type="email"
+              value={formData.contactEmail}
+              onChange={handleChange}
+              placeholder="e.g. compliance@apexsolutions.com"
+              leftAddon={<Mail size={15} className="text-slate-400" />}
+              required
+            />
+            <Input
+              label="Contact Phone *"
+              name="contactPhone"
+              value={formData.contactPhone}
+              onChange={handleChange}
+              placeholder="e.g. +91 98765 43210"
+              leftAddon={<Phone size={15} className="text-slate-400" />}
+              required
+            />
+          </div>
+        </Card>
+
+        {/* Section 4: Registered Address */}
+        <Card padding="lg">
+          <Card.Header
+            title="Registered Office Address"
+            description="Official corporate postal address for legal notices and jurisdictional compliance"
+            icon={<MapPin size={18} className="text-indigo-400" />}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="md:col-span-2">
+              <Input
+                label="Address Line 1 *"
+                name="address.line1"
+                value={formData.address?.line1}
+                onChange={handleChange}
+                placeholder="Building Name, Floor, Suite, Street Number"
+                required
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <Input
+                label="Address Line 2"
+                name="address.line2"
+                value={formData.address?.line2}
+                onChange={handleChange}
+                placeholder="Locality, Landmark, Industrial Area"
+              />
+            </div>
+
+            <div>
+              <Input
+                label="City *"
+                name="address.city"
+                value={formData.address?.city}
+                onChange={handleChange}
+                placeholder="e.g. Mumbai"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                District
+              </label>
+              {districts.length > 0 ? (
+                <select
+                  name="address.district"
+                  value={formData.address?.district}
+                  onChange={handleChange}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+                >
+                  <option value="">Select District</option>
+                  {districts.map((d) => (
+                    <option key={d._id} value={d.label}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  name="address.district"
+                  value={formData.address?.district}
+                  onChange={handleChange}
+                  placeholder="e.g. Mumbai Suburban"
+                />
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                State *
+              </label>
+              {states.length > 0 ? (
+                <select
+                  name="address.state"
+                  value={formData.address?.state}
+                  onChange={handleChange}
+                  required
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+                >
+                  <option value="">Select State</option>
+                  {states.map((s) => (
+                    <option key={s._id} value={s.label}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  name="address.state"
+                  value={formData.address?.state}
+                  onChange={handleChange}
+                  placeholder="e.g. Maharashtra"
+                  required
+                />
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Pincode"
+                name="address.pincode"
+                value={formData.address?.pincode}
+                onChange={handleChange}
+                placeholder="e.g. 400001"
+              />
+              <Input
+                label="Country"
+                name="address.country"
+                value={formData.address?.country}
+                onChange={handleChange}
+                placeholder="India"
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* Footer Actions */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => navigate(`/entities/${id}`)}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            isLoading={isSubmitting}
+            leftIcon={<Save size={16} />}
+          >
+            Update Entity
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default EntityEditPage;
