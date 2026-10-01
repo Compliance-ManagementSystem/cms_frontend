@@ -6,6 +6,7 @@
  */
 
 import { io, Socket } from 'socket.io-client';
+import env from '@/config/env';
 
 type EventCallback = (data: any) => void;
 
@@ -21,9 +22,7 @@ class SocketService {
       return this.socket;
     }
 
-    const socketUrl = import.meta.env.VITE_API_URL
-      ? new URL(import.meta.env.VITE_API_URL).origin
-      : 'http://localhost:5003';
+    const socketUrl = env.SOCKET_URL;
 
     this.socket = io(socketUrl, {
       auth: { token },

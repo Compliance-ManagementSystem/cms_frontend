@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppRoutes from '@/routes/AppRoutes';
+import env from '@/config/env';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,7 +32,7 @@ const App: React.FC = () => {
             </ToastProvider>
           </AuthProvider>
         </BrowserRouter>
-        <ReactQueryDevtools initialIsOpen={false} />
+        {env.IS_DEV && <ReactQueryDevtools initialIsOpen={false} />}
       </ThemeProvider>
     </QueryClientProvider>
   );

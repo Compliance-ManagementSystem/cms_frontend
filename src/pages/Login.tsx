@@ -39,6 +39,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { ROUTES } from '../constants/routes';
+import env from '@/config/env';
 
 const loginSchema = z.object({
   email: z
@@ -244,7 +245,7 @@ export const Login: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
-  const isDev = import.meta.env.DEV;
+  const isDev = env.IS_DEV;
   const from = (location.state as any)?.from?.pathname || ROUTES.DASHBOARD;
 
   // Ensure body background is light for the enterprise compliance login page
