@@ -18,6 +18,16 @@ export interface EntityAddress {
   country: string;
 }
 
+/** Compliance health across an entity's records, same definition as the dashboard */
+export interface EntityHealth {
+  total: number;
+  compliant: number;
+  expiringSoon: number;
+  pending: number;
+  expired: number;
+  percentage: number;
+}
+
 export interface EntityItem {
   _id: string;
   name: string;
@@ -59,21 +69,15 @@ export interface EntityItem {
   status: 'active' | 'inactive' | 'archived';
   locationCount?: number;
   complianceCount?: number;
+  /** Present on list rows */
+  health?: EntityHealth;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface EntityDetailData {
   entity: EntityItem;
-  /** Compliance health across the entity's records, same definition as the dashboard */
-  health: {
-    total: number;
-    compliant: number;
-    expiringSoon: number;
-    pending: number;
-    expired: number;
-    percentage: number;
-  };
+  health: EntityHealth;
   locations: Array<{
     _id: string;
     name: string;
@@ -144,6 +148,8 @@ export interface EntityQueryParams {
   state?: string;
   district?: string;
   city?: string;
+  /** 'true' keeps only entities with expired compliance records */
+  attention?: 'true' | 'false';
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
@@ -181,6 +187,8 @@ export const entityService = {
         pagination: {
           total: number;
           activeCount?: number;
+          inactiveCount?: number;
+          attentionCount?: number;
           totalLocations?: number;
           page: number;
           limit: number;

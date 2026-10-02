@@ -86,7 +86,15 @@ export const EntityDetailPage: React.FC = () => {
     );
   }
 
-  const { entity, locations, complianceStats, complianceRecords, documents, tasks, auditLogs } = data;
+  const { entity, health, locations, complianceStats, complianceRecords, documents, tasks, auditLogs } = data;
+
+  // Full class names so Tailwind can see them
+  const scoreStyle =
+    health.percentage >= 80
+      ? { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
+      : health.percentage >= 60
+      ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+      : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'overview', label: 'Overview', icon: <Building2 size={16} /> },
@@ -164,15 +172,17 @@ export const EntityDetailPage: React.FC = () => {
               </div>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                <div className="flex items-center gap-1 font-mono">
-                  <span className="text-slate-400 dark:text-slate-500">CODE:</span>
-                  <span className="text-indigo-600 dark:text-indigo-300 font-semibold">{entity.entityCode || entity.code}</span>
-                </div>
-                {entity.cin && (
-                  <div className="flex items-center gap-1 font-mono">
-                    <span className="text-slate-400 dark:text-slate-500">CIN:</span>
-                    <span className="text-slate-700 dark:text-slate-300">{entity.cin}</span>
-                  </div>
+                <span className="font-mono text-indigo-600 dark:text-indigo-300 font-semibold" title="Entity code">
+                  {entity.entityCode || entity.code}
+                </span>
+                {entity.industry && <span className="text-slate-700 dark:text-slate-300">{entity.industry.label}</span>}
+                {entity.parentEntity && (
+                  <span
+                    className="text-indigo-600 dark:text-indigo-300 hover:underline cursor-pointer font-medium"
+                    onClick={() => navigate(`/entities/${entity.parentEntity?._id}`)}
+                  >
+                    Part of {entity.parentEntity.name}
+                  </span>
                 )}
                 {entity.address?.city && (
                   <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
@@ -186,34 +196,42 @@ export const EntityDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Metrics */}
-          <div className="flex items-center gap-3 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 pt-4 md:pt-0 md:pl-6">
-            <div className="text-center px-3">
-              <span className="block text-2xl font-bold text-indigo-600 dark:text-indigo-400">{locations.length}</span>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Locations</span>
-            </div>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-            <div className="text-center px-3">
-              <span className="block text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                {complianceStats?.approved || 0}
-              </span>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Compliant</span>
-            </div>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-            <div className="text-center px-3">
-              <span className="block text-2xl font-bold text-amber-600 dark:text-amber-400">
-                {complianceStats?.pending || 0}
-              </span>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Pending</span>
-            </div>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-            <div className="text-center px-3">
-              <span className="block text-2xl font-bold text-slate-700 dark:text-slate-300">
-                {documents.length}
-              </span>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Documents</span>
-            </div>
-          </div>
+          {/* Compliance health — same definition as the dashboard */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('compliance')}
+            className="text-left border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 pt-4 md:pt-0 md:pl-6 min-w-[220px] rounded-r-lg hover:opacity-90"
+            title="View compliance records"
+          >
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Compliance
+            </span>
+            {health.total === 0 ? (
+              <span className="block text-sm text-slate-500 dark:text-slate-400 mt-1">No compliance records yet</span>
+            ) : (
+              <>
+                <span className="flex items-baseline gap-2 mt-0.5">
+                  <span className={`text-3xl font-bold ${scoreStyle.text}`}>{health.percentage}%</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {health.compliant + health.expiringSoon} of {health.total} valid
+                  </span>
+                </span>
+                <span className="block w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                  <span className={`block h-full rounded-full ${scoreStyle.bar}`} style={{ width: `${health.percentage}%` }} />
+                </span>
+                <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1.5">
+                  {[
+                    [health.expiringSoon, 'expiring soon'],
+                    [health.pending, 'pending'],
+                    [health.expired, 'expired'],
+                  ]
+                    .filter(([count]) => (count as number) > 0)
+                    .map(([count, label]) => `${count} ${label}`)
+                    .join(' · ') || 'All records valid'}
+                </span>
+              </>
+            )}
+          </button>
         </div>
       </Card>
 
@@ -417,7 +435,7 @@ export const EntityDetailPage: React.FC = () => {
                   Compliance Health Overview
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Summary status across all statutory rules and obligations mapped to this entity.
+                  Where this entity's compliance records stand today.
                 </p>
               </div>
               <Button
@@ -432,24 +450,24 @@ export const EntityDetailPage: React.FC = () => {
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center">
-                <span className="text-xs text-slate-500 dark:text-slate-400 block">Total Obligations</span>
-                <span className="text-xl font-bold text-slate-900 dark:text-slate-100">{complianceStats?.total || 0}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 block">Total Records</span>
+                <span className="text-xl font-bold text-slate-900 dark:text-slate-100">{health.total}</span>
               </div>
               <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-center">
-                <span className="text-xs text-emerald-700 dark:text-emerald-400 block font-medium">Compliant</span>
-                <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{complianceStats?.approved || 0}</span>
+                <span className="text-xs text-emerald-700 dark:text-emerald-400 block font-medium">Valid</span>
+                <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{health.compliant}</span>
               </div>
               <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-center">
-                <span className="text-xs text-amber-700 dark:text-amber-400 block font-medium">Pending Review</span>
-                <span className="text-xl font-bold text-amber-700 dark:text-amber-400">{complianceStats?.pending || 0}</span>
+                <span className="text-xs text-amber-700 dark:text-amber-400 block font-medium">Expiring Soon</span>
+                <span className="text-xl font-bold text-amber-700 dark:text-amber-400">{health.expiringSoon}</span>
               </div>
-              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40 text-center">
-                <span className="text-xs text-red-700 dark:text-red-400 block font-medium">Expired / Overdue</span>
-                <span className="text-xl font-bold text-red-700 dark:text-red-400">{complianceStats?.expired || 0}</span>
+              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40 text-center">
+                <span className="text-xs text-blue-700 dark:text-blue-400 block font-medium">Pending</span>
+                <span className="text-xl font-bold text-blue-700 dark:text-blue-400">{health.pending}</span>
               </div>
               <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40 text-center">
-                <span className="text-xs text-rose-700 dark:text-rose-400 block font-medium">Rejected</span>
-                <span className="text-xl font-bold text-rose-700 dark:text-rose-400">{complianceStats?.rejected || 0}</span>
+                <span className="text-xs text-rose-700 dark:text-rose-400 block font-medium">Expired</span>
+                <span className="text-xl font-bold text-rose-700 dark:text-rose-400">{health.expired}</span>
               </div>
             </div>
           </Card>

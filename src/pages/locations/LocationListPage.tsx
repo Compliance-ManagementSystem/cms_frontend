@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   MapPin,
   Plus,
@@ -56,6 +56,7 @@ const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""'
 export const LocationListPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
   const { can } = useAuth();
   const canCreate = can('location', 'create');
   const canUpdate = can('location', 'update');
@@ -72,7 +73,8 @@ export const LocationListPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCard, setActiveCard] = useState<CardKey | ''>('');
-  const [selectedEntity, setSelectedEntity] = useState('');
+  // ?entity= lets other pages link to one entity's locations
+  const [selectedEntity, setSelectedEntity] = useState(searchParams.get('entity') || '');
   const [selectedType, setSelectedType] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedState, setSelectedState] = useState('');
