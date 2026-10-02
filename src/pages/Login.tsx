@@ -111,7 +111,7 @@ const DEMO_ACCOUNTS = [
 
 // Architectural City Vector Illustration matching the reference design
 const CorporateIllustration: React.FC = () => (
-  <div className="w-full max-w-xl mt-6 lg:mt-auto relative select-none pointer-events-none" aria-hidden="true">
+  <div className="w-full max-w-sm relative select-none pointer-events-none" aria-hidden="true">
     <svg viewBox="0 0 540 210" className="w-full h-auto drop-shadow-sm" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="skyWash" x1="270" y1="0" x2="270" y2="210" gradientUnits="userSpaceOnUse">
@@ -292,7 +292,7 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#F0F6FC] text-slate-800 flex items-center justify-center p-4 sm:p-6 lg:p-12 relative overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen w-full bg-[#F0F6FC] text-slate-800 flex items-start lg:items-center justify-center p-4 sm:p-6 lg:px-12 lg:py-6 relative overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
       {/* Decorative Dotted Grid pattern in top-right */}
       <div className="absolute top-8 right-8 pointer-events-none opacity-40 hidden sm:block" aria-hidden="true">
         <div className="grid grid-cols-6 gap-3">
@@ -303,13 +303,14 @@ export const Login: React.FC = () => {
       </div>
 
       {/* Main 2-Column Responsive Layout */}
-      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 xl:gap-16 items-center z-10">
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-12 xl:gap-16 items-center z-10">
         
         {/* ── Left Column: Branding, Value Prop & Graphic ──────────────── */}
-        <div className="min-w-0 w-full flex flex-col justify-between h-full pt-2 lg:pt-4">
+        {/* Wide screens only: the sign-in card carries its own logo and name */}
+        <div className="hidden lg:flex min-w-0 w-full flex-col justify-center gap-6">
           <div>
             {/* Top Logo */}
-            <div className="flex items-center gap-3.5 mb-6 sm:mb-8">
+            <div className="flex items-center gap-3.5 mb-6">
               <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
                 <ShieldCheck className="w-7 h-7" strokeWidth={2.4} />
               </div>
@@ -324,21 +325,21 @@ export const Login: React.FC = () => {
             </div>
 
             {/* Hero Headline */}
-            <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-slate-900 tracking-tight leading-[1.18] mb-4">
+            <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight leading-[1.15] mb-3">
               Comprehensive Compliance Management{' '}
               <span className="text-blue-600 block mt-1">for a Safer Tomorrow</span>
             </h1>
 
             {/* Description */}
-            <p className="text-slate-600 text-base sm:text-lg leading-relaxed mb-8 max-w-xl">
+            <p className="text-slate-600 text-base leading-relaxed mb-6 max-w-xl">
               Manage regulatory compliance, track renewals, receive alerts and maintain audit trails &mdash; all in one secure platform.
             </p>
 
             {/* Feature Highlights List */}
-            <div className="space-y-4 max-w-lg mb-6">
+            <div className="space-y-3 max-w-lg">
               {/* Feature 1 */}
               <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-2xl bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
+                <div className="w-10 h-10 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
@@ -349,7 +350,7 @@ export const Login: React.FC = () => {
 
               {/* Feature 2 */}
               <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div>
@@ -360,7 +361,7 @@ export const Login: React.FC = () => {
 
               {/* Feature 3 */}
               <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-600/20">
+                <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-600/20">
                   <Bell className="w-5 h-5" />
                 </div>
                 <div>
@@ -371,7 +372,7 @@ export const Login: React.FC = () => {
 
               {/* Feature 4 */}
               <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
                   <BarChart3 className="w-5 h-5" />
                 </div>
                 <div>
@@ -382,7 +383,7 @@ export const Login: React.FC = () => {
 
               {/* Feature 5 */}
               <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-2xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-500/20">
+                <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-500/20">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
@@ -394,35 +395,35 @@ export const Login: React.FC = () => {
           </div>
 
           {/* Bottom Vector Architectural Illustration */}
-          <div className="hidden lg:block mt-6">
+          <div>
             <CorporateIllustration />
           </div>
         </div>
 
         {/* ── Right Column: The Login Card ─────────────────────────────── */}
         <div className="min-w-0 w-full flex justify-center lg:justify-end">
-          <div className="w-full max-w-[490px] bg-white rounded-[28px] shadow-2xl shadow-blue-900/10 border border-slate-100 p-8 sm:p-10 transition-all">
+          <div className="w-full max-w-[490px] bg-white rounded-[28px] shadow-2xl shadow-blue-900/10 border border-slate-100 p-6 sm:p-8 transition-all">
             
             {/* Card Header Branding */}
-            <div className="text-center mb-7">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/25 mb-4">
-                <ShieldCheck className="w-9 h-9" strokeWidth={2.4} />
+            <div className="text-center mb-5">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/25 mb-3">
+                <ShieldCheck className="w-7 h-7" strokeWidth={2.4} />
               </div>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900">
                 Compliance Management System
               </h2>
-              <p className="text-sm text-slate-500 mt-1.5 font-normal">
+              <p className="text-sm text-slate-500 mt-1 font-normal">
                 Secure access to your enterprise compliance dashboard
               </p>
             </div>
 
             {/* Login Form */}
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5" noValidate>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               {/* Email Address */}
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-sm font-semibold text-slate-800 mb-2"
+                  className="block text-sm font-semibold text-slate-800 mb-1.5"
                 >
                   Email Address
                 </label>
@@ -458,7 +459,7 @@ export const Login: React.FC = () => {
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-sm font-semibold text-slate-800 mb-2"
+                  className="block text-sm font-semibold text-slate-800 mb-1.5"
                 >
                   Password
                 </label>
@@ -520,7 +521,7 @@ export const Login: React.FC = () => {
               </div>
 
               {/* Submit Button */}
-              <div className="pt-1 sm:pt-2">
+              <div className="pt-1">
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -542,7 +543,7 @@ export const Login: React.FC = () => {
             </form>
 
             {/* OR Divider */}
-            <div className="relative my-6">
+            <div className="relative my-4">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-200" />
               </div>
@@ -555,7 +556,7 @@ export const Login: React.FC = () => {
 
             {/* Demo accounts quick login */}
             {showDemoLogin && (
-              <div className="bg-[#F0F5FA] rounded-2xl p-4 sm:p-4.5 border border-blue-100/70">
+              <div className="bg-[#F0F5FA] rounded-2xl p-3.5 border border-blue-100/70">
                 <div className="flex items-center gap-2.5 mb-3">
                   <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                     <FlaskConical className="w-4 h-4" />
@@ -579,19 +580,20 @@ export const Login: React.FC = () => {
                         key={account.email}
                         type="button"
                         onClick={() => handleSelectDemo(account.email)}
+                        title={account.desc}
                         className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${
                           account.bgClass
                         } ${
                           isSelected ? 'ring-2 ring-blue-600 shadow-sm' : ''
                         }`}
                       >
-                        <div className="flex items-center gap-1.5 mb-1 w-full">
+                        <div className="flex items-center gap-1.5 mb-1 sm:mb-0 w-full">
                           <Icon className={`w-3.5 h-3.5 shrink-0 ${account.iconColor}`} />
-                          <span className={`text-xs font-bold truncate ${account.titleColor}`}>
+                          <span className={`text-xs font-bold leading-tight ${account.titleColor}`}>
                             {account.role}
                           </span>
                         </div>
-                        <span className="text-[11px] text-slate-500 leading-tight truncate w-full">
+                        <span className="text-[11px] text-slate-500 leading-tight w-full sm:hidden">
                           {account.desc}
                         </span>
                       </button>
@@ -602,7 +604,7 @@ export const Login: React.FC = () => {
             )}
 
             {/* Card Footer / Compliance reassurance */}
-            <div className="mt-6 text-center text-xs text-slate-400 space-y-1">
+            <div className="mt-4 text-center text-xs text-slate-400 space-y-1">
               <p className="font-semibold text-slate-500">
                 Compliance Management System &copy; 2026
               </p>
