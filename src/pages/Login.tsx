@@ -245,7 +245,7 @@ export const Login: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
-  const isDev = env.IS_DEV;
+  const showDemoLogin = env.SHOW_DEMO_LOGIN;
   const from = (location.state as any)?.from?.pathname || ROUTES.DASHBOARD;
 
   // Ensure body background is light for the enterprise compliance login page
@@ -553,8 +553,8 @@ export const Login: React.FC = () => {
               </div>
             </div>
 
-            {/* Development Role Tester */}
-            {isDev && (
+            {/* Demo accounts quick login */}
+            {showDemoLogin && (
               <div className="bg-[#F0F5FA] rounded-2xl p-4 sm:p-4.5 border border-blue-100/70">
                 <div className="flex items-center gap-2.5 mb-3">
                   <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
@@ -562,10 +562,10 @@ export const Login: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 leading-tight">
-                      Development Role Tester
+                      Demo Accounts
                     </h3>
                     <p className="text-xs text-slate-500 leading-tight mt-0.5">
-                      Quick login for testing different user roles (Development only)
+                      Quick login to try the system as each user role
                     </p>
                   </div>
                 </div>

@@ -10,7 +10,9 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_STORAGE_KEY = 'cms_theme';
+// Holds a theme only once the user has picked one. The older 'cms_theme' key was written on
+// every visit, so it is ignored: it recorded the old default, not a choice.
+const THEME_STORAGE_KEY = 'cms_theme_choice';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
@@ -20,7 +22,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // LocalStorage access fallback
     }
-    return 'dark'; // Default enterprise dark theme
+    return 'light'; // Default theme
   });
 
   useEffect(() => {
@@ -32,20 +34,19 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.classList.remove('light');
       root.classList.add('dark');
     }
+  }, [theme]);
+
+  // Remember the theme only when the user chooses it
+  const setTheme = (newTheme: Theme) => {
+    setThemeState(newTheme);
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, theme);
+      localStorage.setItem(THEME_STORAGE_KEY, newTheme);
     } catch {
       // LocalStorage access fallback
     }
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-  };
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
