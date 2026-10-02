@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/useToast';
 import { complianceRuleService, CreateRulePayload } from '@/services/complianceRuleService';
 import type { MasterDataItem } from '@/services/adminService';
 import { lookupService } from '@/services/lookupService';
+import RuleCoveragePreview from './RuleCoveragePreview';
 import { ROUTES } from '@/constants/routes';
 
 export const ComplianceRuleCreatePage: React.FC = () => {
@@ -298,7 +299,8 @@ export const ComplianceRuleCreatePage: React.FC = () => {
 
       const result = await complianceRuleService.createRule(payload);
       toast.success(result.message || 'Compliance rule created successfully');
-      navigate(ROUTES.COMPLIANCE_RULES);
+      // Land on the coverage tab, where records for matching locations can be created
+      navigate(`/compliance/rules/${result.data.rule._id}?tab=coverage`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to create compliance rule');
     } finally {
@@ -606,6 +608,12 @@ export const ComplianceRuleCreatePage: React.FC = () => {
             </p>
           )}
         </div>
+
+        <RuleCoveragePreview
+          entityTypes={selectedEntityTypes}
+          locationTypes={selectedLocationTypes}
+          states={selectedStates}
+        />
       </Card>
 
       {/* Section 3: Frequency, Cycle & Mandatory Flags */}

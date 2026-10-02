@@ -104,7 +104,7 @@ export const ComplianceRecordListPage: React.FC = () => {
   const [expiringWithinDays, setExpiringWithinDays] = useState(
     Number(searchParams.get('expiringWithin')) || 0
   );
-  const [selectedRule, setSelectedRule] = useState('');
+  const [selectedRule, setSelectedRule] = useState(searchParams.get('rule') || '');
   const [dueDateFrom, setDueDateFrom] = useState('');
   const [dueDateTo, setDueDateTo] = useState('');
 

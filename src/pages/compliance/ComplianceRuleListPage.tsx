@@ -385,6 +385,21 @@ export const ComplianceRuleListPage: React.FC = () => {
                 {stateCount === 0 ? 'All States' : `${stateCount} State(s)`}
               </span>
             </div>
+            {(row.recordCount ?? 0) > 0 ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/compliance/records?rule=${row._id}`);
+                }}
+                className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                title="View the compliance records this rule drives"
+              >
+                {row.recordCount} record{row.recordCount === 1 ? '' : 's'}
+              </button>
+            ) : (
+              <div className="text-slate-400 dark:text-slate-500">No records yet</div>
+            )}
           </div>
         );
       },

@@ -68,6 +68,8 @@ export interface ComplianceRuleItem {
   approvalLevels: number;
   createdBy?: { _id: string; firstName: string; lastName: string; email: string };
   updatedBy?: { _id: string; firstName: string; lastName: string; email: string };
+  /** Compliance records driven by this rule; present on list rows */
+  recordCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,6 +81,28 @@ export interface RuleListStats {
   archivedCount?: number;
   mandatoryCount: number;
   uniqueCategoriesCount: number;
+}
+
+export interface RuleCoverageLocation {
+  _id: string;
+  name: string;
+  code: string;
+  entity: { _id: string; name: string; code: string };
+  locationType: { code: string; label: string } | null;
+  city?: string;
+  state?: string;
+  record: { _id: string; recordNumber: string; status: string; dueDate?: string; expiryDate?: string } | null;
+}
+
+export interface RuleCoverage {
+  locations: RuleCoverageLocation[];
+  summary: { totalLocations: number; applicable: number; withRecord: number; missing: number };
+}
+
+export interface RuleCoveragePreviewResult {
+  totalLocations: number;
+  applicable: number;
+  sample: Array<{ _id: string; name: string; entity: string }>;
 }
 
 export interface RuleEvaluationResult {
@@ -205,6 +229,35 @@ export const complianceRuleService = {
       data: { rule: ComplianceRuleItem };
       message: string;
     }>(`/compliance/rules/${id}/archive`);
+    return res.data;
+  },
+
+  /** Locations the rule applies to, and whether each already has a record */
+  getCoverage: async (id: string) => {
+    const res = await axiosInstance.get<{ success: boolean; data: RuleCoverage }>(`/compliance/rules/${id}/coverage`);
+    return res.data.data;
+  },
+
+  /** Coverage of criteria that have not been saved yet */
+  previewCoverage: async (payload: {
+    applicableEntityTypes: string[];
+    applicableLocationTypes: string[];
+    applicableStates: string[];
+  }) => {
+    const res = await axiosInstance.post<{ success: boolean; data: RuleCoveragePreviewResult }>(
+      '/compliance/rules/preview-coverage',
+      payload
+    );
+    return res.data.data;
+  },
+
+  /** Creates a pending record for every applicable location that has none */
+  generateRecords: async (id: string) => {
+    const res = await axiosInstance.post<{
+      success: boolean;
+      data: { createdCount: number };
+      message: string;
+    }>(`/compliance/rules/${id}/generate-records`);
     return res.data;
   },
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Scale,
   ArrowLeft,
@@ -30,7 +30,7 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
-import { complianceRuleService, ComplianceRuleItem, RuleEvaluationResult } from '@/services/complianceRuleService';
+import { complianceRuleService, ComplianceRuleItem, RuleCoverage, RuleEvaluationResult } from '@/services/complianceRuleService';
 import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
@@ -65,7 +65,15 @@ export const ComplianceRuleDetailPage: React.FC = () => {
 
   const [rule, setRule] = useState<ComplianceRuleItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'notifications' | 'simulator'>('overview');
+  const [searchParams] = useSearchParams();
+  const canCreateRecords = can('compliance_record', 'create');
+  const [activeTab, setActiveTab] = useState<'overview' | 'coverage' | 'documents' | 'notifications' | 'simulator'>(
+    searchParams.get('tab') === 'coverage' ? 'coverage' : 'overview'
+  );
+
+  // Coverage: locations the rule applies to
+  const [coverage, setCoverage] = useState<RuleCoverage | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Status toggle & Delete
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
@@ -97,9 +105,33 @@ export const ComplianceRuleDetailPage: React.FC = () => {
     }
   };
 
+  const fetchCoverage = async () => {
+    if (!id) return;
+    try {
+      setCoverage(await complianceRuleService.getCoverage(id));
+    } catch {
+      setCoverage(null);
+    }
+  };
+
   useEffect(() => {
     fetchRule();
+    fetchCoverage();
   }, [id]);
+
+  const handleGenerateRecords = async () => {
+    if (!rule) return;
+    setIsGenerating(true);
+    try {
+      const res = await complianceRuleService.generateRecords(rule._id);
+      toastRef.current.success(res.message || 'Records created');
+      await fetchCoverage();
+    } catch (err: any) {
+      toastRef.current.error(err.message || 'Failed to create records');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   // Load simulator entities & locations
   useEffect(() => {
@@ -336,6 +368,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       <div className="border-b border-slate-200 dark:border-slate-800 flex gap-0 overflow-x-auto">
         {[
           { key: 'overview', label: 'Overview & Scope Matrix', icon: <Scale size={15} /> },
+          { key: 'coverage', label: `Coverage (${coverage?.summary.applicable ?? 0})`, icon: <MapPin size={15} /> },
           { key: 'documents', label: `Required Documents (${rule.requiredDocuments?.length || 0})`, icon: <FileText size={15} /> },
           { key: 'notifications', label: 'Notifications & Escalation', icon: <Bell size={15} /> },
           { key: 'simulator', label: 'Applicability Simulator', icon: <Play size={15} className="text-emerald-500" /> },
@@ -714,6 +747,101 @@ export const ComplianceRuleDetailPage: React.FC = () => {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* Coverage: applicable locations and their records */}
+      {activeTab === 'coverage' && (
+        <Card className="p-6 space-y-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Where this rule applies</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                {!coverage
+                  ? 'Coverage could not be loaded.'
+                  : coverage.summary.applicable === 0
+                  ? `None of the ${coverage.summary.totalLocations} active locations match this rule's criteria.`
+                  : `${coverage.summary.applicable} of ${coverage.summary.totalLocations} active locations match. ${
+                      coverage.summary.missing === 0
+                        ? 'Each one has a compliance record.'
+                        : `${coverage.summary.missing} ${coverage.summary.missing === 1 ? 'has' : 'have'} no compliance record yet.`
+                    }`}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {coverage && coverage.summary.withRecord > 0 && (
+                <Button variant="outline" onClick={() => navigate(`/compliance/records?rule=${rule._id}`)}>
+                  View Records
+                </Button>
+              )}
+              {canCreateRecords && coverage && coverage.summary.missing > 0 && isActive && (
+                <Button variant="primary" onClick={handleGenerateRecords} isLoading={isGenerating}>
+                  Create {coverage.summary.missing} Missing Record{coverage.summary.missing === 1 ? '' : 's'}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {coverage && coverage.summary.missing > 0 && !isActive && (
+            <p className="text-sm text-slate-700 dark:text-slate-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-600/40 rounded-lg px-4 py-3">
+              This rule is {rule.status}. Activate it to create records for the locations that have none.
+            </p>
+          )}
+
+          {coverage && coverage.locations.length > 0 && (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left">Location</th>
+                    <th className="px-4 py-3 text-left">Entity</th>
+                    <th className="px-4 py-3 text-left">Type</th>
+                    <th className="px-4 py-3 text-left">City & State</th>
+                    <th className="px-4 py-3 text-left">Compliance Record</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {coverage.locations.map((location) => (
+                    <tr key={location._id}>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/locations/${location._id}`)}
+                          className="font-medium text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-left"
+                        >
+                          {location.name}
+                        </button>
+                        <div className="text-xs font-mono text-slate-500 dark:text-slate-400">{location.code}</div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{location.entity.name}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{location.locationType?.label || '—'}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                        {[location.city, location.state].filter(Boolean).join(', ') || '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {location.record ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/compliance/records/${location.record?._id}`)}
+                            className="inline-flex items-center gap-2 hover:underline"
+                          >
+                            <span className="font-mono text-xs text-indigo-600 dark:text-indigo-300">
+                              {location.record.recordNumber}
+                            </span>
+                            <Badge variant="default" size="sm">
+                              {location.record.status.replace(/_/g, ' ')}
+                            </Badge>
+                          </button>
+                        ) : (
+                          <Badge variant="warning" size="sm">No record</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
       )}
 
       {/* Tab 4: Interactive Rule Applicability Simulator */}

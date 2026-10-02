@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/useToast';
 import { complianceRuleService, UpdateRulePayload } from '@/services/complianceRuleService';
 import type { MasterDataItem } from '@/services/adminService';
 import { lookupService } from '@/services/lookupService';
+import RuleCoveragePreview from './RuleCoveragePreview';
 import { ROUTES } from '@/constants/routes';
 
 export const ComplianceRuleEditPage: React.FC = () => {
@@ -290,7 +291,8 @@ export const ComplianceRuleEditPage: React.FC = () => {
 
       const result = await complianceRuleService.updateRule(id, payload);
       toast.success(result.message || 'Compliance rule updated successfully');
-      navigate(`/compliance/rules/${id}`);
+      // Land on the coverage tab, in case the change brought new locations into scope
+      navigate(`/compliance/rules/${id}?tab=coverage`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to update compliance rule');
     } finally {
@@ -595,6 +597,12 @@ export const ComplianceRuleEditPage: React.FC = () => {
             </p>
           )}
         </div>
+
+        <RuleCoveragePreview
+          entityTypes={selectedEntityTypes}
+          locationTypes={selectedLocationTypes}
+          states={selectedStates}
+        />
       </Card>
 
       {/* Section 3: Frequency, Cycle & Mandatory Flags */}
