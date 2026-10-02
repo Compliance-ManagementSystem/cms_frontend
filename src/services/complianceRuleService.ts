@@ -83,6 +83,16 @@ export interface RuleListStats {
   uniqueCategoriesCount: number;
 }
 
+export interface RuleAuditLog {
+  _id: string;
+  action: string;
+  description: string;
+  actorEmail?: string;
+  actorRole?: string;
+  timestamp?: string;
+  createdAt?: string;
+}
+
 export interface RuleCoverageLocation {
   _id: string;
   name: string;
@@ -157,7 +167,7 @@ export interface CreateRulePayload {
   active?: boolean;
   status?: 'active' | 'inactive' | 'archived';
   priority?: 'low' | 'medium' | 'high' | 'critical';
-  notificationRules?: NotificationRuleConfig;
+  notificationRules?: Partial<NotificationRuleConfig>;
   escalationRules?: EscalationRuleConfig;
   requiresApproval?: boolean;
   approvalLevels?: number;
@@ -230,6 +240,14 @@ export const complianceRuleService = {
       message: string;
     }>(`/compliance/rules/${id}/archive`);
     return res.data;
+  },
+
+  /** Recent changes made to the rule */
+  getHistory: async (id: string) => {
+    const res = await axiosInstance.get<{ success: boolean; data: { auditLogs: RuleAuditLog[] } }>(
+      `/compliance/rules/${id}/history`
+    );
+    return res.data.data.auditLogs;
   },
 
   /** Locations the rule applies to, and whether each already has a record */

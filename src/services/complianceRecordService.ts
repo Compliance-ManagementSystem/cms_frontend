@@ -78,6 +78,8 @@ export interface WorkflowApprovalsResponse {
   currentStatus: ComplianceRecordStatus;
   approvals: ApprovalRecordItem[];
   availableActions: WorkflowActionInfo[];
+  /** Approvals given since the latest submission, out of those the rule asks for */
+  approvalProgress?: { required: number; given: number; approvedByUser: boolean };
   documentRequirements?: DocumentRequirementItem[];
 }
 

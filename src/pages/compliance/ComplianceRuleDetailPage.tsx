@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  History,
   Scale,
   ArrowLeft,
   Edit2,
@@ -17,10 +18,6 @@ import {
   ToggleLeft,
   ToggleRight,
   Archive,
-  ShieldCheck,
-  Mail,
-  Smartphone,
-  MessageSquare,
   User,
   CalendarDays,
   Copy,
@@ -30,27 +27,11 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
-import { complianceRuleService, ComplianceRuleItem, RuleCoverage, RuleEvaluationResult } from '@/services/complianceRuleService';
+import { complianceRuleService, ComplianceRuleItem, RuleAuditLog, RuleCoverage, RuleEvaluationResult } from '@/services/complianceRuleService';
 import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
 import { useAuth } from '@/hooks/useAuth';
-
-const CHANNEL_META: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  email:  { label: 'Email',    icon: <Mail size={14} />,         color: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-700/40' },
-  in_app: { label: 'In-App',   icon: <Bell size={14} />,         color: 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700/40' },
-  sms:    { label: 'SMS',      icon: <Smartphone size={14} />,   color: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/40' },
-  whatsapp: { label: 'WhatsApp', icon: <MessageSquare size={14} />, color: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700/40' },
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  compliance_officer: 'Compliance Officer',
-  unit_manager:       'Unit Manager',
-  location_manager:   'Location Manager',
-  entity_admin:       'Entity Admin',
-  admin:              'System Admin',
-  super_admin:        'Super Administrator',
-};
 
 export const ComplianceRuleDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -67,13 +48,16 @@ export const ComplianceRuleDetailPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchParams] = useSearchParams();
   const canCreateRecords = can('compliance_record', 'create');
-  const [activeTab, setActiveTab] = useState<'overview' | 'coverage' | 'documents' | 'notifications' | 'simulator'>(
+  const [activeTab, setActiveTab] = useState<'overview' | 'coverage' | 'documents' | 'notifications' | 'history' | 'simulator'>(
     searchParams.get('tab') === 'coverage' ? 'coverage' : 'overview'
   );
 
   // Coverage: locations the rule applies to
   const [coverage, setCoverage] = useState<RuleCoverage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const [history, setHistory] = useState<RuleAuditLog[]>([]);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
 
   // Status toggle & Delete
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
@@ -114,9 +98,15 @@ export const ComplianceRuleDetailPage: React.FC = () => {
     }
   };
 
+  const fetchHistory = async () => {
+    if (!id) return;
+    setHistory(await complianceRuleService.getHistory(id).catch(() => []));
+  };
+
   useEffect(() => {
     fetchRule();
     fetchCoverage();
+    fetchHistory();
   }, [id]);
 
   const handleGenerateRecords = async () => {
@@ -163,6 +153,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       const res = await complianceRuleService.toggleRuleStatus(rule._id);
       toastRef.current.success(res.message || 'Rule status updated');
       setRule(res.data.rule);
+      fetchHistory();
     } catch (err: any) {
       toastRef.current.error(err.message || 'Failed to toggle rule status');
     } finally {
@@ -173,12 +164,13 @@ export const ComplianceRuleDetailPage: React.FC = () => {
   // Archive
   const handleArchive = async () => {
     if (!rule) return;
-    if (!window.confirm(`Archive rule "${rule.name}"? It will be hidden from active evaluation but not deleted.`)) return;
+    setIsArchiveModalOpen(false);
     setIsArchiving(true);
     try {
       const res = await complianceRuleService.archiveRule(rule._id);
       toastRef.current.success(res.message || 'Rule archived successfully');
       setRule(res.data.rule);
+      fetchHistory();
     } catch (err: any) {
       toastRef.current.error(err.message || 'Failed to archive rule');
     } finally {
@@ -194,6 +186,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       const res = await complianceRuleService.restoreRule(rule._id);
       toastRef.current.success(res.message || 'Rule restored');
       setRule(res.data.rule);
+      fetchHistory();
     } catch (err: any) {
       toastRef.current.error(err.message || 'Failed to restore rule');
     } finally {
@@ -261,6 +254,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
 
   const isActive = rule.status === 'active';
   const isArchived = rule.status === 'archived';
+  const reminderDays = [...(rule.notificationRules?.reminderDays || [])].sort((x, y) => y - x);
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '—';
@@ -279,29 +273,26 @@ export const ComplianceRuleDetailPage: React.FC = () => {
           >
             <ArrowLeft size={20} />
           </button>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 flex-shrink-0">
+            <Scale size={20} />
+          </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{rule.name}</h1>
-              {rule.mandatory ? (
-                <Badge variant="danger" size="sm">Mandatory</Badge>
-              ) : (
-                <Badge variant="default" size="sm">Optional</Badge>
+              <Badge variant={isActive ? 'success' : isArchived ? 'default' : 'warning'} size="sm" dot>
+                {rule.status.charAt(0).toUpperCase() + rule.status.slice(1)}
+              </Badge>
+              <Badge variant={rule.mandatory ? 'danger' : 'default'} size="sm">
+                {rule.mandatory ? 'Mandatory' : 'Recommended'}
+              </Badge>
+              {rule.approvalLevels > 1 && (
+                <Badge variant="warning" size="sm">{rule.approvalLevels} approvals required</Badge>
               )}
-              {rule.requiresApproval && (
-                <Badge variant="warning" size="sm">Requires Approval ({rule.approvalLevels} level{rule.approvalLevels !== 1 ? 's' : ''})</Badge>
-              )}
-              {isArchived && <Badge variant="default" size="sm">Archived</Badge>}
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
               <span className="font-mono text-indigo-600 dark:text-indigo-300 font-semibold">{rule.code}</span>
-              <span>•</span>
-              <span className="text-slate-600 dark:text-slate-300">Category: {rule.category?.label || rule.category?.code}</span>
-              {rule.legalReference && (
-                <>
-                  <span>•</span>
-                  <span className="text-slate-500 dark:text-slate-400">Ref: {rule.legalReference}</span>
-                </>
-              )}
+              {rule.category && <span>· {rule.category.label || rule.category.code}</span>}
+              {rule.legalReference && <span>· {rule.legalReference}</span>}
             </div>
           </div>
         </div>
@@ -321,7 +312,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
             <Button
               variant="outline"
               leftIcon={<Archive size={15} />}
-              onClick={handleArchive}
+              onClick={() => setIsArchiveModalOpen(true)}
               isLoading={isArchiving}
               className="text-slate-600 hover:text-amber-700 dark:text-slate-300 dark:hover:text-amber-400"
             >
@@ -367,20 +358,19 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       {/* Tabs Bar */}
       <div className="border-b border-slate-200 dark:border-slate-800 flex gap-0 overflow-x-auto">
         {[
-          { key: 'overview', label: 'Overview & Scope Matrix', icon: <Scale size={15} /> },
+          { key: 'overview', label: 'Overview', icon: <Scale size={15} /> },
           { key: 'coverage', label: `Coverage (${coverage?.summary.applicable ?? 0})`, icon: <MapPin size={15} /> },
-          { key: 'documents', label: `Required Documents (${rule.requiredDocuments?.length || 0})`, icon: <FileText size={15} /> },
-          { key: 'notifications', label: 'Notifications & Escalation', icon: <Bell size={15} /> },
-          { key: 'simulator', label: 'Applicability Simulator', icon: <Play size={15} className="text-emerald-500" /> },
+          { key: 'documents', label: `Documents (${rule.requiredDocuments?.length || 0})`, icon: <FileText size={15} /> },
+          { key: 'notifications', label: 'Reminders', icon: <Bell size={15} /> },
+          { key: 'history', label: 'History', icon: <History size={15} /> },
+          { key: 'simulator', label: 'Test Applicability', icon: <Play size={15} /> },
         ].map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key as any)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === tab.key
-                ? tab.key === 'simulator'
-                  ? 'border-emerald-600 dark:border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                  : 'border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                ? 'border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400'
                 : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
             }`}
           >
@@ -396,26 +386,32 @@ export const ComplianceRuleDetailPage: React.FC = () => {
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="p-4">
-              <div className="text-xs text-slate-500 dark:text-slate-400">Statutory Category</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">Category</div>
               <div className="text-base font-semibold text-slate-900 dark:text-white mt-1">
                 {rule.category?.label || rule.category?.code}
               </div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Master Data Code: {rule.category?.code}</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                {rule.mandatory ? 'Mandatory by law' : 'Recommended practice'}
+              </div>
             </Card>
 
             <Card className="p-4">
-              <div className="text-xs text-slate-500 dark:text-slate-400">Frequency & Cycle</div>
-              <div className="text-base font-semibold text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1.5">
-                <Clock size={16} />
-                {rule.frequency?.label || rule.frequency?.code}
+              <div className="text-xs text-slate-500 dark:text-slate-400">Schedule</div>
+              <div className="text-base font-semibold text-slate-900 dark:text-white mt-1 flex items-center gap-1.5">
+                <Clock size={16} className="text-slate-400" />
+                {rule.frequency?.label || rule.frequency?.code || 'Frequency missing'}
               </div>
               <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                {rule.renewalCycle === 0 ? 'One-Time Compliance' : `Renewal Cycle: ${rule.renewalCycle} days`}
+                {rule.renewalCycle === undefined || rule.renewalCycle === null
+                  ? 'Renewal cycle not set'
+                  : rule.renewalCycle === 0
+                  ? 'One-time; an approved record does not expire'
+                  : `An approved record expires after ${rule.renewalCycle} day${rule.renewalCycle === 1 ? '' : 's'}`}
               </div>
             </Card>
 
             <Card className="p-4">
-              <div className="text-xs text-slate-500 dark:text-slate-400">Priority Level</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">Priority</div>
               <div className="mt-1">
                 <Badge
                   variant={
@@ -425,45 +421,28 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                   }
                   size="md"
                 >
-                  {rule.priority.toUpperCase()}
+                  {rule.priority.charAt(0).toUpperCase() + rule.priority.slice(1)}
                 </Badge>
               </div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Enforcement Weight</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Tasks for this rule are at least this urgent</div>
             </Card>
 
             <Card className="p-4">
-              <div className="text-xs text-slate-500 dark:text-slate-400">Rule Engine Status</div>
-              <div className="mt-1 flex items-center gap-2">
-                {isActive ? (
-                  <Badge variant="success" size="md">ACTIVE & ENFORCED</Badge>
-                ) : isArchived ? (
-                  <Badge variant="default" size="md">ARCHIVED</Badge>
-                ) : (
-                  <Badge variant="default" size="md">INACTIVE / DRAFT</Badge>
-                )}
+              <div className="text-xs text-slate-500 dark:text-slate-400">Approvals</div>
+              <div className="text-base font-semibold text-slate-900 dark:text-white mt-1">
+                {rule.approvalLevels || 1} required
               </div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Evaluated by Engine: {isActive ? 'Yes' : 'No'}</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                {rule.approvalLevels > 1 ? 'Each from a different approver' : 'One approval signs off a record'}
+              </div>
             </Card>
           </div>
 
-          {/* Requires Approval Banner */}
-          {rule.requiresApproval && (
-            <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-xl text-amber-800 dark:text-amber-300">
-              <ShieldCheck size={20} className="flex-shrink-0" />
-              <div>
-                <div className="font-semibold text-sm">Approval Workflow Required</div>
-                <div className="text-xs mt-0.5">
-                  Compliance submissions under this rule require approval through <strong>{rule.approvalLevels} level{rule.approvalLevels !== 1 ? 's' : ''}</strong> of sign-off before being marked compliant.
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Statutory Description */}
           <Card className="p-6 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Statutory Description & Guidelines</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Description</h3>
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              {rule.description || 'No statutory description provided for this rule.'}
+              {rule.description || 'No description provided.'}
             </p>
             {rule.legalReference && (
               <div className="pt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -477,8 +456,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
             <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
               <Building2 size={18} className="text-emerald-600 dark:text-emerald-400" />
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Applicability Scope Matrix</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Target criteria configured for this statutory rule</p>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Where it applies</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">A location must match all three; see the Coverage tab for the list</p>
               </div>
             </div>
 
@@ -488,13 +467,13 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <Building2 size={14} className="text-indigo-600 dark:text-indigo-400" />
-                    Target Entity Types
+                    Entity types
                   </span>
                   <span className="text-xs text-slate-500">{rule.applicableEntityTypes?.length === 0 ? 'All' : rule.applicableEntityTypes?.length}</span>
                 </div>
                 {rule.applicableEntityTypes?.length === 0 ? (
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg text-xs text-emerald-700 dark:text-emerald-300">
-                    ✓ Pan-Entity (Applies to all legal entity structures)
+                    All entity types
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
@@ -510,13 +489,13 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <MapPin size={14} className="text-emerald-600 dark:text-emerald-400" />
-                    Target Location Types
+                    Location types
                   </span>
                   <span className="text-xs text-slate-500">{rule.applicableLocationTypes?.length === 0 ? 'All' : rule.applicableLocationTypes?.length}</span>
                 </div>
                 {rule.applicableLocationTypes?.length === 0 ? (
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg text-xs text-emerald-700 dark:text-emerald-300">
-                    ✓ Pan-Facility (Applies to all operating locations)
+                    All location types
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
@@ -532,13 +511,13 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <MapPin size={14} className="text-amber-600 dark:text-amber-400" />
-                    Target States / UTs
+                    States
                   </span>
-                  <span className="text-xs text-slate-500">{rule.applicableStates?.length === 0 ? 'Pan-India' : rule.applicableStates?.length}</span>
+                  <span className="text-xs text-slate-500">{rule.applicableStates?.length === 0 ? 'All' : rule.applicableStates?.length}</span>
                 </div>
                 {rule.applicableStates?.length === 0 ? (
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg text-xs text-emerald-700 dark:text-emerald-300">
-                    ✓ Pan-India (Enforced in all 28 states & 8 UTs)
+                    All states
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
@@ -640,113 +619,33 @@ export const ComplianceRuleDetailPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Tab 3: Notifications & Escalation — improved UI (UI-4) */}
+      {/* Reminders */}
       {activeTab === 'notifications' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Notification Rules */}
-          <Card className="p-6 space-y-5">
-            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-              <Bell size={18} className="text-indigo-600 dark:text-indigo-400" />
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Renewal Reminder Milestones</h3>
-            </div>
-
-            {/* Visual reminder timeline */}
-            <div>
-              <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">Alert Cadence Prior to Expiration</label>
-              <div className="mt-3 relative">
-                <div className="absolute left-0 right-0 top-4 h-0.5 bg-slate-200 dark:bg-slate-700" />
-                <div className="flex justify-between relative">
-                  {(rule.notificationRules?.reminderDays || [30, 15, 7]).sort((a, b) => b - a).map((day) => (
-                    <div key={day} className="flex flex-col items-center gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-indigo-500 border-2 border-white dark:border-slate-900 z-10" />
-                      <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 mt-1">{day}d</span>
-                    </div>
-                  ))}
-                  <div className="flex flex-col items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-rose-500 border-2 border-white dark:border-slate-900 z-10" />
-                    <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 mt-1">Due</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Notified Roles */}
-            <div>
-              <label className="text-xs text-slate-500 dark:text-slate-400 font-medium block mb-2">Notified Roles</label>
-              <div className="flex flex-wrap gap-2">
-                {(rule.notificationRules?.notifyRoles || []).map((r) => (
-                  <span
-                    key={r}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                  >
-                    <User size={12} />
-                    {ROLE_LABELS[r] || r.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Channels */}
-            <div>
-              <label className="text-xs text-slate-500 dark:text-slate-400 font-medium block mb-2">Enabled Channels</label>
-              <div className="flex flex-wrap gap-2">
-                {(rule.notificationRules?.channels || []).map((c) => {
-                  const meta = CHANNEL_META[c] || { label: c.toUpperCase(), icon: <Bell size={14} />, color: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
-                  return (
-                    <span
-                      key={c}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${meta.color}`}
-                    >
-                      {meta.icon}
-                      {meta.label}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          </Card>
-
-          {/* Escalation Policy */}
-          <Card className="p-6 space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-              <AlertTriangle size={18} className="text-rose-600 dark:text-rose-400" />
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Escalation Policy (Breaches)</h3>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700/60">
-                <span className="text-slate-600 dark:text-slate-300">Escalate After Overdue</span>
-                <span className="font-semibold text-rose-600 dark:text-rose-300">
-                  {rule.escalationRules?.escalateAfterDays ?? 7} Days
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700/60">
-                <span className="text-slate-600 dark:text-slate-300">Escalate To Authority</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-100">
-                  {ROLE_LABELS[rule.escalationRules?.escalateToRole || 'admin'] || rule.escalationRules?.escalateToRole}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700/60">
-                <span className="text-slate-600 dark:text-slate-300">Auto Task Creation</span>
-                <Badge
-                  variant={rule.escalationRules?.autoTaskCreation ? 'danger' : 'default'}
-                  size="sm"
+        <Card className="p-6 space-y-4">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Expiry reminders</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              When a record under this rule nears expiry, a renewal task and a notification go to the person
+              responsible for it: the record's assignee, else the location manager, else the entity owner.
+            </p>
+          </div>
+          {reminderDays.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {reminderDays.map((day) => (
+                <span
+                  key={day}
+                  className="px-3 py-1 rounded-lg text-sm font-medium border bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-700/40 text-indigo-700 dark:text-indigo-200"
                 >
-                  {rule.escalationRules?.autoTaskCreation ? 'ENABLED' : 'DISABLED'}
-                </Badge>
-              </div>
-
-              {rule.escalationRules?.escalationMessage && (
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700/60">
-                  <span className="text-slate-500 dark:text-slate-400 block mb-1">Custom Escalation Notice:</span>
-                  <span className="text-slate-700 dark:text-slate-200 italic">"{rule.escalationRules.escalationMessage}"</span>
-                </div>
-              )}
+                  {day} day{day === 1 ? '' : 's'} before
+                </span>
+              ))}
             </div>
-          </Card>
-        </div>
+          ) : (
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              No schedule set on this rule; the system default reminder days apply.
+            </p>
+          )}
+        </Card>
       )}
 
       {/* Coverage: applicable locations and their records */}
@@ -835,6 +734,45 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                           <Badge variant="warning" size="sm">No record</Badge>
                         )}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* History */}
+      {activeTab === 'history' && (
+        <Card className="p-6 space-y-4">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Change history</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">The most recent changes made to this rule.</p>
+          </div>
+          {history.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">No changes recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left">When</th>
+                    <th className="px-4 py-3 text-left">Who</th>
+                    <th className="px-4 py-3 text-left">What changed</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {history.map((log) => (
+                    <tr key={log._id}>
+                      <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {formatDate(log.timestamp || log.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        <div className="font-medium text-slate-900 dark:text-slate-200">{log.actorEmail || 'System'}</div>
+                        {log.actorRole && <div className="text-slate-500 dark:text-slate-400">{log.actorRole}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{log.description}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1058,6 +996,29 @@ export const ComplianceRuleDetailPage: React.FC = () => {
             </div>
           )}
         </div>
+      </Modal>
+
+      {/* Archive Confirmation */}
+      <Modal
+        isOpen={isArchiveModalOpen}
+        onClose={() => setIsArchiveModalOpen(false)}
+        title="Archive Rule"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsArchiveModalOpen(false)}>
+              Keep Rule
+            </Button>
+            <Button variant="primary" onClick={handleArchive}>
+              Archive Rule
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-700 dark:text-slate-300">
+          Archive <strong>{rule.name}</strong>? It stops creating new compliance records. Records it already drives
+          stay as they are, and you can restore the rule later.
+        </p>
       </Modal>
     </div>
   );

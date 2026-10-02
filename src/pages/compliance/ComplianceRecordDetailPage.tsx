@@ -429,6 +429,14 @@ export const ComplianceRecordDetailPage: React.FC = () => {
 
         {/* Dynamic Workflow Actions & Upload */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Rules can ask for several approvals; show how far this record is */}
+          {workflowData?.approvalProgress &&
+            workflowData.approvalProgress.required > 1 &&
+            ['submitted', 'resubmitted', 'under_review'].includes(workflowData.currentStatus) && (
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                {workflowData.approvalProgress.given} of {workflowData.approvalProgress.required} approvals given
+              </span>
+            )}
           {/* Action buttons generated dynamically based on role & status */}
           {workflowData?.availableActions && workflowData.availableActions.length > 0 ? (
             workflowData.availableActions.map((act) => {
@@ -443,7 +451,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     title={act.disabledReason}
                     onClick={() => handleOpenWorkflowModal(act)}
                   >
-                    Approve Compliance
+                    {act.label || 'Approve Compliance'}
                   </Button>
                 );
               }
