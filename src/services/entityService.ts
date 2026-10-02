@@ -50,6 +50,11 @@ export interface EntityItem {
     code: string;
     label: string;
   } | null;
+  parentEntity?: {
+    _id: string;
+    name: string;
+    code: string;
+  } | null;
   description?: string;
   status: 'active' | 'inactive' | 'archived';
   locationCount?: number;
@@ -143,6 +148,8 @@ export interface CreateEntityPayload {
   contactEmail: string;
   contactPhone: string;
   contactPerson?: string;
+  industry?: string | null;
+  parentEntity?: string | null;
   description?: string;
   status?: 'active' | 'inactive' | 'archived';
 }
@@ -157,7 +164,14 @@ export const entityService = {
       success: boolean;
       data: {
         entities: EntityItem[];
-        pagination: { total: number; page: number; limit: number; totalPages: number };
+        pagination: {
+          total: number;
+          activeCount?: number;
+          totalLocations?: number;
+          page: number;
+          limit: number;
+          totalPages: number;
+        };
       };
     }>('/entities', { params });
     return res.data.data;

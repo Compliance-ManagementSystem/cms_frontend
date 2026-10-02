@@ -21,7 +21,7 @@ interface TableProps<T> {
   data: T[];
   keyExtractor: (row: T) => string;
   isLoading?: boolean;
-  emptyMessage?: string;
+  emptyMessage?: React.ReactNode;
   pagination?: {
     page: number;
     limit: number;

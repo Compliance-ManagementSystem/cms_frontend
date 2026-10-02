@@ -64,8 +64,19 @@ export interface ComplianceRuleItem {
   priority: 'low' | 'medium' | 'high' | 'critical';
   notificationRules?: NotificationRuleConfig;
   escalationRules?: EscalationRuleConfig;
+  requiresApproval: boolean;
+  approvalLevels: number;
+  createdBy?: { _id: string; firstName: string; lastName: string; email: string };
+  updatedBy?: { _id: string; firstName: string; lastName: string; email: string };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RuleListStats {
+  total: number;
+  activeCount: number;
+  mandatoryCount: number;
+  uniqueCategoriesCount: number;
 }
 
 export interface RuleEvaluationResult {
@@ -122,6 +133,8 @@ export interface CreateRulePayload {
   priority?: 'low' | 'medium' | 'high' | 'critical';
   notificationRules?: NotificationRuleConfig;
   escalationRules?: EscalationRuleConfig;
+  requiresApproval?: boolean;
+  approvalLevels?: number;
 }
 
 export interface UpdateRulePayload extends Partial<CreateRulePayload> {}
@@ -135,6 +148,7 @@ export const complianceRuleService = {
       data: {
         rules: ComplianceRuleItem[];
         pagination: { total: number; page: number; limit: number; totalPages: number };
+        stats: RuleListStats;
       };
     }>('/compliance/rules', { params });
     return res.data.data;
@@ -183,15 +197,34 @@ export const complianceRuleService = {
     return res.data;
   },
 
+  archiveRule: async (id: string) => {
+    const res = await axiosInstance.patch<{
+      success: boolean;
+      data: { rule: ComplianceRuleItem };
+      message: string;
+    }>(`/compliance/rules/${id}/archive`);
+    return res.data;
+  },
+
   evaluateApplicability: async (payload: {
     ruleId?: string;
     entityId?: string;
     locationId?: string;
-  }) => {
+  }): Promise<RuleEvaluationResult> => {
     const res = await axiosInstance.post<{
       success: boolean;
       data: any;
     }>('/compliance/rules/evaluate', payload);
-    return res.data.data;
+
+    const data = res.data.data;
+
+    // When ruleId is provided the backend wraps result as { rule, target, evaluation }
+    // Extract the evaluation sub-object if present
+    if (data && typeof data === 'object' && 'evaluation' in data) {
+      return data.evaluation as RuleEvaluationResult;
+    }
+
+    // When called without ruleId (bulk evaluation), backend may return the result directly
+    return data as RuleEvaluationResult;
   },
 };

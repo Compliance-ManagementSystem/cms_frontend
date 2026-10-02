@@ -9,12 +9,23 @@ import type { EntityAddress } from './entityService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface LocationAgreement {
+  _id?: string;
+  agreementType: string;
+  agreementNumber: string;
+  startDate: string;
+  endDate: string;
+  renewalDate?: string;
+  parties?: string[];
+  notes?: string;
+}
+
 export interface LocationItem {
   _id: string;
   name: string;
   code: string;
   locationCode: string;
-  entity: {
+  entity?: {
     _id: string;
     name: string;
     code: string;
@@ -23,7 +34,7 @@ export interface LocationItem {
     contactEmail?: string;
     contactPhone?: string;
     address?: EntityAddress;
-  };
+  } | null;
   locationType: {
     _id: string;
     code: string;
@@ -55,6 +66,7 @@ export interface LocationItem {
     name: string;
     code: string;
   } | null;
+  agreements?: LocationAgreement[];
   status: 'active' | 'inactive' | 'archived';
   complianceCount?: number;
   createdAt: string;
@@ -90,6 +102,7 @@ export interface LocationDetailData {
     title: string;
     documentType?: { code: string; label: string };
     fileUrl?: string;
+    latestVersionUrl?: string;
     issueDate?: string;
     expiryDate?: string;
     status: string;
@@ -102,6 +115,8 @@ export interface LocationDetailData {
     issuingAuthority?: string;
     issueDate?: string;
     expiryDate?: string;
+    fileUrl?: string;
+    latestVersionUrl?: string;
     status: string;
     createdAt: string;
   }>;
@@ -158,7 +173,9 @@ export interface CreateLocationPayload {
   status?: 'active' | 'inactive' | 'archived';
 }
 
-export interface UpdateLocationPayload extends Partial<CreateLocationPayload> {}
+export interface UpdateLocationPayload extends Partial<CreateLocationPayload> {
+  agreements?: LocationAgreement[];
+}
 
 // ── Service Methods ───────────────────────────────────────────────────────────
 
@@ -168,7 +185,14 @@ export const locationService = {
       success: boolean;
       data: {
         locations: LocationItem[];
-        pagination: { total: number; page: number; limit: number; totalPages: number };
+        pagination: {
+          total: number;
+          activeCount?: number;
+          totalCompliance?: number;
+          page: number;
+          limit: number;
+          totalPages: number;
+        };
       };
     }>('/locations', { params });
     return res.data.data;

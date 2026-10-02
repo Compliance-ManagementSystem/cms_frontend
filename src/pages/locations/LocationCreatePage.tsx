@@ -13,7 +13,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
-import { locationService, CreateLocationPayload } from '@/services/locationService';
+import { locationService, CreateLocationPayload, LocationItem } from '@/services/locationService';
 import { entityService, EntityItem } from '@/services/entityService';
 import { adminService, MasterDataItem, UserItem } from '@/services/adminService';
 import { ROUTES } from '@/constants/routes';
@@ -32,6 +32,7 @@ export const LocationCreatePage: React.FC = () => {
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [availableLocations, setAvailableLocations] = useState<LocationItem[]>([]);
 
   // Form State
   const [formData, setFormData] = useState<CreateLocationPayload>({
@@ -41,6 +42,7 @@ export const LocationCreatePage: React.FC = () => {
     entity: preselectedEntityId || '',
     locationType: '',
     manager: null,
+    parentLocation: null,
     openingDate: '',
     description: '',
     area: null,
@@ -97,6 +99,18 @@ export const LocationCreatePage: React.FC = () => {
 
     loadPrerequisites();
   }, []);
+
+  // Fetch available parent locations whenever selected entity changes
+  useEffect(() => {
+    if (!formData.entity) {
+      setAvailableLocations([]);
+      return;
+    }
+    locationService
+      .getLocations({ entity: formData.entity, limit: 100 })
+      .then((res) => setAvailableLocations(res.locations || []))
+      .catch(() => setAvailableLocations([]));
+  }, [formData.entity]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -315,6 +329,28 @@ export const LocationCreatePage: React.FC = () => {
               </select>
               <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
                 Derived directly from Master Data settings.
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Parent Location / Campus (Optional)
+              </label>
+              <select
+                name="parentLocation"
+                value={formData.parentLocation || ''}
+                onChange={handleChange}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm dark:shadow-none"
+              >
+                <option value="">None (Top-Level Site)</option>
+                {availableLocations.map((loc) => (
+                  <option key={loc._id} value={loc._id}>
+                    {loc.name} ({loc.locationCode || loc.code})
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
+                Designate as a sub-unit, wing, or clinic under an existing parent site.
               </span>
             </div>
 

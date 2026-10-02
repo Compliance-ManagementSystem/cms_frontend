@@ -8,12 +8,15 @@ import {
   Phone,
   User,
   Briefcase,
+  Plus,
+  Trash2,
+  FileText,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
-import { locationService, UpdateLocationPayload } from '@/services/locationService';
+import { locationService, UpdateLocationPayload, LocationItem, LocationAgreement } from '@/services/locationService';
 import { entityService, EntityItem } from '@/services/entityService';
 import { adminService, MasterDataItem, UserItem } from '@/services/adminService';
 import { ROUTES } from '@/constants/routes';
@@ -31,6 +34,10 @@ export const LocationEditPage: React.FC = () => {
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [availableLocations, setAvailableLocations] = useState<LocationItem[]>([]);
+
+  // Agreements state — managed separately for inline add/remove
+  const [agreements, setAgreements] = useState<LocationAgreement[]>([]);
 
   // Form State
   const [formData, setFormData] = useState<UpdateLocationPayload>({
@@ -40,6 +47,7 @@ export const LocationEditPage: React.FC = () => {
     entity: '',
     locationType: '',
     manager: null,
+    parentLocation: null,
     openingDate: '',
     description: '',
     area: null,
@@ -93,6 +101,7 @@ export const LocationEditPage: React.FC = () => {
           entity: loc.entity?._id || '',
           locationType: loc.locationType?.code || (loc.locationType as any)?._id || '',
           manager: loc.manager?._id || null,
+          parentLocation: loc.parentLocation?._id || (loc.parentLocation as any) || null,
           openingDate: loc.openingDate ? loc.openingDate.split('T')[0] : '',
           description: loc.description || '',
           area: loc.area || null,
@@ -112,6 +121,20 @@ export const LocationEditPage: React.FC = () => {
             country: loc.address?.country || 'India',
           },
         });
+
+        // Populate existing agreements
+        setAgreements(
+          (loc.agreements || []).map((agr) => ({
+            _id: agr._id,
+            agreementType: agr.agreementType || '',
+            agreementNumber: agr.agreementNumber || '',
+            startDate: agr.startDate ? agr.startDate.split('T')[0] : '',
+            endDate: agr.endDate ? agr.endDate.split('T')[0] : '',
+            renewalDate: agr.renewalDate ? agr.renewalDate.split('T')[0] : '',
+            parties: agr.parties || [],
+            notes: agr.notes || '',
+          }))
+        );
       } catch (err: any) {
         toast.error(err.message || 'Failed to load location details for editing');
       } finally {
@@ -121,6 +144,18 @@ export const LocationEditPage: React.FC = () => {
 
     loadData();
   }, [id, toast]);
+
+  // Fetch available parent locations when entity changes
+  useEffect(() => {
+    if (!formData.entity) {
+      setAvailableLocations([]);
+      return;
+    }
+    locationService
+      .getLocations({ entity: formData.entity, limit: 100 })
+      .then((res) => setAvailableLocations((res.locations || []).filter((l) => l._id !== id)))
+      .catch(() => setAvailableLocations([]));
+  }, [formData.entity, id]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -141,6 +176,42 @@ export const LocationEditPage: React.FC = () => {
         [name]: value,
       }));
     }
+  };
+
+  // Agreement helpers
+  const addAgreement = () => {
+    setAgreements((prev) => [
+      ...prev,
+      {
+        agreementType: 'lease',
+        agreementNumber: '',
+        startDate: '',
+        endDate: '',
+        renewalDate: '',
+        parties: [],
+        notes: '',
+      },
+    ]);
+  };
+
+  const removeAgreement = (index: number) => {
+    setAgreements((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateAgreement = (
+    index: number,
+    field: keyof LocationAgreement,
+    value: string
+  ) => {
+    setAgreements((prev) =>
+      prev.map((agr, i) => {
+        if (i !== index) return agr;
+        if (field === 'parties') {
+          return { ...agr, parties: value.split(',').map((p) => p.trim()).filter(Boolean) };
+        }
+        return { ...agr, [field]: value };
+      })
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -186,6 +257,7 @@ export const LocationEditPage: React.FC = () => {
         contactPhone: formData.contactPhone?.trim() || undefined,
         operatingHours: formData.operatingHours?.trim() || undefined,
         area: formData.area ? Number(formData.area) : null,
+        agreements: agreements.filter((agr) => agr.agreementNumber.trim() && agr.startDate && agr.endDate),
       };
 
       const res = await locationService.updateLocation(id, payload);
@@ -339,6 +411,28 @@ export const LocationEditPage: React.FC = () => {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Parent Location / Campus (Optional)
+              </label>
+              <select
+                name="parentLocation"
+                value={formData.parentLocation || ''}
+                onChange={handleChange}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm dark:shadow-none"
+              >
+                <option value="">None (Top-Level Site)</option>
+                {availableLocations.map((loc) => (
+                  <option key={loc._id} value={loc._id}>
+                    {loc.name} ({loc.locationCode || loc.code})
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
+                Designate as a sub-unit, wing, or clinic under an existing parent site.
+              </span>
             </div>
 
             <div>
@@ -592,6 +686,160 @@ export const LocationEditPage: React.FC = () => {
                 placeholder="India"
               />
             </div>
+          </div>
+        </Card>
+
+        {/* Section 4: Property Leases & Site Agreements */}
+        <Card padding="lg">
+          <Card.Header
+            title="Property Leases & Site Agreements"
+            description="Track lease contracts, MOUs, license agreements and renewal milestones for this site"
+            icon={<FileText size={18} className="text-emerald-600 dark:text-emerald-400" />}
+          />
+
+          <div className="space-y-4 mt-2">
+            {agreements.length === 0 ? (
+              <div className="text-center py-8 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
+                <FileText size={28} className="mx-auto mb-2 text-slate-400 dark:text-slate-500" />
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">No agreements recorded yet</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Add a lease, MOU, or licence agreement for this site.</p>
+              </div>
+            ) : (
+              agreements.map((agr, index) => (
+                <div
+                  key={index}
+                  className="relative rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/40 p-4 space-y-4"
+                >
+                  {/* Agreement header row */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                      Agreement #{index + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeAgreement(index)}
+                      className="flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 font-medium transition-colors"
+                    >
+                      <Trash2 size={13} />
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {/* Agreement Type */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Agreement Type *
+                      </label>
+                      <select
+                        value={agr.agreementType}
+                        onChange={(e) => updateAgreement(index, 'agreementType', e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm dark:shadow-none"
+                      >
+                        <option value="lease">Lease</option>
+                        <option value="license">License</option>
+                        <option value="mou">MOU</option>
+                        <option value="service_agreement">Service Agreement</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+
+                    {/* Agreement Number */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Agreement Number *
+                      </label>
+                      <input
+                        type="text"
+                        value={agr.agreementNumber}
+                        onChange={(e) => updateAgreement(index, 'agreementNumber', e.target.value)}
+                        placeholder="e.g. LEASE-2024-001"
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm dark:shadow-none"
+                      />
+                    </div>
+
+                    {/* Parties Involved */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Parties Involved
+                      </label>
+                      <input
+                        type="text"
+                        value={(agr.parties || []).join(', ')}
+                        onChange={(e) => updateAgreement(index, 'parties', e.target.value)}
+                        placeholder="e.g. Lessor Name, Lessee Name"
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm dark:shadow-none"
+                      />
+                      <span className="text-[11px] text-slate-400 mt-0.5 block">Comma-separated names</span>
+                    </div>
+
+                    {/* Start Date */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Start Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={agr.startDate || ''}
+                        onChange={(e) => updateAgreement(index, 'startDate', e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm dark:shadow-none"
+                      />
+                    </div>
+
+                    {/* End Date */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        End Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={agr.endDate || ''}
+                        onChange={(e) => updateAgreement(index, 'endDate', e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm dark:shadow-none"
+                      />
+                    </div>
+
+                    {/* Renewal Date */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Renewal / Notice Date
+                      </label>
+                      <input
+                        type="date"
+                        value={agr.renewalDate || ''}
+                        onChange={(e) => updateAgreement(index, 'renewalDate', e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm dark:shadow-none"
+                      />
+                    </div>
+
+                    {/* Notes */}
+                    <div className="sm:col-span-2 md:col-span-3">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Notes / Key Terms
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={agr.notes || ''}
+                        onChange={(e) => updateAgreement(index, 'notes', e.target.value)}
+                        placeholder="Any important terms, escalation clauses, or renewal conditions..."
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm dark:shadow-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addAgreement}
+              leftIcon={<Plus size={15} />}
+              className="mt-1"
+            >
+              Add Agreement
+            </Button>
           </div>
         </Card>
 

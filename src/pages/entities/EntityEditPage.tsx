@@ -15,7 +15,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
-import { entityService, UpdateEntityPayload } from '@/services/entityService';
+import { entityService, UpdateEntityPayload, EntityItem } from '@/services/entityService';
 import { adminService, MasterDataItem, UserItem } from '@/services/adminService';
 import { ROUTES } from '@/constants/routes';
 
@@ -27,6 +27,8 @@ export const EntityEditPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [entityTypes, setEntityTypes] = useState<MasterDataItem[]>([]);
+  const [industries, setIndustries] = useState<MasterDataItem[]>([]);
+  const [parentEntities, setParentEntities] = useState<EntityItem[]>([]);
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -38,6 +40,8 @@ export const EntityEditPage: React.FC = () => {
     entityCode: '',
     entityType: '',
     owner: null,
+    industry: '',
+    parentEntity: '',
     registrationNumber: '',
     gstin: '',
     pan: '',
@@ -65,17 +69,21 @@ export const EntityEditPage: React.FC = () => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [entityRes, typesRes, statesRes, districtsRes, usersRes] =
+        const [entityRes, typesRes, statesRes, districtsRes, usersRes, industriesRes, entitiesRes] =
           await Promise.all([
             entityService.getEntityById(id),
             adminService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
             adminService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
             adminService.getMasterData({ category: 'district' }).catch(() => ({ items: [] })),
             adminService.getUsers({ limit: 100 }).catch(() => ({ users: [] })),
+            adminService.getMasterData({ category: 'industry' }).catch(() => ({ items: [] })),
+            entityService.getEntities({ limit: 100 }).catch(() => ({ entities: [] })),
           ]);
 
         const ent = entityRes.entity;
         setEntityTypes((typesRes.items || []).filter((t: MasterDataItem) => t.status === 'active'));
+        setIndustries((industriesRes.items || []).filter((i: MasterDataItem) => i.status === 'active'));
+        setParentEntities((entitiesRes.entities || []).filter((e: EntityItem) => e._id !== id));
         setStates((statesRes.items || []).filter((s: MasterDataItem) => s.status === 'active'));
         setDistricts((districtsRes.items || []).filter((d: MasterDataItem) => d.status === 'active'));
         setUsers(usersRes.users || []);
@@ -84,8 +92,10 @@ export const EntityEditPage: React.FC = () => {
           name: ent.name,
           code: ent.entityCode || ent.code,
           entityCode: ent.entityCode || ent.code,
-          entityType: ent.entityType?.code || (ent.entityType as any)?._id || '',
+          entityType: (ent.entityType as any)?._id || '',
           owner: ent.owner?._id || null,
+          industry: (ent.industry as any)?._id || (typeof ent.industry === 'string' ? ent.industry : '') || '',
+          parentEntity: (ent.parentEntity as any)?._id || (typeof ent.parentEntity === 'string' ? ent.parentEntity : '') || '',
           registrationNumber: ent.registrationNumber || '',
           gstin: ent.gstin || '',
           pan: ent.pan || '',
@@ -176,6 +186,8 @@ export const EntityEditPage: React.FC = () => {
         code: formData.code?.trim() || undefined,
         entityCode: formData.code?.trim() || undefined,
         owner: formData.owner || null,
+        industry: formData.industry || null,
+        parentEntity: formData.parentEntity || null,
         registrationNumber: formData.registrationNumber?.trim() || undefined,
         gstin: formData.gstin?.trim() || undefined,
         pan: formData.pan?.trim() || undefined,
@@ -311,7 +323,7 @@ export const EntityEditPage: React.FC = () => {
                 className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
               >
                 {entityTypes.map((type) => (
-                  <option key={type._id} value={type.code}>
+                  <option key={type._id} value={type._id}>
                     {type.label} ({type.code})
                   </option>
                 ))}
@@ -335,6 +347,44 @@ export const EntityEditPage: React.FC = () => {
                 {users.map((u) => (
                   <option key={u._id} value={u._id}>
                     {u.firstName} {u.lastName} ({u.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Industry Classification
+              </label>
+              <select
+                name="industry"
+                value={formData.industry || ''}
+                onChange={handleChange}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              >
+                <option value="">Select an Industry (Optional)</option>
+                {industries.map((ind) => (
+                  <option key={ind._id} value={ind._id}>
+                    {ind.label} ({ind.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Parent Entity (Corporate Hierarchy)
+              </label>
+              <select
+                name="parentEntity"
+                value={formData.parentEntity || ''}
+                onChange={handleChange}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              >
+                <option value="">None (Top-Level Independent Entity)</option>
+                {parentEntities.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name} ({p.entityCode || p.code})
                   </option>
                 ))}
               </select>

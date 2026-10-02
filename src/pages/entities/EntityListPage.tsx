@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2,
   Plus,
   Search,
   Filter,
-  Eye,
   Edit2,
   Trash2,
   MapPin,
@@ -13,6 +12,7 @@ import {
   AlertTriangle,
   Layers,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -45,6 +45,10 @@ export const EntityListPage: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [entityToDelete, setEntityToDelete] = useState<EntityItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeCount, setActiveCount] = useState(0);
+  const [totalLocationsCount, setTotalLocationsCount] = useState(0);
+  const [searchInput, setSearchInput] = useState('');
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch Entity Types from Master Data
   useEffect(() => {
@@ -72,6 +76,8 @@ export const EntityListPage: React.FC = () => {
         ...prev,
         total: data.pagination.total,
       }));
+      setActiveCount(data.pagination.activeCount ?? 0);
+      setTotalLocationsCount(data.pagination.totalLocations ?? 0);
     } catch (err: any) {
       toast.error(err.message || 'Failed to fetch entities');
     } finally {
@@ -83,10 +89,15 @@ export const EntityListPage: React.FC = () => {
     fetchEntities();
   }, [fetchEntities]);
 
-  // Handle Search Input (debounced / immediate on submit)
+  // Handle Search Input (debounced 300ms)
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value);
-    setPagination((prev) => ({ ...prev, page: 1 }));
+    const val = e.target.value;
+    setSearchInput(val);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setSearch(val);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 300);
   };
 
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -97,6 +108,54 @@ export const EntityListPage: React.FC = () => {
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedStatus(e.target.value);
     setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  // Export Entities to CSV
+  const handleExportCSV = () => {
+    if (entities.length === 0) {
+      toast.warning('No entities available to export');
+      return;
+    }
+    const headers = [
+      'Entity Name',
+      'Entity Code',
+      'Classification',
+      'Owner',
+      'Contact Person',
+      'Contact Email',
+      'Contact Phone',
+      'City',
+      'State',
+      'Status',
+      'Units / Locations',
+    ];
+    const rows = entities.map((ent) => [
+      `"${(ent.name || '').replace(/"/g, '""')}"`,
+      `"${ent.entityCode || ent.code || ''}"`,
+      `"${(ent.entityType?.label || ent.entityType?.code || '').replace(/"/g, '""')}"`,
+      `"${(ent.owner?.fullName || (ent.owner ? `${ent.owner.firstName} ${ent.owner.lastName}` : '') || '').replace(/"/g, '""')}"`,
+      `"${(ent.contactPerson || '').replace(/"/g, '""')}"`,
+      `"${ent.contactEmail || ''}"`,
+      `"${ent.contactPhone || ''}"`,
+      `"${(ent.address?.city || '').replace(/"/g, '""')}"`,
+      `"${(ent.address?.state || '').replace(/"/g, '""')}"`,
+      `"${ent.status || ''}"`,
+      ent.locationCount || 0,
+    ]);
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute(
+      'download',
+      `entities_export_${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Entities exported to CSV successfully');
   };
 
   // Open Delete Modal
@@ -123,10 +182,11 @@ export const EntityListPage: React.FC = () => {
     }
   };
 
-  // Metrics calculation
+  // Metrics
   const totalCount = pagination.total;
-  const activeCount = entities.filter((e) => e.status === 'active').length;
-  const totalLocations = entities.reduce((acc, curr) => acc + (curr.locationCount || 0), 0);
+  const totalLocations =
+    totalLocationsCount ||
+    entities.reduce((acc, curr) => acc + (curr.locationCount || 0), 0);
 
   // Table Columns
   const columns: Column<EntityItem>[] = [
@@ -217,7 +277,7 @@ export const EntityListPage: React.FC = () => {
             size="sm"
             dot
           >
-            {row.status.toUpperCase()}
+            {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
           </Badge>
         );
       },
@@ -228,15 +288,6 @@ export const EntityListPage: React.FC = () => {
       align: 'right',
       cell: (row) => (
         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/entities/${row._id}`)}
-            className="text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 p-1.5"
-            title="View Details"
-          >
-            <Eye size={15} />
-          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -279,6 +330,14 @@ export const EntityListPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="md"
+            onClick={handleExportCSV}
+            leftIcon={<Download size={15} />}
+          >
+            Export CSV
+          </Button>
           <Button
             variant="outline"
             size="md"
@@ -332,7 +391,7 @@ export const EntityListPage: React.FC = () => {
           <div className="flex-1 max-w-md">
             <Input
               placeholder="Search by entity name, code, contact or city..."
-              value={search}
+              value={searchInput}
               onChange={handleSearchChange}
               leftAddon={<Search size={16} className="text-slate-400" />}
             />
@@ -350,7 +409,7 @@ export const EntityListPage: React.FC = () => {
               >
                 <option value="">All Entity Types</option>
                 {entityTypes.map((type) => (
-                  <option key={type._id} value={type.code}>
+                  <option key={type._id} value={type._id}>
                     {type.label} ({type.code})
                   </option>
                 ))}

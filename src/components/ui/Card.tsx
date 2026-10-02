@@ -62,8 +62,8 @@ const CardStat: React.FC<CardStatProps> = ({ label, value, change, icon, iconBg 
         {icon}
       </div>
     )}
-    <div className="min-w-0">
-      <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{label}</p>
+    <div className="min-w-0 flex-1">
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-snug">{label}</p>
       <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{value}</p>
       {change && (
         <p

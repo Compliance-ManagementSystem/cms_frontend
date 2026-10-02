@@ -74,6 +74,10 @@ export const ComplianceRuleEditPage: React.FC = () => {
   const [autoTaskCreation, setAutoTaskCreation] = useState<boolean>(true);
   const [escalationMessage, setEscalationMessage] = useState<string>('');
 
+  // Approval Workflow (Feature A)
+  const [requiresApproval, setRequiresApproval] = useState<boolean>(false);
+  const [approvalLevels, setApprovalLevels] = useState<number>(1);
+
   // Load Prerequisites & Rule Data
   useEffect(() => {
     if (!id) return;
@@ -151,6 +155,10 @@ export const ComplianceRuleEditPage: React.FC = () => {
             setEscalationMessage(ruleData.escalationRules.escalationMessage);
           }
         }
+
+        // Approval workflow (Feature A)
+        setRequiresApproval(ruleData.requiresApproval ?? false);
+        setApprovalLevels(ruleData.approvalLevels ?? 1);
       } catch (err: any) {
         toast.error('Failed to load compliance rule for editing');
         navigate(ROUTES.COMPLIANCE_RULES);
@@ -169,6 +177,21 @@ export const ComplianceRuleEditPage: React.FC = () => {
     } else {
       setList([...list, item]);
     }
+  };
+
+  // Bug 5 fix: handleFrequencyChange auto-adjusts renewalCycle based on selected frequency
+  const handleFrequencyChange = (freqId: string) => {
+    setFrequency(freqId);
+    const selected = frequencies.find((f) => f._id === freqId);
+    if (!selected) return;
+    const code = selected.code.toUpperCase();
+    if (code === 'ANNUAL' || code === 'YEARLY') setRenewalCycle(365);
+    else if (code === 'SEMI_ANNUAL' || code === 'HALF_YEARLY') setRenewalCycle(180);
+    else if (code === 'QUARTERLY') setRenewalCycle(90);
+    else if (code === 'MONTHLY') setRenewalCycle(30);
+    else if (code === 'WEEKLY') setRenewalCycle(7);
+    else if (code === 'DAILY') setRenewalCycle(1);
+    else if (code === 'ONETIME' || code === 'ONE_TIME') setRenewalCycle(0);
   };
 
   // Add Dynamic Document Row
@@ -236,7 +259,7 @@ export const ComplianceRuleEditPage: React.FC = () => {
         legalReference: legalReference.trim() || undefined,
         category,
         frequency,
-        renewalCycle: Number(renewalCycle) || 365,
+        renewalCycle: Number(renewalCycle),
         priority,
         mandatory,
         active,
@@ -260,6 +283,8 @@ export const ComplianceRuleEditPage: React.FC = () => {
           autoTaskCreation,
           escalationMessage: escalationMessage.trim() || undefined,
         },
+        requiresApproval,
+        approvalLevels: requiresApproval ? Number(approvalLevels) || 1 : 1,
       };
 
       const result = await complianceRuleService.updateRule(id, payload);
@@ -585,7 +610,7 @@ export const ComplianceRuleEditPage: React.FC = () => {
             </label>
             <select
               value={frequency}
-              onChange={(e) => setFrequency(e.target.value)}
+              onChange={(e) => handleFrequencyChange(e.target.value)}
               required
               className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
             >
@@ -638,7 +663,37 @@ export const ComplianceRuleEditPage: React.FC = () => {
             </label>
           </div>
         </div>
+
+        {/* Approval Workflow (Feature A) */}
+        <div className="flex flex-wrap gap-6 pt-2 border-t border-slate-200 dark:border-slate-800 mt-2">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={requiresApproval}
+              onChange={(e) => setRequiresApproval(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-amber-500 focus:ring-amber-500 focus:ring-offset-white dark:focus:ring-offset-slate-900"
+            />
+            <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
+              Requires Approval Workflow
+            </span>
+          </label>
+          {requiresApproval && (
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Approval Levels</label>
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={approvalLevels}
+                onChange={(e) => setApprovalLevels(parseInt(e.target.value) || 1)}
+                className="w-20 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              />
+              <span className="text-xs text-slate-500 dark:text-slate-400">level(s) of sign-off (max 5)</span>
+            </div>
+          )}
+        </div>
       </Card>
+
 
       {/* Section 4: Required Documents Dynamic Builder */}
       <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">

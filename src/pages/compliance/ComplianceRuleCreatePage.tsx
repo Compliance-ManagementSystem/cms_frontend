@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Scale,
   ArrowLeft,
@@ -22,6 +22,7 @@ import { ROUTES } from '@/constants/routes';
 
 export const ComplianceRuleCreatePage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const toast = useToast();
 
   const [isLoadingPrereqs, setIsLoadingPrereqs] = useState(true);
@@ -74,6 +75,10 @@ export const ComplianceRuleCreatePage: React.FC = () => {
   const [autoTaskCreation, setAutoTaskCreation] = useState<boolean>(true);
   const [escalationMessage, setEscalationMessage] = useState<string>('');
 
+  // Approval Workflow (Feature A)
+  const [requiresApproval, setRequiresApproval] = useState<boolean>(false);
+  const [approvalLevels, setApprovalLevels] = useState<number>(1);
+
   // Load Prerequisites
   useEffect(() => {
     const loadPrerequisites = async () => {
@@ -115,6 +120,52 @@ export const ComplianceRuleCreatePage: React.FC = () => {
           else if (code === 'HALF_YEARLY') setRenewalCycle(180);
           else if (code === 'ANNUALLY') setRenewalCycle(365);
         }
+
+        // Feature Imp-4: If cloneId query parameter is provided, load template from existing rule
+        const cloneId = searchParams.get('cloneId');
+        if (cloneId) {
+          try {
+            const r = await complianceRuleService.getRuleById(cloneId);
+            setName(`${r.name} (Copy)`);
+            setCode(r.code ? `${r.code}-COPY` : '');
+            setDescription(r.description || '');
+            setLegalReference(r.legalReference || '');
+            setPriority(r.priority || 'medium');
+            if (r.category?._id) setCategory(r.category._id);
+            if (r.frequency?._id) setFrequency(r.frequency._id);
+            setRenewalCycle(r.renewalCycle ?? 365);
+            setMandatory(r.mandatory ?? true);
+            setActive(false); // Cloned rule starts as draft
+            setRequiresApproval(r.requiresApproval ?? false);
+            setApprovalLevels(r.approvalLevels ?? 1);
+            setSelectedEntityTypes((r.applicableEntityTypes || []).map((et: any) => et._id || et));
+            setSelectedLocationTypes((r.applicableLocationTypes || []).map((lt: any) => lt._id || lt));
+            setSelectedStates(r.applicableStates || []);
+            if (r.requiredDocuments?.length) {
+              setRequiredDocs(
+                r.requiredDocuments.map((rd: any) => ({
+                  documentType: rd.documentType?._id || rd.documentType,
+                  label: rd.label || '',
+                  isMandatory: rd.isMandatory ?? true,
+                }))
+              );
+            }
+            if (r.notificationRules) {
+              if (r.notificationRules.reminderDays) setReminderDays(r.notificationRules.reminderDays);
+              if (r.notificationRules.notifyRoles) setNotifyRoles(r.notificationRules.notifyRoles);
+              if (r.notificationRules.channels) setChannels(r.notificationRules.channels);
+            }
+            if (r.escalationRules) {
+              if (r.escalationRules.escalateAfterDays !== undefined) setEscalateAfterDays(r.escalationRules.escalateAfterDays);
+              if (r.escalationRules.escalateToRole) setEscalateToRole(r.escalationRules.escalateToRole);
+              if (r.escalationRules.autoTaskCreation !== undefined) setAutoTaskCreation(r.escalationRules.autoTaskCreation);
+              if (r.escalationRules.escalationMessage) setEscalationMessage(r.escalationRules.escalationMessage);
+            }
+            toast.success(`Populated form with template from "${r.name}"`);
+          } catch (err: any) {
+            console.error('Failed to load clone template', err);
+          }
+        }
       } catch (err: any) {
         toast.error('Failed to load master data prerequisites');
       } finally {
@@ -123,7 +174,7 @@ export const ComplianceRuleCreatePage: React.FC = () => {
     };
 
     loadPrerequisites();
-  }, [toast]);
+  }, [searchParams, toast]);
 
   // Adjust renewal cycle when frequency changes
   const handleFrequencyChange = (freqId: string) => {
@@ -215,7 +266,8 @@ export const ComplianceRuleCreatePage: React.FC = () => {
         legalReference: legalReference.trim() || undefined,
         category,
         frequency,
-        renewalCycle: Number(renewalCycle) || 365,
+        // Bug E fix: use Number(renewalCycle) directly — ONETIME rules correctly send 0
+        renewalCycle: Number(renewalCycle),
         priority,
         mandatory,
         active,
@@ -239,6 +291,8 @@ export const ComplianceRuleCreatePage: React.FC = () => {
           autoTaskCreation,
           escalationMessage: escalationMessage.trim() || undefined,
         },
+        requiresApproval,
+        approvalLevels: requiresApproval ? Number(approvalLevels) || 1 : 1,
       };
 
       const result = await complianceRuleService.createRule(payload);
@@ -402,23 +456,23 @@ export const ComplianceRuleCreatePage: React.FC = () => {
         {/* Entity Types */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <Building2 size={14} className="text-indigo-400" />
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+              <Building2 size={14} className="text-indigo-600 dark:text-indigo-400" />
               Applicable Entity Types
             </label>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedEntityTypes(entityTypes.map((t) => t._id))}
-                className="text-xs text-indigo-400 hover:text-indigo-300"
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300"
               >
                 Select All
               </button>
-              <span className="text-slate-600">|</span>
+              <span className="text-slate-300 dark:text-slate-600">|</span>
               <button
                 type="button"
                 onClick={() => setSelectedEntityTypes([])}
-                className="text-xs text-slate-400 hover:text-white"
+                className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 Clear (All Entities)
               </button>
@@ -434,8 +488,8 @@ export const ComplianceRuleCreatePage: React.FC = () => {
                   onClick={() => toggleItem(selectedEntityTypes, setSelectedEntityTypes, t._id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                     selected
-                      ? 'bg-indigo-600/30 border-indigo-500 text-indigo-200'
-                      : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                      ? 'bg-indigo-50 dark:bg-indigo-600/30 border-indigo-300 dark:border-indigo-500 text-indigo-700 dark:text-indigo-200'
+                      : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                 >
                   {t.label}
@@ -444,32 +498,32 @@ export const ComplianceRuleCreatePage: React.FC = () => {
             })}
           </div>
           {selectedEntityTypes.length === 0 && (
-            <p className="text-[11px] text-emerald-400/90 italic">
+            <p className="text-[11px] text-emerald-600 dark:text-emerald-400/90 italic">
               ✓ Applies to all corporate entity legal structures
             </p>
           )}
         </div>
 
         {/* Location Types */}
-        <div className="space-y-2 pt-3 border-t border-slate-800/60">
+        <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800/60">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <MapPin size={14} className="text-emerald-400" />
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+              <MapPin size={14} className="text-emerald-600 dark:text-emerald-400" />
               Applicable Location Types
             </label>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedLocationTypes(locationTypes.map((t) => t._id))}
-                className="text-xs text-emerald-400 hover:text-emerald-300"
+                className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300"
               >
                 Select All
               </button>
-              <span className="text-slate-600">|</span>
+              <span className="text-slate-300 dark:text-slate-600">|</span>
               <button
                 type="button"
                 onClick={() => setSelectedLocationTypes([])}
-                className="text-xs text-slate-400 hover:text-white"
+                className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 Clear (All Locations)
               </button>
@@ -485,8 +539,8 @@ export const ComplianceRuleCreatePage: React.FC = () => {
                   onClick={() => toggleItem(selectedLocationTypes, setSelectedLocationTypes, t._id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                     selected
-                      ? 'bg-emerald-600/30 border-emerald-500 text-emerald-200'
-                      : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                      ? 'bg-emerald-50 dark:bg-emerald-600/30 border-emerald-300 dark:border-emerald-500 text-emerald-700 dark:text-emerald-200'
+                      : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                 >
                   {t.label}
@@ -495,32 +549,32 @@ export const ComplianceRuleCreatePage: React.FC = () => {
             })}
           </div>
           {selectedLocationTypes.length === 0 && (
-            <p className="text-[11px] text-emerald-400/90 italic">
+            <p className="text-[11px] text-emerald-600 dark:text-emerald-400/90 italic">
               ✓ Applies across all operational location facilities
             </p>
           )}
         </div>
 
         {/* Geographical States */}
-        <div className="space-y-2 pt-3 border-t border-slate-800/60">
+        <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800/60">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <MapPin size={14} className="text-amber-400" />
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+              <MapPin size={14} className="text-amber-600 dark:text-amber-400" />
               Applicable States / Regions
             </label>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedStates(states.map((s) => s.label))}
-                className="text-xs text-amber-400 hover:text-amber-300"
+                className="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-500 dark:hover:text-amber-300"
               >
                 Select All
               </button>
-              <span className="text-slate-600">|</span>
+              <span className="text-slate-300 dark:text-slate-600">|</span>
               <button
                 type="button"
                 onClick={() => setSelectedStates([])}
-                className="text-xs text-slate-400 hover:text-white"
+                className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 Pan-India (All States)
               </button>
@@ -536,8 +590,8 @@ export const ComplianceRuleCreatePage: React.FC = () => {
                   onClick={() => toggleItem(selectedStates, setSelectedStates, s.label)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                     selected
-                      ? 'bg-amber-600/30 border-amber-500 text-amber-200'
-                      : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                      ? 'bg-amber-50 dark:bg-amber-600/30 border-amber-300 dark:border-amber-500 text-amber-700 dark:text-amber-200'
+                      : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                 >
                   {s.label}
@@ -546,7 +600,7 @@ export const ComplianceRuleCreatePage: React.FC = () => {
             })}
           </div>
           {selectedStates.length === 0 && (
-            <p className="text-[11px] text-emerald-400/90 italic">
+            <p className="text-[11px] text-emerald-600 dark:text-emerald-400/90 italic">
               ✓ Pan-India rule (Applies across all states & Union Territories)
             </p>
           )}
@@ -621,7 +675,37 @@ export const ComplianceRuleCreatePage: React.FC = () => {
             </label>
           </div>
         </div>
+
+        {/* Approval Workflow (Feature A) */}
+        <div className="flex flex-wrap gap-6 pt-2 border-t border-slate-200 dark:border-slate-800 mt-2">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={requiresApproval}
+              onChange={(e) => setRequiresApproval(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-amber-500 focus:ring-amber-500 focus:ring-offset-white dark:focus:ring-offset-slate-900"
+            />
+            <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
+              Requires Approval Workflow
+            </span>
+          </label>
+          {requiresApproval && (
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Approval Levels</label>
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={approvalLevels}
+                onChange={(e) => setApprovalLevels(parseInt(e.target.value) || 1)}
+                className="w-20 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              />
+              <span className="text-xs text-slate-500 dark:text-slate-400">level(s) of sign-off (max 5)</span>
+            </div>
+          )}
+        </div>
       </Card>
+
 
       {/* Section 4: Required Documents Dynamic Builder */}
       <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
