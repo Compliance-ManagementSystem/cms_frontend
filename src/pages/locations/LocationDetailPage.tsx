@@ -30,7 +30,7 @@ import { ROUTES } from '@/constants/routes';
 import { openDocumentInNewTab } from '@/utils/documentFile';
 import Modal from '@/components/ui/Modal';
 import { licenceService, LicenceItem } from '@/services/licenceService';
-import LocationDocumentUploadModal from './LocationDocumentUploadModal';
+import DocumentUploadModal from '@/components/documents/DocumentUploadModal';
 import LocationLicenceModal from './LocationLicenceModal';
 
 type TabType = 'overview' | 'compliance' | 'licences' | 'documents' | 'tasks' | 'history';
@@ -1051,7 +1051,8 @@ export const LocationDetailPage: React.FC = () => {
         </div>
       )}
 
-      <LocationDocumentUploadModal
+      <DocumentUploadModal
+        title="Upload Location Document"
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onUploaded={fetchLocationDetails}

@@ -26,6 +26,7 @@ import { entityService, EntityDetailData } from '@/services/entityService';
 import { ROUTES } from '@/constants/routes';
 import { openDocumentInNewTab } from '@/utils/documentFile';
 import { useAuth } from '@/hooks/useAuth';
+import DocumentUploadModal from '@/components/documents/DocumentUploadModal';
 
 type TabType = 'overview' | 'locations' | 'compliance' | 'documents' | 'tasks' | 'audit';
 
@@ -35,6 +36,8 @@ export const EntityDetailPage: React.FC = () => {
   const toast = useToast();
   const { can } = useAuth();
   const canUpdate = can('entity', 'update');
+  const canUploadDocument = can('document', 'upload');
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [data, setData] = useState<EntityDetailData | null>(null);
@@ -98,10 +101,6 @@ export const EntityDetailPage: React.FC = () => {
     { key: 'tasks', label: 'Tasks', icon: <CheckSquare size={16} />, count: tasks.length },
     { key: 'audit', label: 'Audit History', icon: <History size={16} />, count: auditLogs.length },
   ];
-
-  const handleDocumentUploadClick = () => {
-    toast.info('Document upload dialog: select a statutory document or licence to upload.');
-  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -662,15 +661,17 @@ export const EntityDetailPage: React.FC = () => {
                 Official documents, registration certificates, and licenses archived for <strong>{entity.name}</strong>.
               </div>
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleDocumentUploadClick}
-              leftIcon={<Upload size={14} />}
-              className="flex-shrink-0"
-            >
-              Upload Document
-            </Button>
+            {canUploadDocument && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setIsUploadOpen(true)}
+                leftIcon={<Upload size={14} />}
+                className="flex-shrink-0"
+              >
+                Upload Document
+              </Button>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none">
@@ -688,7 +689,8 @@ export const EntityDetailPage: React.FC = () => {
                 {documents.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
-                      No statutory documents or licences stored for this entity. Click "Upload Document" to upload one.
+                      No documents stored for this entity yet.
+                      {canUploadDocument && ' Use "Upload Document" to add one.'}
                     </td>
                   </tr>
                 ) : (
@@ -720,7 +722,7 @@ export const EntityDetailPage: React.FC = () => {
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {doc.latestVersionUrl ? (
+                        {can('document', 'read') ? (
                           <button
                             type="button"
                             className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
@@ -883,6 +885,14 @@ export const EntityDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <DocumentUploadModal
+        title="Upload Entity Document"
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUploaded={fetchEntityDetails}
+        entityId={entity._id}
+      />
     </div>
   );
 };

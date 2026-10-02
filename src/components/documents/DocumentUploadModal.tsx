@@ -7,13 +7,15 @@ import type { MasterDataItem } from '@/services/adminService';
 import { lookupService } from '@/services/lookupService';
 import { complianceRecordService } from '@/services/complianceRecordService';
 
-interface LocationDocumentUploadModalProps {
+interface DocumentUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** Called after a successful upload so the page can reload */
   onUploaded: () => void;
-  locationId: string;
   entityId: string;
+  /** Omit to file the document against the entity itself */
+  locationId?: string;
+  title?: string;
 }
 
 const FIELD_CLASS =
@@ -22,12 +24,13 @@ const LABEL_CLASS = 'block text-sm font-medium text-slate-700 dark:text-slate-30
 const FILE_CLASS =
   'w-full text-xs text-slate-600 dark:text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer';
 
-const LocationDocumentUploadModal: React.FC<LocationDocumentUploadModalProps> = ({
+const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
   isOpen,
   onClose,
   onUploaded,
-  locationId,
   entityId,
+  locationId,
+  title = 'Upload Document',
 }) => {
   const toast = useToast();
   const [docTypes, setDocTypes] = useState<MasterDataItem[]>([]);
@@ -66,7 +69,7 @@ const LocationDocumentUploadModal: React.FC<LocationDocumentUploadModalProps> = 
       form.append('file', file);
       form.append('name', name.trim());
       form.append('entity', entityId);
-      form.append('location', locationId);
+      if (locationId) form.append('location', locationId);
       if (documentType) {
         form.append('documentType', documentType);
         const code = docTypes.find((t) => t._id === documentType)?.code;
@@ -89,7 +92,7 @@ const LocationDocumentUploadModal: React.FC<LocationDocumentUploadModalProps> = 
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Upload Location Document"
+      title={title}
       size="md"
       footer={
         <div className="flex justify-end gap-3">
@@ -150,4 +153,4 @@ const LocationDocumentUploadModal: React.FC<LocationDocumentUploadModalProps> = 
   );
 };
 
-export default LocationDocumentUploadModal;
+export default DocumentUploadModal;

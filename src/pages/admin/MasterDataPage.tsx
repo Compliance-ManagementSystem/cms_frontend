@@ -352,7 +352,7 @@ const MasterDataPage: React.FC = () => {
         {/* Left: Category Navigation Cards */}
         <div className="flex flex-col gap-2">
           <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider px-2">
-            Classification Domains (11)
+            Classification Domains ({categories.length})
           </p>
           <div className="flex flex-col gap-1.5 max-h-[70vh] overflow-y-auto pr-1">
             {isLoadingCategories ? (
