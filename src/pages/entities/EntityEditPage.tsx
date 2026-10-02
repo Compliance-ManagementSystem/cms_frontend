@@ -15,14 +15,19 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
 import { entityService, UpdateEntityPayload, EntityItem } from '@/services/entityService';
-import { adminService, MasterDataItem, UserItem } from '@/services/adminService';
+import type { MasterDataItem } from '@/services/adminService';
+import { lookupService, LookupUser } from '@/services/lookupService';
 import { ROUTES } from '@/constants/routes';
 
 export const EntityEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
+  const { hasRole } = useAuth();
+  // Name, code, type, status and statutory identifiers are for administrators
+  const canEditCore = hasRole(['super_admin', 'admin']);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,7 +36,7 @@ export const EntityEditPage: React.FC = () => {
   const [parentEntities, setParentEntities] = useState<EntityItem[]>([]);
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
-  const [users, setUsers] = useState<UserItem[]>([]);
+  const [users, setUsers] = useState<LookupUser[]>([]);
 
   // Form State
   const [formData, setFormData] = useState<UpdateEntityPayload>({
@@ -72,11 +77,11 @@ export const EntityEditPage: React.FC = () => {
         const [entityRes, typesRes, statesRes, districtsRes, usersRes, industriesRes, entitiesRes] =
           await Promise.all([
             entityService.getEntityById(id),
-            adminService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'district' }).catch(() => ({ items: [] })),
-            adminService.getUsers({ limit: 100 }).catch(() => ({ users: [] })),
-            adminService.getMasterData({ category: 'industry' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'district' }).catch(() => ({ items: [] })),
+            lookupService.getUsers().catch(() => ({ users: [] })),
+            lookupService.getMasterData({ category: 'industry' }).catch(() => ({ items: [] })),
             entityService.getEntities({ limit: 100 }).catch(() => ({ entities: [] })),
           ]);
 
@@ -280,7 +285,15 @@ export const EntityEditPage: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {!canEditCore && (
+          <p className="text-sm text-slate-700 dark:text-slate-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-600/40 rounded-lg px-4 py-3">
+            You can update this entity's contact details and address. Its name, code, type, status and statutory
+            identifiers can only be changed by an administrator.
+          </p>
+        )}
+
         {/* Section 1: Core Entity Details */}
+        <fieldset disabled={!canEditCore} className="space-y-6 disabled:opacity-70">
         <Card padding="lg">
           <Card.Header
             title="Entity Information"
@@ -461,6 +474,7 @@ export const EntityEditPage: React.FC = () => {
             />
           </div>
         </Card>
+        </fieldset>
 
         {/* Section 3: Contact Details */}
         <Card padding="lg">

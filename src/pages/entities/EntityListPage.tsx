@@ -22,12 +22,19 @@ import Table, { Column } from '@/components/ui/Table';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
 import { entityService, EntityItem } from '@/services/entityService';
-import { adminService, MasterDataItem } from '@/services/adminService';
+import type { MasterDataItem } from '@/services/adminService';
+import { lookupService } from '@/services/lookupService';
+import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
 
 export const EntityListPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const { can } = useAuth();
+  const canCreate = can('entity', 'create');
+  const canUpdate = can('entity', 'update');
+  const canDelete = can('entity', 'delete');
+  const [isExporting, setIsExporting] = useState(false);
 
   const [entities, setEntities] = useState<EntityItem[]>([]);
   const [entityTypes, setEntityTypes] = useState<MasterDataItem[]>([]);
@@ -52,7 +59,7 @@ export const EntityListPage: React.FC = () => {
 
   // Fetch Entity Types from Master Data
   useEffect(() => {
-    adminService
+    lookupService
       .getMasterData({ category: 'entity_type' })
       .then((res) => setEntityTypes(res.items.filter((item: MasterDataItem) => item.status === 'active')))
       .catch((err) => {
@@ -110,52 +117,77 @@ export const EntityListPage: React.FC = () => {
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
-  // Export Entities to CSV
-  const handleExportCSV = () => {
-    if (entities.length === 0) {
-      toast.warning('No entities available to export');
-      return;
+  // Export every entity matching the current filters to CSV
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      // The API returns at most 100 rows per page, so collect every page
+      const exportRows: EntityItem[] = [];
+      for (let page = 1; ; page++) {
+        const batch = await entityService.getEntities({
+          page,
+          limit: 100,
+          search: search.trim() || undefined,
+          entityType: selectedType || undefined,
+          status: selectedStatus || undefined,
+        });
+        exportRows.push(...batch.entities);
+        if (page >= batch.pagination.totalPages || batch.entities.length === 0) break;
+      }
+
+      if (exportRows.length === 0) {
+        toast.warning('No entities available to export');
+        return;
+      }
+
+      const cell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+      const headers = [
+        'Entity Name',
+        'Entity Code',
+        'Classification',
+        'Owner',
+        'Contact Person',
+        'Contact Email',
+        'Contact Phone',
+        'City',
+        'State',
+        'Status',
+        'Units / Locations',
+      ];
+      const rows = exportRows.map((ent) =>
+        [
+          ent.name || '',
+          ent.entityCode || ent.code || '',
+          ent.entityType?.label || ent.entityType?.code || '',
+          ent.owner ? `${ent.owner.firstName} ${ent.owner.lastName}` : '',
+          ent.contactPerson || '',
+          ent.contactEmail || '',
+          ent.contactPhone || '',
+          ent.address?.city || '',
+          ent.address?.state || '',
+          ent.status || '',
+          ent.locationCount || 0,
+        ]
+          .map(cell)
+          .join(',')
+      );
+
+      // Byte-order mark so Excel reads the file as UTF-8
+      const csv = '\ufeff' + [headers.map(cell).join(','), ...rows].join('\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `entities_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${exportRows.length} ${exportRows.length === 1 ? 'entity' : 'entities'} to CSV`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to export entities');
+    } finally {
+      setIsExporting(false);
     }
-    const headers = [
-      'Entity Name',
-      'Entity Code',
-      'Classification',
-      'Owner',
-      'Contact Person',
-      'Contact Email',
-      'Contact Phone',
-      'City',
-      'State',
-      'Status',
-      'Units / Locations',
-    ];
-    const rows = entities.map((ent) => [
-      `"${(ent.name || '').replace(/"/g, '""')}"`,
-      `"${ent.entityCode || ent.code || ''}"`,
-      `"${(ent.entityType?.label || ent.entityType?.code || '').replace(/"/g, '""')}"`,
-      `"${(ent.owner?.fullName || (ent.owner ? `${ent.owner.firstName} ${ent.owner.lastName}` : '') || '').replace(/"/g, '""')}"`,
-      `"${(ent.contactPerson || '').replace(/"/g, '""')}"`,
-      `"${ent.contactEmail || ''}"`,
-      `"${ent.contactPhone || ''}"`,
-      `"${(ent.address?.city || '').replace(/"/g, '""')}"`,
-      `"${(ent.address?.state || '').replace(/"/g, '""')}"`,
-      `"${ent.status || ''}"`,
-      ent.locationCount || 0,
-    ]);
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `entities_export_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('Entities exported to CSV successfully');
   };
 
   // Open Delete Modal
@@ -282,33 +314,42 @@ export const EntityListPage: React.FC = () => {
         );
       },
     },
-    {
-      key: 'actions',
-      header: 'Actions',
-      align: 'right',
-      cell: (row) => (
-        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/entities/${row._id}/edit`)}
-            className="text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 p-1.5"
-            title="Edit Entity"
-          >
-            <Edit2 size={15} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => openDeleteModal(row, e)}
-            className="text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-red-400 p-1.5"
-            title="Delete Entity"
-          >
-            <Trash2 size={15} />
-          </Button>
-        </div>
-      ),
-    },
+    // Row actions only for roles that can use them
+    ...(canUpdate || canDelete
+      ? [
+          {
+            key: 'actions',
+            header: 'Actions',
+            align: 'right' as const,
+            cell: (row: EntityItem) => (
+              <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                {canUpdate && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate(`/entities/${row._id}/edit`)}
+                    className="text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 p-1.5"
+                    title="Edit Entity"
+                  >
+                    <Edit2 size={15} />
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => openDeleteModal(row, e)}
+                    className="text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-red-400 p-1.5"
+                    title="Delete Entity"
+                  >
+                    <Trash2 size={15} />
+                  </Button>
+                )}
+              </div>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -334,6 +375,7 @@ export const EntityListPage: React.FC = () => {
             variant="outline"
             size="md"
             onClick={handleExportCSV}
+            isLoading={isExporting}
             leftIcon={<Download size={15} />}
           >
             Export CSV
@@ -346,14 +388,16 @@ export const EntityListPage: React.FC = () => {
           >
             Refresh
           </Button>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => navigate(ROUTES.ENTITY_CREATE)}
-            leftIcon={<Plus size={16} />}
-          >
-            Add Entity
-          </Button>
+          {canCreate && (
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => navigate(ROUTES.ENTITY_CREATE)}
+              leftIcon={<Plus size={16} />}
+            >
+              Add Entity
+            </Button>
+          )}
         </div>
       </div>
 

@@ -173,7 +173,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.ENTITY_CREATE}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <EntityCreatePage />
               </Suspense>

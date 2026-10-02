@@ -126,6 +126,7 @@ export const TaskListPage: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
   // ?location=<id> limits the list to one location (linked from the location page)
   const [locationFilter, setLocationFilter] = useState(searchParams.get('location') || '');
+  const [entityFilter, setEntityFilter] = useState(searchParams.get('entity') || '');
   const [sort, setSort] = useState(SORT_OPTIONS[0].value);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -174,6 +175,7 @@ export const TaskListPage: React.FC = () => {
         status: cardStatus || statusFilter || undefined,
         priority: priorityFilter || undefined,
         location: locationFilter || undefined,
+        entity: entityFilter || undefined,
         overdueOnly: activeCard === 'overdue' ? true : undefined,
         sortBy,
         sortOrder,
@@ -187,7 +189,7 @@ export const TaskListPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [mineOnly, activeCard, page, debouncedSearch, statusFilter, priorityFilter, locationFilter, sort, toast]);
+  }, [mineOnly, activeCard, page, debouncedSearch, statusFilter, priorityFilter, locationFilter, entityFilter, sort, toast]);
 
   const refreshAll = useCallback(() => {
     fetchTasks();
@@ -243,11 +245,12 @@ export const TaskListPage: React.FC = () => {
     setStatusFilter('');
     setPriorityFilter('');
     setLocationFilter('');
+    setEntityFilter('');
     setPage(1);
     if (onOverduePath) navigate('/tasks');
   };
 
-  const hasActiveFilters = !!(search || activeCard || statusFilter || priorityFilter || locationFilter);
+  const hasActiveFilters = !!(search || activeCard || statusFilter || priorityFilter || locationFilter || entityFilter);
 
   const handleStatusChange = async (task: TaskItem, newStatus: TaskStatus) => {
     try {
@@ -633,6 +636,20 @@ export const TaskListPage: React.FC = () => {
               title="Remove this filter"
             >
               One location only ✕
+            </button>
+          )}
+
+          {entityFilter && (
+            <button
+              type="button"
+              onClick={() => {
+                setEntityFilter('');
+                setPage(1);
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-500/30 text-indigo-800 dark:text-indigo-200"
+              title="Remove this filter"
+            >
+              One entity only ✕
             </button>
           )}
 

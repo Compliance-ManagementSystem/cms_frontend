@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/useToast';
 import { entityService, EntityDetailData } from '@/services/entityService';
 import { ROUTES } from '@/constants/routes';
 import { openDocumentInNewTab } from '@/utils/documentFile';
+import { useAuth } from '@/hooks/useAuth';
 
 type TabType = 'overview' | 'locations' | 'compliance' | 'documents' | 'tasks' | 'audit';
 
@@ -32,6 +33,8 @@ export const EntityDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
+  const { can } = useAuth();
+  const canUpdate = can('entity', 'update');
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [data, setData] = useState<EntityDetailData | null>(null);
@@ -119,16 +122,18 @@ export const EntityDetailPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => navigate(`/entities/${entity._id}/edit`)}
-            leftIcon={<Edit2 size={15} />}
-          >
-            Edit Entity
-          </Button>
-        </div>
+        {canUpdate && (
+          <div className="flex items-center gap-3">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => navigate(`/entities/${entity._id}/edit`)}
+              leftIcon={<Edit2 size={15} />}
+            >
+              Edit Entity
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Entity Profile Banner */}
@@ -615,25 +620,24 @@ export const EntityDetailPage: React.FC = () => {
                         {rec.location?.name || 'Entity-wide'}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                        {rec.validFrom ? new Date(rec.validFrom).toLocaleDateString() : '—'}
-                        {' to '}
-                        {rec.validTo ? new Date(rec.validTo).toLocaleDateString() : '—'}
+                        <div>Due {rec.dueDate ? new Date(rec.dueDate).toLocaleDateString() : '—'}</div>
+                        {rec.expiryDate && <div>Expires {new Date(rec.expiryDate).toLocaleDateString()}</div>}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <Badge
                           variant={
                             rec.status === 'approved'
                               ? 'success'
-                              : rec.status === 'pending'
-                              ? 'pending'
-                              : rec.status === 'expired'
+                              : rec.status === 'expired' || rec.status === 'rejected'
                               ? 'expired'
-                              : 'default'
+                              : rec.status === 'not_applicable'
+                              ? 'default'
+                              : 'pending'
                           }
                           size="sm"
                           dot
                         >
-                          {rec.status.charAt(0).toUpperCase() + rec.status.slice(1)}
+                          {rec.status.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())}
                         </Badge>
                       </td>
                     </tr>
@@ -759,7 +763,7 @@ export const EntityDetailPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => navigate(`${ROUTES.TASKS}?entityId=${entity._id}`)}
+              onClick={() => navigate(`${ROUTES.TASKS}?entity=${entity._id}`)}
               leftIcon={<Plus size={15} />}
               className="flex-shrink-0"
             >

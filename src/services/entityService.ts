@@ -65,6 +65,15 @@ export interface EntityItem {
 
 export interface EntityDetailData {
   entity: EntityItem;
+  /** Compliance health across the entity's records, same definition as the dashboard */
+  health: {
+    total: number;
+    compliant: number;
+    expiringSoon: number;
+    pending: number;
+    expired: number;
+    percentage: number;
+  };
   locations: Array<{
     _id: string;
     name: string;
@@ -85,9 +94,14 @@ export interface EntityDetailData {
     _id: string;
     recordNumber: string;
     status: string;
-    validFrom: string;
-    validTo: string;
-    complianceRule?: { name: string; code: string; category?: string; frequency?: string };
+    dueDate?: string;
+    expiryDate?: string;
+    complianceRule?: {
+      name: string;
+      code: string;
+      category?: { code: string; label: string } | null;
+      priority?: string;
+    };
     location?: { name: string; code: string };
     createdAt: string;
   }>;

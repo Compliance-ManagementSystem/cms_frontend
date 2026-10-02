@@ -16,7 +16,8 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
 import { entityService, CreateEntityPayload, EntityItem } from '@/services/entityService';
-import { adminService, MasterDataItem, UserItem } from '@/services/adminService';
+import type { MasterDataItem } from '@/services/adminService';
+import { lookupService, LookupUser } from '@/services/lookupService';
 import { ROUTES } from '@/constants/routes';
 
 export const EntityCreatePage: React.FC = () => {
@@ -30,7 +31,7 @@ export const EntityCreatePage: React.FC = () => {
   const [parentEntities, setParentEntities] = useState<EntityItem[]>([]);
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
-  const [users, setUsers] = useState<UserItem[]>([]);
+  const [users, setUsers] = useState<LookupUser[]>([]);
 
   // Form State
   const [formData, setFormData] = useState<CreateEntityPayload>({
@@ -67,11 +68,11 @@ export const EntityCreatePage: React.FC = () => {
       setIsLoadingMaster(true);
       try {
         const [typesRes, statesRes, districtsRes, usersRes, industriesRes, entitiesRes] = await Promise.all([
-          adminService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
-          adminService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
-          adminService.getMasterData({ category: 'district' }).catch(() => ({ items: [] })),
-          adminService.getUsers({ limit: 100 }).catch(() => ({ users: [] })),
-          adminService.getMasterData({ category: 'industry' }).catch(() => ({ items: [] })),
+          lookupService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
+          lookupService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
+          lookupService.getMasterData({ category: 'district' }).catch(() => ({ items: [] })),
+          lookupService.getUsers().catch(() => ({ users: [] })),
+          lookupService.getMasterData({ category: 'industry' }).catch(() => ({ items: [] })),
           entityService.getEntities({ limit: 100 }).catch(() => ({ entities: [] })),
         ]);
 
