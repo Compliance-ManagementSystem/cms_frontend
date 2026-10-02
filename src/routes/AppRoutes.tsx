@@ -257,7 +257,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.COMPLIANCE_RULE_CREATE}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'compliance_officer', 'entity_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <ComplianceRuleCreatePage />
               </Suspense>
@@ -277,7 +277,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.COMPLIANCE_RULE_EDIT}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'compliance_officer', 'entity_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <ComplianceRuleEditPage />
               </Suspense>

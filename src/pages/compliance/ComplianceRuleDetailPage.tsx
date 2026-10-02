@@ -34,6 +34,7 @@ import { complianceRuleService, ComplianceRuleItem, RuleEvaluationResult } from 
 import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
+import { useAuth } from '@/hooks/useAuth';
 
 const CHANNEL_META: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   email:  { label: 'Email',    icon: <Mail size={14} />,         color: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-700/40' },
@@ -55,6 +56,10 @@ export const ComplianceRuleDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
+  const { can } = useAuth();
+  const canCreate = can('compliance_rule', 'create');
+  const canUpdate = can('compliance_rule', 'update');
+  const canDelete = can('compliance_rule', 'delete');
   const toastRef = useRef(toast);
   toastRef.current = toast;
 
@@ -144,6 +149,21 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       setRule(res.data.rule);
     } catch (err: any) {
       toastRef.current.error(err.message || 'Failed to archive rule');
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  // Restore from the archive (comes back inactive)
+  const handleRestore = async () => {
+    if (!rule) return;
+    setIsArchiving(true);
+    try {
+      const res = await complianceRuleService.restoreRule(rule._id);
+      toastRef.current.success(res.message || 'Rule restored');
+      setRule(res.data.rule);
+    } catch (err: any) {
+      toastRef.current.error(err.message || 'Failed to restore rule');
     } finally {
       setIsArchiving(false);
     }
@@ -255,7 +275,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {!isArchived && (
+          {canUpdate && !isArchived && (
             <Button
               variant="outline"
               onClick={handleToggleStatus}
@@ -265,7 +285,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
               {isActive ? 'Deactivate Rule' : 'Activate Rule'}
             </Button>
           )}
-          {!isArchived && (
+          {canUpdate && !isArchived && (
             <Button
               variant="outline"
               leftIcon={<Archive size={15} />}
@@ -276,28 +296,39 @@ export const ComplianceRuleDetailPage: React.FC = () => {
               Archive Rule
             </Button>
           )}
-          <Button
-            variant="outline"
-            leftIcon={<Copy size={15} />}
-            onClick={() => navigate(`/compliance/rules/create?cloneId=${rule._id}`)}
-            title="Create a new rule based on this configuration"
-          >
-            Duplicate
-          </Button>
-          <Button
-            variant="outline"
-            leftIcon={<Edit2 size={15} />}
-            onClick={() => navigate(`/compliance/rules/${rule._id}/edit`)}
-          >
-            Edit Rule
-          </Button>
-          <Button
-            variant="danger"
-            leftIcon={<Trash2 size={15} />}
-            onClick={() => setIsDeleteModalOpen(true)}
-          >
-            Delete
-          </Button>
+          {canUpdate && isArchived && (
+            <Button variant="outline" leftIcon={<Archive size={15} />} onClick={handleRestore} isLoading={isArchiving}>
+              Restore Rule
+            </Button>
+          )}
+          {canCreate && (
+            <Button
+              variant="outline"
+              leftIcon={<Copy size={15} />}
+              onClick={() => navigate(`/compliance/rules/create?cloneId=${rule._id}`)}
+              title="Create a new rule based on this configuration"
+            >
+              Duplicate
+            </Button>
+          )}
+          {canUpdate && (
+            <Button
+              variant="outline"
+              leftIcon={<Edit2 size={15} />}
+              onClick={() => navigate(`/compliance/rules/${rule._id}/edit`)}
+            >
+              Edit Rule
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="danger"
+              leftIcon={<Trash2 size={15} />}
+              onClick={() => setIsDeleteModalOpen(true)}
+            >
+              Delete
+            </Button>
+          )}
         </div>
       </div>
 

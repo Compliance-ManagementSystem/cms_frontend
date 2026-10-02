@@ -75,6 +75,8 @@ export interface ComplianceRuleItem {
 export interface RuleListStats {
   total: number;
   activeCount: number;
+  inactiveCount?: number;
+  archivedCount?: number;
   mandatoryCount: number;
   uniqueCategoriesCount: number;
 }
@@ -203,6 +205,16 @@ export const complianceRuleService = {
       data: { rule: ComplianceRuleItem };
       message: string;
     }>(`/compliance/rules/${id}/archive`);
+    return res.data;
+  },
+
+  /** Brings an archived rule back as inactive */
+  restoreRule: async (id: string) => {
+    const res = await axiosInstance.patch<{
+      success: boolean;
+      data: { rule: ComplianceRuleItem };
+      message: string;
+    }>(`/compliance/rules/${id}/restore`);
     return res.data;
   },
 

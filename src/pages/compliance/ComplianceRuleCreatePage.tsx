@@ -17,7 +17,8 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
 import { complianceRuleService, CreateRulePayload } from '@/services/complianceRuleService';
-import { adminService, MasterDataItem } from '@/services/adminService';
+import type { MasterDataItem } from '@/services/adminService';
+import { lookupService } from '@/services/lookupService';
 import { ROUTES } from '@/constants/routes';
 
 export const ComplianceRuleCreatePage: React.FC = () => {
@@ -86,12 +87,12 @@ export const ComplianceRuleCreatePage: React.FC = () => {
       try {
         const [catsRes, freqsRes, entTypesRes, locTypesRes, statesRes, docsRes] =
           await Promise.all([
-            adminService.getMasterData({ category: 'compliance_category' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'compliance_frequency' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'location_type' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'document_type' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'compliance_category' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'compliance_frequency' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'location_type' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'document_type' }).catch(() => ({ items: [] })),
           ]);
 
         const activeCats = (catsRes.items || []).filter((i: MasterDataItem) => i.status === 'active');

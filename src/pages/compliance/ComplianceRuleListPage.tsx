@@ -28,7 +28,9 @@ import Table, { Column } from '@/components/ui/Table';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
 import { complianceRuleService, ComplianceRuleItem, RuleListStats } from '@/services/complianceRuleService';
-import { adminService, MasterDataItem } from '@/services/adminService';
+import type { MasterDataItem } from '@/services/adminService';
+import { lookupService } from '@/services/lookupService';
+import { useAuth } from '@/hooks/useAuth';
 
 // ── Debounce hook ────────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
@@ -45,6 +47,11 @@ export const ComplianceRuleListPage: React.FC = () => {
   const toast = useToast();
   const toastRef = useRef(toast);
   toastRef.current = toast;
+  const { can } = useAuth();
+  const canCreate = can('compliance_rule', 'create');
+  const canUpdate = can('compliance_rule', 'update');
+  const canDelete = can('compliance_rule', 'delete');
+  const [isExporting, setIsExporting] = useState(false);
 
   const [rules, setRules] = useState<ComplianceRuleItem[]>([]);
   const [categories, setCategories] = useState<MasterDataItem[]>([]);
@@ -82,8 +89,8 @@ export const ComplianceRuleListPage: React.FC = () => {
   // Fetch Filter Master Data — only runs once
   useEffect(() => {
     Promise.all([
-      adminService.getMasterData({ category: 'compliance_category' }).catch(() => ({ items: [] })),
-      adminService.getMasterData({ category: 'compliance_frequency' }).catch(() => ({ items: [] })),
+      lookupService.getMasterData({ category: 'compliance_category' }).catch(() => ({ items: [] })),
+      lookupService.getMasterData({ category: 'compliance_frequency' }).catch(() => ({ items: [] })),
     ])
       .then(([catRes, freqRes]) => {
         setCategories((catRes.items || []).filter((item: MasterDataItem) => item.status === 'active'));
@@ -219,34 +226,84 @@ export const ComplianceRuleListPage: React.FC = () => {
     }
   };
 
-  // CSV Export (Imp-5)
-  const handleExportCSV = () => {
-    if (rules.length === 0) {
-      toastRef.current.error('No compliance rules to export');
-      return;
+  // Export every rule matching the current filters to CSV
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      // The API returns at most 100 rows per page, so collect every page
+      const exportRows: ComplianceRuleItem[] = [];
+      for (let page = 1; ; page++) {
+        const batch = await complianceRuleService.getRules({
+          page,
+          limit: 100,
+          search: debouncedSearch.trim() || undefined,
+          category: selectedCategory || undefined,
+          frequency: selectedFrequency || undefined,
+          status: selectedStatus || undefined,
+          mandatory: selectedMandatory || undefined,
+        });
+        exportRows.push(...batch.rules);
+        if (page >= batch.pagination.totalPages || batch.rules.length === 0) break;
+      }
+
+      if (exportRows.length === 0) {
+        toastRef.current.error('No compliance rules to export');
+        return;
+      }
+
+      const cell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+      const names = (items?: MasterDataItem[]) => (items?.length ? items.map((i) => i.label || i.code).join('; ') : 'All');
+      const headers = [
+        'Code',
+        'Name',
+        'Category',
+        'Frequency',
+        'Renewal Cycle (Days)',
+        'Mandatory',
+        'Priority',
+        'Status',
+        'Entity Types',
+        'Location Types',
+        'States',
+        'Required Documents',
+        'Approval Required',
+      ];
+      const rows = exportRows.map((r) =>
+        [
+          r.code || '',
+          r.name || '',
+          r.category?.label || r.category?.code || '',
+          r.frequency?.label || r.frequency?.code || '',
+          r.renewalCycle === 0 ? 'One-time' : r.renewalCycle ?? '',
+          r.mandatory ? 'Yes' : 'No',
+          r.priority || 'medium',
+          r.status || 'active',
+          names(r.applicableEntityTypes),
+          names(r.applicableLocationTypes),
+          r.applicableStates?.length ? r.applicableStates.join('; ') : 'All',
+          (r.requiredDocuments || []).map((d) => d.label).join('; '),
+          r.requiresApproval ? `Yes (${r.approvalLevels || 1} level)` : 'No',
+        ]
+          .map(cell)
+          .join(',')
+      );
+
+      // Byte-order mark so Excel reads the file as UTF-8
+      const csv = '﻿' + [headers.map(cell).join(','), ...rows].join('\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `compliance_rules_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toastRef.current.success(`Exported ${exportRows.length} compliance ${exportRows.length === 1 ? 'rule' : 'rules'} to CSV`);
+    } catch (err: any) {
+      toastRef.current.error(err.message || 'Failed to export compliance rules');
+    } finally {
+      setIsExporting(false);
     }
-    const headers = ['Code', 'Name', 'Category', 'Frequency', 'Renewal Cycle (Days)', 'Mandatory', 'Priority', 'Status', 'Applicable States', 'Approval Required'];
-    const rows = rules.map((r) => [
-      `"${(r.code || '').replace(/"/g, '""')}"`,
-      `"${(r.name || '').replace(/"/g, '""')}"`,
-      `"${(r.category?.label || r.category?.code || '').replace(/"/g, '""')}"`,
-      `"${(r.frequency?.label || r.frequency?.code || '').replace(/"/g, '""')}"`,
-      r.renewalCycle ?? 0,
-      r.mandatory ? 'Yes' : 'No',
-      (r.priority || 'medium').toUpperCase(),
-      (r.status || 'active').toUpperCase(),
-      `"${(r.applicableStates?.length ? r.applicableStates.join('; ') : 'All (Pan-India)').replace(/"/g, '""')}"`,
-      r.requiresApproval ? `Yes (${r.approvalLevels || 1} level)` : 'No',
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `compliance_rules_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toastRef.current.success(`Exported ${rules.length} compliance rules to CSV`);
   };
 
   // Table Columns
@@ -371,6 +428,14 @@ export const ComplianceRuleListPage: React.FC = () => {
         if (isArchived) {
           return <Badge variant="default" size="sm">Archived</Badge>;
         }
+        // Only roles that may change rules get the switch
+        if (!canUpdate) {
+          return (
+            <Badge variant={isActive ? 'success' : 'default'} size="sm">
+              {isActive ? 'Active' : 'Inactive'}
+            </Badge>
+          );
+        }
 
         return (
           <button
@@ -407,20 +472,24 @@ export const ComplianceRuleListPage: React.FC = () => {
           >
             <Eye size={15} />
           </button>
-          <button
-            onClick={() => navigate(`/compliance/rules/${row._id}/edit`)}
-            className="p-1.5 text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-            title="Edit Rule"
-          >
-            <Edit2 size={15} />
-          </button>
-          <button
-            onClick={(e) => openDeleteModal(row, e)}
-            className="p-1.5 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-            title="Delete Rule"
-          >
-            <Trash2 size={15} />
-          </button>
+          {canUpdate && (
+            <button
+              onClick={() => navigate(`/compliance/rules/${row._id}/edit`)}
+              className="p-1.5 text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+              title="Edit Rule"
+            >
+              <Edit2 size={15} />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={(e) => openDeleteModal(row, e)}
+              className="p-1.5 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+              title="Delete Rule"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
       ),
     },
@@ -469,6 +538,7 @@ export const ComplianceRuleListPage: React.FC = () => {
             variant="outline"
             leftIcon={<Download size={15} />}
             onClick={handleExportCSV}
+            isLoading={isExporting}
             disabled={rules.length === 0}
             title="Export listed compliance rules to CSV"
           >
@@ -482,13 +552,15 @@ export const ComplianceRuleListPage: React.FC = () => {
           >
             Refresh
           </Button>
-          <Button
-            variant="primary"
-            leftIcon={<Plus size={16} />}
-            onClick={() => navigate('/compliance/rules/create')}
-          >
-            Create Rule
-          </Button>
+          {canCreate && (
+            <Button
+              variant="primary"
+              leftIcon={<Plus size={16} />}
+              onClick={() => navigate('/compliance/rules/create')}
+            >
+              Create Rule
+            </Button>
+          )}
         </div>
       </div>
 
@@ -685,14 +757,16 @@ export const ComplianceRuleListPage: React.FC = () => {
                 <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mt-1 mb-4">
                   Get started by defining statutory obligations, multi-tier applicability scopes, and renewal cadences for your organization.
                 </p>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<Plus size={15} />}
-                  onClick={() => navigate('/compliance/rules/create')}
-                >
-                  Create Your First Rule
-                </Button>
+                {canCreate && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Plus size={15} />}
+                    onClick={() => navigate('/compliance/rules/create')}
+                  >
+                    Create Your First Rule
+                  </Button>
+                )}
               </div>
             )
           }

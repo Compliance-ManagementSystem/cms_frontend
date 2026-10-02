@@ -17,7 +17,8 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
 import { complianceRuleService, UpdateRulePayload } from '@/services/complianceRuleService';
-import { adminService, MasterDataItem } from '@/services/adminService';
+import type { MasterDataItem } from '@/services/adminService';
+import { lookupService } from '@/services/lookupService';
 import { ROUTES } from '@/constants/routes';
 
 export const ComplianceRuleEditPage: React.FC = () => {
@@ -87,12 +88,12 @@ export const ComplianceRuleEditPage: React.FC = () => {
       try {
         const [catsRes, freqsRes, entTypesRes, locTypesRes, statesRes, docsRes, ruleData] =
           await Promise.all([
-            adminService.getMasterData({ category: 'compliance_category' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'compliance_frequency' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'location_type' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
-            adminService.getMasterData({ category: 'document_type' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'compliance_category' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'compliance_frequency' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'entity_type' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'location_type' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'state' }).catch(() => ({ items: [] })),
+            lookupService.getMasterData({ category: 'document_type' }).catch(() => ({ items: [] })),
             complianceRuleService.getRuleById(id),
           ]);
 
