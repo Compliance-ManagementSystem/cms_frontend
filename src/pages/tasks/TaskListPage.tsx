@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CheckSquare,
   AlertTriangle,
-  CheckCircle2,
   Plus,
   Search,
   RefreshCw,
@@ -21,10 +20,36 @@ import {
   TaskStatus,
   TaskPriority,
   TaskMetrics,
+  TaskAssigneeOption,
 } from '@/services/taskService';
 import { entityService, EntityItem } from '@/services/entityService';
-import { adminService, UserItem } from '@/services/adminService';
 import { socketService } from '@/services/socketService';
+import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
+import { daysFromToday } from '@/utils/dates';
+import TaskDetailModal from './TaskDetailModal';
+
+// "Overdue" is derived from the due date. Older tasks may still carry it as a
+// stored status; those are shown and handled as open tasks.
+const ACTIVE_STATUSES: TaskStatus[] = ['open', 'in_progress', 'pending_approval', 'overdue'];
+const displayStatus = (status: TaskStatus): TaskStatus => (status === 'overdue' ? 'open' : status);
+const isPastDue = (task: { status: TaskStatus; dueDate?: string }) =>
+  !!task.dueDate && ACTIVE_STATUSES.includes(task.status) && new Date(task.dueDate) < new Date();
+
+const formatOverdue = (dueDate: string) => {
+  const days = Math.abs(daysFromToday(dueDate));
+  if (days === 0) return 'Due today';
+  return days >= 60 ? `Overdue ${Math.round(days / 30)}mo` : `Overdue ${days}d`;
+};
+
+const AUTO_SOURCE_LABELS: Record<string, string> = {
+  expiry_monitor: 'Expiring compliance',
+  expired_checker: 'Expired compliance',
+  approval_monitor: 'Awaiting approval',
+  document_check: 'Missing documents',
+  overdue_check: 'Overdue submission',
+  renewal_job: 'Renewal reminder',
+};
 
 const PRIORITY_BADGES: Record<TaskPriority, { label: string; className: string }> = {
   critical: {
@@ -75,6 +100,18 @@ const STATUS_BADGES: Record<TaskStatus, { label: string; className: string }> = 
 export const TaskListPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const toast = useToast();
+  const { can, hasRole } = useAuth();
+  const canCreate = can('task', 'create');
+  const canUpdate = can('task', 'update');
+  const canDelete = can('task', 'delete');
+
+  // The open task lives in the URL (?task=<id>) so notifications can link straight to it
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedTaskId = searchParams.get('task');
+  const openTask = (id: string) => setSearchParams({ task: id });
+  const closeTask = useCallback(() => setSearchParams({}), [setSearchParams]);
+  const canRunAutomation = hasRole(['super_admin', 'admin']);
 
   // Tab detection based on current path
   const isMyTasks = location.pathname.includes('/my-tasks');
@@ -117,12 +154,11 @@ export const TaskListPage: React.FC = () => {
 
   // Entities & Users for Modal & Filter
   const [entities, setEntities] = useState<EntityItem[]>([]);
-  const [users, setUsers] = useState<UserItem[]>([]);
+  const [users, setUsers] = useState<TaskAssigneeOption[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Modals
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [isAutomating, setIsAutomating] = useState(false);
   const [automationNotice, setAutomationNotice] = useState<string | null>(null);
 
@@ -170,23 +206,29 @@ export const TaskListPage: React.FC = () => {
       setTasks(res.data);
       setTotalPages(res.pagination.totalPages || 1);
       setTotalCount(res.pagination.total);
-    } catch (err) {
-      console.error('Failed to load tasks:', err);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load tasks');
     } finally {
       setLoading(false);
     }
-  }, [activeTab, page, search, statusFilter, priorityFilter]);
+  }, [activeTab, page, search, statusFilter, priorityFilter, toast]);
 
-  // Load supporting lists
+  // Load supporting lists for the create form
   useEffect(() => {
+    if (!canCreate) return;
     entityService.getEntities({ limit: 100 }).then((res) => {
       setEntities(res.entities || []);
     }).catch(() => {});
+  }, [canCreate]);
 
-    adminService.getUsers({ limit: 100 }).then((res) => {
-      setUsers(res.users || []);
-    }).catch(() => {});
-  }, []);
+  // Assignee options follow the selected entity
+  useEffect(() => {
+    if (!canCreate) return;
+    taskService
+      .getAssignees(formData.entity || undefined)
+      .then(setUsers)
+      .catch(() => setUsers([]));
+  }, [canCreate, formData.entity]);
 
   // Listen to realtime socket events
   useEffect(() => {
@@ -209,6 +251,11 @@ export const TaskListPage: React.FC = () => {
     };
   }, [fetchTasks, fetchMetrics]);
 
+  const refreshAll = useCallback(() => {
+    fetchTasks();
+    fetchMetrics();
+  }, [fetchTasks, fetchMetrics]);
+
   // Handle Tab Switch
   const handleTabChange = (tab: 'all' | 'my' | 'overdue') => {
     setActiveTab(tab);
@@ -224,12 +271,8 @@ export const TaskListPage: React.FC = () => {
       await taskService.updateTaskStatus(taskId, newStatus);
       fetchTasks();
       fetchMetrics();
-      if (selectedTask && selectedTask._id === taskId) {
-        const updated = await taskService.getTaskById(taskId);
-        setSelectedTask(updated);
-      }
-    } catch (err) {
-      console.error('Failed to update status:', err);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update task status');
     }
   };
 
@@ -240,13 +283,14 @@ export const TaskListPage: React.FC = () => {
     try {
       const res = await taskService.triggerAutomation();
       setAutomationNotice(
-        `Automation Scan Complete: ${res.tasksCreated} new tasks generated, ${res.notificationsSent} notifications sent.`
+        `Scan complete: ${res.recordsScanned} records checked, ${res.tasksCreated} tasks created, ` +
+          `${res.tasksClosed} resolved tasks closed, ${res.notificationsSent} notifications sent` +
+          (res.recordsFailed ? `, ${res.recordsFailed} records failed.` : '.')
       );
       fetchTasks();
       fetchMetrics();
-    } catch (err) {
-      console.error('Automation failed:', err);
-      setAutomationNotice('Failed to execute automated compliance check.');
+    } catch (err: any) {
+      setAutomationNotice(err.message || 'Failed to execute automated compliance check.');
     } finally {
       setIsAutomating(false);
     }
@@ -255,16 +299,22 @@ export const TaskListPage: React.FC = () => {
   // Create Task Submit
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.entity || !formData.assignedTo || !formData.dueDate) {
+      toast.error('Entity, assignee and due date are required');
+      return;
+    }
+
+    setIsCreating(true);
     try {
       await taskService.createTask({
         title: formData.title,
-        description: formData.description,
-        entity: formData.entity || undefined,
-        assignedTo: formData.assignedTo || undefined,
+        description: formData.description || undefined,
+        entity: formData.entity,
+        assignedTo: formData.assignedTo,
         priority: formData.priority,
-        dueDate: formData.dueDate || undefined,
-        status: 'open',
+        dueDate: formData.dueDate,
       });
+      toast.success('Task created and assigned');
       setCreateModalOpen(false);
       setFormData({
         title: '',
@@ -276,8 +326,10 @@ export const TaskListPage: React.FC = () => {
       });
       fetchTasks();
       fetchMetrics();
-    } catch (err) {
-      console.error('Failed to create task:', err);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create task');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -296,6 +348,7 @@ export const TaskListPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {canRunAutomation && (
           <button
             onClick={handleTriggerAutomation}
             disabled={isAutomating}
@@ -305,7 +358,9 @@ export const TaskListPage: React.FC = () => {
             <Zap size={14} className={isAutomating ? 'animate-spin text-amber-500' : 'text-indigo-600 dark:text-indigo-400'} />
             {isAutomating ? 'Running Automation...' : 'Run Scheduled Checks'}
           </button>
+          )}
 
+          {canCreate && (
           <button
             onClick={() => setCreateModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition-all"
@@ -313,6 +368,7 @@ export const TaskListPage: React.FC = () => {
             <Plus size={16} />
             Create Task
           </button>
+          )}
         </div>
       </div>
 
@@ -347,7 +403,7 @@ export const TaskListPage: React.FC = () => {
           <p className="text-xl font-bold text-indigo-700 dark:text-indigo-300 mt-1">{metrics.inProgress}</p>
         </div>
         <div className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-purple-200 dark:border-purple-500/20 shadow-sm">
-          <p className="text-xs font-medium text-purple-600 dark:text-purple-400">Pending Review</p>
+          <p className="text-xs font-medium text-purple-600 dark:text-purple-400">Pending Approval</p>
           <p className="text-xl font-bold text-purple-700 dark:text-purple-300 mt-1">{metrics.pendingApproval}</p>
         </div>
         <div className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-rose-200 dark:border-rose-500/20 shadow-sm">
@@ -408,7 +464,7 @@ export const TaskListPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
             type="text"
-            placeholder="Search by title, description or record..."
+            placeholder="Search by title, description or record number"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -432,7 +488,6 @@ export const TaskListPage: React.FC = () => {
             <option value="in_progress">In Progress</option>
             <option value="pending_approval">Pending Approval</option>
             <option value="completed">Completed</option>
-            <option value="overdue">Overdue</option>
             <option value="cancelled">Cancelled</option>
           </select>
 
@@ -502,18 +557,14 @@ export const TaskListPage: React.FC = () => {
               ) : (
                 tasks.map((task) => {
                   const priority = PRIORITY_BADGES[task.priority] || PRIORITY_BADGES.medium;
-                  const status = STATUS_BADGES[task.status] || STATUS_BADGES.open;
-                  const isTaskOverdue =
-                    task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
+                  const status = STATUS_BADGES[displayStatus(task.status)] || STATUS_BADGES.open;
+                  const isTaskOverdue = isPastDue(task);
 
                   return (
                     <tr
                       key={task._id}
                       className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group cursor-pointer"
-                      onClick={() => {
-                        setSelectedTask(task);
-                        setDetailModalOpen(true);
-                      }}
+                      onClick={() => openTask(task._id)}
                     >
                       <td className="py-3 px-4">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${priority.className}`}>
@@ -529,8 +580,8 @@ export const TaskListPage: React.FC = () => {
                           </div>
                         )}
                         {task.isAutoGenerated && (
-                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 text-[9px] font-mono">
-                            ⚡ Auto: {task.autoGenSource || 'scheduled'}
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 text-[9px] font-medium">
+                            Auto · {AUTO_SOURCE_LABELS[task.autoGenSource || ''] || 'Scheduled check'}
                           </span>
                         )}
                       </td>
@@ -574,6 +625,11 @@ export const TaskListPage: React.FC = () => {
                           >
                             <Calendar size={13} className={isTaskOverdue ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400'} />
                             <span>{new Date(task.dueDate).toLocaleDateString()}</span>
+                            {isTaskOverdue && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 whitespace-nowrap">
+                                {formatOverdue(task.dueDate)}
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <span className="text-slate-400">No due date</span>
@@ -582,25 +638,22 @@ export const TaskListPage: React.FC = () => {
 
                       <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={task.status}
+                          value={displayStatus(task.status)}
                           onChange={(e) => handleStatusChange(task._id, e.target.value as TaskStatus)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border bg-white dark:bg-slate-950/80 focus:outline-none ${status.className}`}
+                          disabled={!canUpdate}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border bg-white dark:bg-slate-950/80 focus:outline-none disabled:opacity-80 disabled:cursor-not-allowed ${status.className}`}
                         >
                           <option value="open">Open</option>
                           <option value="in_progress">In Progress</option>
                           <option value="pending_approval">Pending Approval</option>
                           <option value="completed">Completed</option>
-                          <option value="overdue">Overdue</option>
                           <option value="cancelled">Cancelled</option>
                         </select>
                       </td>
 
                       <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() => {
-                            setSelectedTask(task);
-                            setDetailModalOpen(true);
-                          }}
+                          onClick={() => openTask(task._id)}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                           title="View details"
                         >
@@ -618,9 +671,11 @@ export const TaskListPage: React.FC = () => {
         {/* ── Pagination ──────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
           <span>
-            Showing {tasks.length} of {totalCount} tasks
+            {totalCount === 0
+              ? 'No tasks'
+              : `Showing ${(page - 1) * 15 + 1}–${(page - 1) * 15 + tasks.length} of ${totalCount} tasks`}
           </span>
-          <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-2 ${totalPages <= 1 ? 'hidden' : ''}`}>
             <button
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -699,9 +754,10 @@ export const TaskListPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-400 mb-1 font-medium">Due Date</label>
+                  <label className="block text-slate-700 dark:text-slate-400 mb-1 font-medium">Due Date *</label>
                   <input
                     type="date"
+                    required
                     value={formData.dueDate}
                     onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -711,13 +767,14 @@ export const TaskListPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-400 mb-1 font-medium">Entity</label>
+                  <label className="block text-slate-700 dark:text-slate-400 mb-1 font-medium">Entity *</label>
                   <select
+                    required
                     value={formData.entity}
-                    onChange={(e) => setFormData({ ...formData, entity: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, entity: e.target.value, assignedTo: '' })}
                     className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="">Select Entity (Optional)</option>
+                    <option value="">Select entity</option>
                     {entities.map((ent) => (
                       <option key={ent._id} value={ent._id}>
                         {ent.name}
@@ -727,13 +784,14 @@ export const TaskListPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-400 mb-1 font-medium">Assign To</label>
+                  <label className="block text-slate-700 dark:text-slate-400 mb-1 font-medium">Assign To *</label>
                   <select
+                    required
                     value={formData.assignedTo}
                     onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="">Unassigned</option>
+                    <option value="">Select assignee</option>
                     {users.map((u) => (
                       <option key={u._id} value={u._id}>
                         {u.firstName} {u.lastName} ({u.email})
@@ -753,9 +811,10 @@ export const TaskListPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-md shadow-indigo-600/30"
+                  disabled={isCreating}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-md shadow-indigo-600/30 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Create Task
+                  {isCreating ? 'Creating...' : 'Create Task'}
                 </button>
               </div>
             </form>
@@ -763,148 +822,14 @@ export const TaskListPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── Task Details Drawer / Modal ────────────────────────────────────────── */}
-      {detailModalOpen && selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                    PRIORITY_BADGES[selectedTask.priority]?.className
-                  }`}
-                >
-                  {selectedTask.priority.toUpperCase()}
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                    STATUS_BADGES[selectedTask.status]?.className
-                  }`}
-                >
-                  {STATUS_BADGES[selectedTask.status]?.label}
-                </span>
-              </div>
-              <button
-                onClick={() => setDetailModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{selectedTask.title}</h2>
-              {selectedTask.description && (
-                <p className="text-xs text-slate-700 dark:text-slate-300 mt-2 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80">
-                  {selectedTask.description}
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60">
-                <span className="text-slate-500 block text-[10px] uppercase font-semibold">Assigned To</span>
-                <span className="text-slate-800 dark:text-slate-200 font-medium mt-1 block">
-                  {selectedTask.assignedTo
-                    ? `${selectedTask.assignedTo.firstName} ${selectedTask.assignedTo.lastName}`
-                    : 'Unassigned'}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60">
-                <span className="text-slate-500 block text-[10px] uppercase font-semibold">Due Date</span>
-                <span className="text-slate-800 dark:text-slate-200 font-medium mt-1 block">
-                  {selectedTask.dueDate
-                    ? new Date(selectedTask.dueDate).toLocaleDateString()
-                    : 'No due date'}
-                </span>
-              </div>
-
-              {selectedTask.entity && (
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60">
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">Entity</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-medium mt-1 block">
-                    {selectedTask.entity.name} ({selectedTask.entity.entityCode})
-                  </span>
-                </div>
-              )}
-
-              {selectedTask.location && (
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60">
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">Location</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-medium mt-1 block">
-                    {selectedTask.location.name}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Compliance Record Link */}
-            {selectedTask.complianceRecord && (
-              <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-500/20 text-xs flex items-center justify-between">
-                <div>
-                  <span className="text-indigo-600 dark:text-indigo-400 block font-semibold text-[10px] uppercase">
-                    Linked Statutory Record
-                  </span>
-                  <span className="text-slate-800 dark:text-slate-200 font-medium">
-                    {selectedTask.complianceRecord.recordNumber}
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    navigate(`/compliance/records/${selectedTask.complianceRecord?._id}`);
-                  }}
-                  className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold shadow-sm"
-                >
-                  View Record
-                </button>
-              </div>
-            )}
-
-            {/* Completion details */}
-            {selectedTask.status === 'completed' && (
-              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300">
-                <CheckCircle2 size={16} className="inline mr-1 text-emerald-600 dark:text-emerald-400" />
-                Completed by{' '}
-                <span className="font-semibold text-slate-900 dark:text-white">
-                  {selectedTask.completedBy
-                    ? `${selectedTask.completedBy.firstName} ${selectedTask.completedBy.lastName}`
-                    : 'System'}
-                </span>{' '}
-                on{' '}
-                {selectedTask.completedAt
-                  ? new Date(selectedTask.completedAt).toLocaleString()
-                  : 'N/A'}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-600 dark:text-slate-400 font-medium">Change Status:</label>
-                <select
-                  value={selectedTask.status}
-                  onChange={(e) => handleStatusChange(selectedTask._id, e.target.value as TaskStatus)}
-                  className="px-2.5 py-1 rounded-lg text-xs font-medium border bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="open">Open</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="pending_approval">Pending Approval</option>
-                  <option value="completed">Completed</option>
-                  <option value="overdue">Overdue</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-
-              <button
-                onClick={() => setDetailModalOpen(false)}
-                className="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Task Details ─────────────────────────────────────────────────────── */}
+      <TaskDetailModal
+        taskId={selectedTaskId}
+        onClose={closeTask}
+        onChanged={refreshAll}
+        canUpdate={canUpdate}
+        canDelete={canDelete}
+      />
     </div>
   );
 };
