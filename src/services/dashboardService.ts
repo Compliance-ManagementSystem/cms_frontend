@@ -7,98 +7,85 @@ export interface DashboardFilters {
   entity?: string;
   location?: string;
   category?: string;
-  status?: string;
-  startDate?: string;
-  endDate?: string;
-  period?: '30d' | '90d' | '1y' | 'all';
 }
 
-export interface DashboardKPIs {
-  totalEntities: number;
-  totalLocations: number;
-  totalComplianceRecords: number;
+export type DashboardRating = 'green' | 'yellow' | 'orange' | 'red';
+
+// Every record is in exactly one bucket; "expiring soon" means valid but expiring within 30 days
+export type HealthBucket = 'compliant' | 'expiringSoon' | 'pending' | 'expired';
+
+export interface HealthCounts {
+  total: number;
   compliant: number;
-  pending: number;
   expiringSoon: number;
+  pending: number;
   expired: number;
-  compliancePercentage: number;
-  overdueTasks: number;
-  openTasks: number;
-  completedTasks: number;
+  /** Share of records currently valid (compliant + expiring soon) */
+  percentage: number;
 }
 
-export interface TrafficLightSummary {
-  overallRating: 'green' | 'yellow' | 'orange' | 'red';
-  green: number;
-  yellow: number;
-  orange: number;
-  red: number;
+export interface DashboardKPIs extends Omit<HealthCounts, 'percentage'> {
+  /** null when there are no records to score */
+  compliancePercentage: number | null;
+  openTasks: number;
+  overdueTasks: number;
 }
 
 export interface StatusDistributionItem {
+  bucket: HealthBucket;
   name: string;
   value: number;
   color: string;
-  statusKey: string;
 }
 
-export interface StateComplianceItem {
+export interface StateComplianceItem extends HealthCounts {
   state: string;
-  total: number;
-  compliant: number;
-  pending: number;
-  expiringSoon: number;
-  expired: number;
-  percentage: number;
 }
 
-export interface EntityComplianceItem {
+export interface EntityComplianceItem extends HealthCounts {
   entityId: string;
   name: string;
   code: string;
-  total: number;
-  compliant: number;
-  pending: number;
-  expiringSoon: number;
-  expired: number;
-  percentage: number;
 }
 
-export interface LocationComplianceItem {
+export interface LocationComplianceItem extends HealthCounts {
   locationId: string;
   name: string;
   code: string;
   entityName: string;
   state: string;
-  total: number;
-  compliant: number;
-  pending: number;
-  expiringSoon: number;
-  expired: number;
-  percentage: number;
 }
 
-export interface ExpiryTrendItem {
-  month: string;
-  expiring: number;
-  expired: number;
-  renewed: number;
+export interface CategoryComplianceItem extends HealthCounts {
+  categoryId: string;
+  name: string;
 }
 
-export interface TaskTrendItem {
-  month: string;
-  open: number;
-  completed: number;
+export interface TaskWorkloadItem {
+  userId: string;
+  name: string;
+  /** Active tasks still within their due date */
+  onTime: number;
   overdue: number;
 }
 
-export interface CriticalAlertItem {
+export interface OverdueAgeingItem {
+  bucket: string;
+  tasks: number;
+}
+
+export interface UpcomingExpiryItem {
+  month: string;
+  expiring: number;
+}
+
+export interface DashboardAlert {
   id: string;
-  type: 'expired_compliance' | 'overdue_task' | 'missing_docs' | 'expiring_soon';
+  type: 'expired_compliance' | 'overdue_task' | 'critical_task';
   title: string;
   entityName: string;
   locationName: string;
-  severity: 'critical' | 'high' | 'medium';
+  severity: 'critical' | 'high';
   date: string;
   recordId?: string;
   taskId?: string;
@@ -110,16 +97,19 @@ export interface DashboardData {
   selectedEntity?: { _id: string; name: string; code: string };
   selectedLocation?: { _id: string; name: string; code: string };
   kpis: DashboardKPIs;
-  trafficLights: TrafficLightSummary;
+  /** null when the current selection has no records */
+  overallRating: DashboardRating | null;
   charts: {
     statusDistribution: StatusDistributionItem[];
     stateWiseCompliance: StateComplianceItem[];
     entityWiseCompliance: EntityComplianceItem[];
     locationWiseCompliance: LocationComplianceItem[];
-    expiryTrends: ExpiryTrendItem[];
-    taskTrends: TaskTrendItem[];
+    categoryWiseCompliance: CategoryComplianceItem[];
+    upcomingExpiries: UpcomingExpiryItem[];
+    taskWorkload: TaskWorkloadItem[];
+    overdueAgeing: OverdueAgeingItem[];
   };
-  criticalAlerts: CriticalAlertItem[];
+  alerts: DashboardAlert[];
 }
 
 export interface FilterOptions {

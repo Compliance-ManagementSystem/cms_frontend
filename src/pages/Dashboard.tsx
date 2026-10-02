@@ -1,1034 +1,896 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  BarChart,
+  Bar,
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
-  AreaChart,
-  Area,
 } from 'recharts';
 import {
-  Building2,
-  MapPin,
-  ClipboardCheck,
-  CheckCircle2,
-  AlertTriangle,
-  AlertOctagon,
-  Clock,
-  CheckSquare,
+  LayoutDashboard,
   RefreshCw,
-  Filter,
-  X,
   ChevronRight,
-  TrendingUp,
-  ShieldCheck,
-  ShieldAlert,
-  ArrowUpRight,
   Globe2,
-  Loader2,
+  AlertTriangle,
+  ArrowUpRight,
 } from 'lucide-react';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
+import Table, { Column } from '@/components/ui/Table';
 import {
   dashboardService,
   DashboardData,
   DashboardFilters,
-  DashboardLevel,
+  DashboardRating,
   FilterOptions,
+  HealthCounts,
+  LocationComplianceItem,
 } from '@/services/dashboardService';
+import { socketService } from '@/services/socketService';
+import { useToast } from '@/hooks/useToast';
 import { ROUTES } from '@/constants/routes';
+import { formatRelativeDays } from '@/utils/dates';
+import IndiaMap, { resolveStateId } from '@/components/charts/IndiaMap';
+import { BUCKET_ORDER, BUCKET_LABELS, useChartTheme } from '@/components/charts/chartTheme';
+
+// Record statuses behind the dashboard's "Pending Action" bucket
+const PENDING_STATUSES = 'pending,submitted,resubmitted,under_review,correction,rejected,in_progress';
+
+const RATING_META: Record<DashboardRating, { label: string; variant: 'success' | 'warning' | 'pending' | 'danger' }> = {
+  green: { label: 'On track', variant: 'success' },
+  yellow: { label: 'Renewals due', variant: 'warning' },
+  orange: { label: 'Action pending', variant: 'pending' },
+  red: { label: 'At risk', variant: 'danger' },
+};
+
+const SELECT_CLASS =
+  'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
+const LABEL_CLASS = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1';
+
+// Full class names so Tailwind can see them
+const scoreStyle = (percentage: number) =>
+  percentage >= 80
+    ? { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
+    : percentage >= 60
+    ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+    : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
+
+// Legend text stays in neutral ink; the swatch beside it carries the colour
+const legendLabel = (value: string) => <span className="text-slate-600 dark:text-slate-300">{value}</span>;
+
+const ChartTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
+      <p className="font-semibold text-slate-800 dark:text-slate-200">{payload[0]?.payload?.name || label}</p>
+      {payload.map((entry: any) => (
+        <p key={entry.dataKey} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+          <span className="text-slate-500 dark:text-slate-400">{entry.name}:</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100">{entry.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+};
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const toast = useToast();
+  const chart = useChartTheme();
 
-  // ── Filters & Level State ──────────────────────────────────────────────────
-  const [level, setLevel] = useState<DashboardLevel>('national');
-  const [filters, setFilters] = useState<DashboardFilters>({
-    period: '90d',
-  });
+  const [filters, setFilters] = useState<DashboardFilters>({});
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     states: [],
     entities: [],
     locations: [],
     categories: [],
   });
-
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // ── Fetch Filter Options on Mount ──────────────────────────────────────────
   useEffect(() => {
-    dashboardService.getFilterOptions().then((opts) => {
-      setFilterOptions(opts);
-    }).catch((err) => {
-      console.error('Failed to load filter options:', err);
-    });
+    dashboardService
+      .getFilterOptions()
+      .then(setFilterOptions)
+      .catch(() => {});
   }, []);
 
-  // ── Fetch Dashboard Data ───────────────────────────────────────────────────
-  const fetchDashboardData = useCallback(async () => {
-    setIsRefreshing(true);
+  const fetchDashboard = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const stats = await dashboardService.getDashboardStats(filters);
-      setData(stats);
-      setLevel(stats.level);
-    } catch (err) {
-      console.error('Failed to fetch dashboard stats:', err);
+      setData(await dashboardService.getDashboardStats(filters));
+      setLoadError(null);
+    } catch (err: any) {
+      const message = err.message || 'Failed to load dashboard';
+      setLoadError(message);
+      toast.error(message);
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      setIsLoading(false);
     }
-  }, [filters]);
+  }, [filters, toast]);
 
+  // Load on filter change and whenever a record or task changes elsewhere
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    fetchDashboard();
+    const unsubRecord = socketService.on('compliance:status_changed', fetchDashboard);
+    const unsubTask = socketService.on('task:assigned', fetchDashboard);
+    return () => {
+      unsubRecord();
+      unsubTask();
+    };
+  }, [fetchDashboard]);
 
-  // Filtered location options based on selected entity & state
-  const availableLocations = useMemo(() => {
-    return filterOptions.locations.filter((loc) => {
-      if (filters.entity && loc.entityId !== filters.entity) return false;
-      if (filters.state && loc.state?.toLowerCase() !== filters.state.toLowerCase()) return false;
-      return true;
-    });
-  }, [filterOptions.locations, filters.entity, filters.state]);
+  // Location options follow the selected state and entity
+  const availableLocations = useMemo(
+    () =>
+      filterOptions.locations.filter(
+        (loc) =>
+          (!filters.entity || loc.entityId === filters.entity) &&
+          (!filters.state || loc.state?.toLowerCase() === filters.state.toLowerCase())
+      ),
+    [filterOptions.locations, filters.entity, filters.state]
+  );
 
-  // ── Drill Down Handlers ────────────────────────────────────────────────────
-  const handleSelectState = (stateName: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      state: stateName,
-      location: undefined, // reset child location
-    }));
+  const hasFilters = !!(filters.state || filters.entity || filters.location || filters.category);
+
+  // Links into the records list carry the dashboard's entity / location selection
+  const recordsLink = (params: Record<string, string> = {}) => {
+    const query = new URLSearchParams(params);
+    if (filters.entity) query.set('entity', filters.entity);
+    if (filters.location) query.set('location', filters.location);
+    const qs = query.toString();
+    return qs ? `${ROUTES.COMPLIANCE_RECORDS}?${qs}` : ROUTES.COMPLIANCE_RECORDS;
   };
 
-  const handleSelectEntity = (entityId: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      entity: entityId,
-      location: undefined,
-    }));
-  };
-
-  const handleSelectLocation = (locationId: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      location: locationId,
-    }));
-  };
-
-  const handleResetToNational = () => {
-    setFilters((prev) => ({
-      period: prev.period,
-    }));
-  };
-
-  const handleResetToState = () => {
-    setFilters((prev) => ({
-      period: prev.period,
-      state: prev.state,
-    }));
-  };
-
-  const handleResetToEntity = () => {
-    setFilters((prev) => ({
-      period: prev.period,
-      state: prev.state,
-      entity: prev.entity,
-    }));
-  };
-
-  // ── Custom Tooltips for Recharts ──────────────────────────────────────────
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 p-3 rounded-xl shadow-2xl text-xs space-y-1">
-          <p className="font-semibold text-slate-800 dark:text-slate-200">{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={`item-${index}`} className="flex items-center gap-2" style={{ color: entry.color }}>
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-              <span className="text-slate-500 dark:text-slate-400 capitalize">{entry.name}:</span>
-              <span className="font-bold text-slate-900 dark:text-slate-100">{entry.value}</span>
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const kpis = data?.kpis;
-  const traffic = data?.trafficLights;
-  const charts = data?.charts;
-
-  if (loading && !data) {
+  if (!data) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
-        <div className="text-center">
-          <p className="text-base font-medium text-slate-800 dark:text-slate-200">Loading Dashboard Analytics...</p>
-          <p className="text-xs text-slate-500 mt-1">Aggregating live statutory records and compliance telemetry</p>
-        </div>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-center">
+        {loadError ? (
+          <>
+            <AlertTriangle size={28} className="text-rose-500" />
+            <p className="text-sm text-slate-700 dark:text-slate-300">{loadError}</p>
+            <Button variant="outline" leftIcon={<RefreshCw size={15} />} onClick={fetchDashboard}>
+              Try again
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">Loading dashboard...</p>
+          </>
+        )}
       </div>
     );
   }
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* ── Level Bar & Interactive Drilldown Breadcrumbs ────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+  const { kpis, charts, level, alerts } = data;
+  const score = kpis.compliancePercentage;
+  const rating = data.overallRating ? RATING_META[data.overallRating] : null;
+
+  // One level of breakdown below the current view; clicking a bar drills into it
+  const breakdown =
+    level === 'state'
+      ? {
+          title: 'Compliance by Entity',
+          xKey: 'code',
+          rows: charts.entityWiseCompliance,
+          onSelect: (row: any) => setFilters((prev) => ({ ...prev, entity: row.entityId, location: undefined })),
+        }
+      : level === 'entity'
+      ? {
+          title: 'Compliance by Location',
+          xKey: 'code',
+          rows: charts.locationWiseCompliance,
+          onSelect: (row: any) => setFilters((prev) => ({ ...prev, location: row.locationId })),
+        }
+      : null;
+
+  const selectState = (state: string) =>
+    setFilters((prev) => ({ ...prev, state, location: undefined }));
+
+  // Weakest states first, beside the map
+  const statesByScore = [...charts.stateWiseCompliance].sort((a, b) => a.percentage - b.percentage);
+  const unmappedStates = charts.stateWiseCompliance.filter((s) => !resolveStateId(s.state));
+
+  // Where each health bucket leads in the records list
+  const bucketLink = {
+    compliant: recordsLink({ status: 'approved' }),
+    pending: recordsLink({ status: PENDING_STATUSES }),
+    expiringSoon: recordsLink({ expiringWithin: '30' }),
+    expired: recordsLink({ status: 'expired' }),
+  };
+  const statusSlices = BUCKET_ORDER.map((bucket) => ({
+    bucket,
+    name: BUCKET_LABELS[bucket],
+    value: kpis[bucket],
+  }));
+
+  // Stacked health bars, always in the validated colour order with a surface gap between segments
+  const healthBars = (maxBarSize: number, horizontal = false) =>
+    BUCKET_ORDER.map((bucket, index) => (
+      <Bar
+        key={bucket}
+        isAnimationActive={false}
+        dataKey={bucket}
+        name={BUCKET_LABELS[bucket]}
+        stackId="health"
+        fill={chart.bucket[bucket]}
+        stroke={chart.surface}
+        strokeWidth={2}
+        maxBarSize={maxBarSize}
+        radius={index === BUCKET_ORDER.length - 1 ? (horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]) : undefined}
+      />
+    ));
+
+  const kpiCards: Array<{ label: string; value: number; hint: string; color: string; to: string }> = [
+    {
+      label: 'Expired',
+      value: kpis.expired,
+      hint: 'Validity has lapsed',
+      color: 'text-rose-600 dark:text-rose-400',
+      to: recordsLink({ status: 'expired' }),
+    },
+    {
+      label: 'Expiring in 30 Days',
+      value: kpis.expiringSoon,
+      hint: 'Valid, renewal due',
+      color: 'text-amber-600 dark:text-amber-400',
+      to: recordsLink({ expiringWithin: '30' }),
+    },
+    {
+      label: 'Pending Action',
+      value: kpis.pending,
+      hint: 'Not yet approved',
+      color: 'text-sky-600 dark:text-sky-400',
+      to: recordsLink({ status: PENDING_STATUSES }),
+    },
+    {
+      label: 'Overdue Tasks',
+      value: kpis.overdueTasks,
+      hint: 'Past their due date',
+      color: 'text-rose-600 dark:text-rose-400',
+      to: ROUTES.TASKS_OVERDUE,
+    },
+    {
+      label: 'Active Tasks',
+      value: kpis.openTasks,
+      hint: 'Open or in progress',
+      color: 'text-sky-600 dark:text-sky-400',
+      to: ROUTES.TASKS,
+    },
+  ];
+
+  const breakdownText = (counts: HealthCounts) =>
+    [
+      [counts.compliant, 'compliant'],
+      [counts.expiringSoon, 'expiring'],
+      [counts.pending, 'pending'],
+      [counts.expired, 'expired'],
+    ]
+      .filter(([n]) => (n as number) > 0)
+      .map(([n, label]) => `${n} ${label}`)
+      .join(' · ') || '—';
+
+  const locationColumns: Column<LocationComplianceItem>[] = [
+    {
+      key: 'name',
+      header: 'Location',
+      cell: (loc) => (
         <div>
-          {/* Breadcrumb Hierarchy */}
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1 flex-wrap">
-            <button
-              onClick={handleResetToNational}
-              className={`flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium ${
-                level === 'national' ? 'text-indigo-600 dark:text-indigo-400 font-bold' : ''
-              }`}
-            >
-              <Globe2 size={13} />
-              National
-            </button>
-
-            {data?.selectedState && (
-              <>
-                <ChevronRight size={12} className="text-slate-400 dark:text-slate-600" />
-                <button
-                  onClick={handleResetToState}
-                  className={`hover:text-indigo-600 dark:hover:text-indigo-400 font-medium ${
-                    level === 'state' ? 'text-indigo-600 dark:text-indigo-400 font-bold' : ''
-                  }`}
-                >
-                  State: {data.selectedState}
-                </button>
-              </>
-            )}
-
-            {data?.selectedEntity && (
-              <>
-                <ChevronRight size={12} className="text-slate-400 dark:text-slate-600" />
-                <button
-                  onClick={handleResetToEntity}
-                  className={`hover:text-indigo-600 dark:hover:text-indigo-400 font-medium ${
-                    level === 'entity' ? 'text-indigo-600 dark:text-indigo-400 font-bold' : ''
-                  }`}
-                >
-                  Entity: {data.selectedEntity.name} ({data.selectedEntity.code})
-                </button>
-              </>
-            )}
-
-            {data?.selectedLocation && (
-              <>
-                <ChevronRight size={12} className="text-slate-400 dark:text-slate-600" />
-                <span className="text-indigo-600 dark:text-indigo-300 font-bold">
-                  Unit: {data.selectedLocation.name}
-                </span>
-              </>
-            )}
-          </div>
-
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
-            {level === 'national' && 'Pan-India National Compliance Dashboard'}
-            {level === 'state' && `State Compliance Overview: ${data?.selectedState}`}
-            {level === 'entity' && `Corporate Entity Dashboard: ${data?.selectedEntity?.name}`}
-            {level === 'location' && `Facility Unit Audit: ${data?.selectedLocation?.name}`}
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Aggregated real-time metrics, statutory obligations, and risk traffic lights.
-          </p>
+          <div className="font-semibold text-slate-900 dark:text-slate-100">{loc.name}</div>
+          <div className="text-xs font-mono text-slate-500 dark:text-slate-400">{loc.code}</div>
         </div>
-
-        {/* Dashboard Level Switcher Buttons */}
+      ),
+    },
+    { key: 'entityName', header: 'Entity', cell: (loc) => <span className="text-xs">{loc.entityName}</span> },
+    { key: 'state', header: 'State', cell: (loc) => <span className="text-xs">{loc.state}</span> },
+    { key: 'total', header: 'Records', cell: (loc) => <span className="font-semibold">{loc.total}</span> },
+    {
+      key: 'percentage',
+      header: 'Score',
+      cell: (loc) => (
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl text-xs shadow-sm dark:shadow-none">
-            <button
-              onClick={() => handleResetToNational()}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                level === 'national'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              National
-            </button>
-            <button
-              onClick={() => {
-                if (filterOptions.states.length > 0 && !filters.state) {
-                  handleSelectState(filterOptions.states[0]);
-                }
-              }}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                level === 'state'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              State
-            </button>
-            <button
-              onClick={() => {
-                if (filterOptions.entities.length > 0 && !filters.entity) {
-                  handleSelectEntity(filterOptions.entities[0]._id);
-                }
-              }}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                level === 'entity'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              Entity
-            </button>
-            <button
-              onClick={() => {
-                if (filterOptions.locations.length > 0 && !filters.location) {
-                  handleSelectLocation(filterOptions.locations[0]._id);
-                }
-              }}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                level === 'location'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              Unit
-            </button>
-          </div>
-
-          <button
-            onClick={fetchDashboardData}
-            disabled={isRefreshing}
-            className="p-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80 transition-all shadow-sm dark:shadow-none"
-            title="Refresh dashboard"
-          >
-            <RefreshCw size={16} className={isRefreshing ? 'animate-spin text-indigo-400' : ''} />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Multi-dimension Filters Bar ───────────────────────────────────────── */}
-      <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-wrap items-center gap-2.5 text-xs shadow-sm dark:shadow-none">
-        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 mr-1 font-medium">
-          <Filter size={14} className="text-indigo-600 dark:text-indigo-400" />
-          <span>Filters:</span>
-        </div>
-
-        {/* State Filter */}
-        <select
-          value={filters.state || ''}
-          onChange={(e) => setFilters({ ...filters, state: e.target.value || undefined, location: undefined })}
-          className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 focus:outline-none focus:border-indigo-500"
-        >
-          <option value="">All States</option>
-          {filterOptions.states.map((st) => (
-            <option key={st} value={st}>
-              {st}
-            </option>
-          ))}
-        </select>
-
-        {/* Entity Filter */}
-        <select
-          value={filters.entity || ''}
-          onChange={(e) => setFilters({ ...filters, entity: e.target.value || undefined, location: undefined })}
-          className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 focus:outline-none focus:border-indigo-500"
-        >
-          <option value="">All Entities</option>
-          {filterOptions.entities.map((ent) => (
-            <option key={ent._id} value={ent._id}>
-              {ent.name} ({ent.code})
-            </option>
-          ))}
-        </select>
-
-        {/* Location Filter */}
-        <select
-          value={filters.location || ''}
-          onChange={(e) => setFilters({ ...filters, location: e.target.value || undefined })}
-          className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 focus:outline-none focus:border-indigo-500"
-        >
-          <option value="">All Locations</option>
-          {availableLocations.map((loc) => (
-            <option key={loc._id} value={loc._id}>
-              {loc.name} ({loc.code})
-            </option>
-          ))}
-        </select>
-
-        {/* Category Filter */}
-        <select
-          value={filters.category || ''}
-          onChange={(e) => setFilters({ ...filters, category: e.target.value || undefined })}
-          className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 focus:outline-none focus:border-indigo-500"
-        >
-          <option value="">All Categories</option>
-          {filterOptions.categories.map((cat) => (
-            <option key={cat._id} value={cat._id}>
-              {cat.name}
-            </option>
-          ))}
-        </select>
-
-        {/* Status Filter */}
-        <select
-          value={filters.status || ''}
-          onChange={(e) => setFilters({ ...filters, status: e.target.value || undefined })}
-          className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 focus:outline-none focus:border-indigo-500"
-        >
-          <option value="">All Statuses</option>
-          <option value="approved">Compliant (Approved)</option>
-          <option value="pending">Pending</option>
-          <option value="under_review">Under Review</option>
-          <option value="expiring_soon">Expiring Soon</option>
-          <option value="expired">Expired</option>
-        </select>
-
-        {/* Period Selector */}
-        <select
-          value={filters.period || '90d'}
-          onChange={(e) => setFilters({ ...filters, period: e.target.value as any })}
-          className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 focus:outline-none focus:border-indigo-500"
-        >
-          <option value="30d">Last 30 Days</option>
-          <option value="90d">Last 90 Days</option>
-          <option value="1y">Last 1 Year</option>
-          <option value="all">All Time</option>
-        </select>
-
-        {/* Reset Filter Button */}
-        {(filters.state || filters.entity || filters.location || filters.category || filters.status) && (
-          <button
-            onClick={() => setFilters({ period: '90d' })}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors ml-auto"
-          >
-            <X size={13} />
-            Reset
-          </button>
-        )}
-      </div>
-
-      {/* ── KPI Stat Cards ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        {/* Total Entities */}
-        <div
-          onClick={() => navigate(ROUTES.ENTITIES)}
-          className="p-4 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-900/80 group shadow-sm dark:shadow-none"
-        >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-medium">Total Entities</span>
-            <Building2 size={16} className="text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform" />
-          </div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2">{kpis?.totalEntities ?? 0}</p>
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">Active Legal Units</span>
-        </div>
-
-        {/* Total Locations */}
-        <div
-          onClick={() => navigate(ROUTES.LOCATIONS)}
-          className="p-4 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-900/80 group shadow-sm dark:shadow-none"
-        >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-medium">Total Locations</span>
-            <MapPin size={16} className="text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform" />
-          </div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2">{kpis?.totalLocations ?? 0}</p>
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">Operating Facilities</span>
-        </div>
-
-        {/* Total Compliance Records */}
-        <div
-          onClick={() => navigate(ROUTES.COMPLIANCE_RECORDS)}
-          className="p-4 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-900/80 group shadow-sm dark:shadow-none"
-        >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-medium">Statutory Records</span>
-            <ClipboardCheck size={16} className="text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform" />
-          </div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2">{kpis?.totalComplianceRecords ?? 0}</p>
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">Under Tracking</span>
-        </div>
-
-        {/* Overall Compliance Health Score */}
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50 dark:from-indigo-950/40 to-white dark:to-slate-900/60 border border-indigo-200 dark:border-indigo-500/30 shadow-sm dark:shadow-none">
-          <div className="flex items-center justify-between text-indigo-700 dark:text-indigo-300">
-            <span className="text-xs font-medium">Compliance Score</span>
-            <ShieldCheck size={16} className="text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <div className="flex items-baseline gap-2 mt-2">
-            <p className="text-2xl font-bold text-indigo-950 dark:text-indigo-100">{kpis?.compliancePercentage ?? 0}%</p>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-              {kpis && kpis.compliancePercentage >= 80 ? 'Good' : 'Needs Action'}
-            </span>
-          </div>
-          <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
+          <div className="w-16 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                (kpis?.compliancePercentage ?? 0) >= 80
-                  ? 'bg-emerald-500'
-                  : (kpis?.compliancePercentage ?? 0) >= 60
-                  ? 'bg-amber-500'
-                  : 'bg-rose-500'
-              }`}
-              style={{ width: `${kpis?.compliancePercentage ?? 0}%` }}
+              className={`h-full rounded-full ${scoreStyle(loc.percentage).bar}`}
+              style={{ width: `${loc.percentage}%` }}
             />
           </div>
+          <span className="text-xs font-semibold">{loc.percentage}%</span>
         </div>
-
-        {/* Open Tasks */}
-        <div
-          onClick={() => navigate(ROUTES.TASKS)}
-          className="p-4 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-900/80 group shadow-sm dark:shadow-none"
+      ),
+    },
+    {
+      key: 'breakdown',
+      header: 'Breakdown',
+      cell: (loc) => (
+        <span className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">{breakdownText(loc)}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      cell: (loc) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          rightIcon={<ArrowUpRight size={13} />}
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`${ROUTES.COMPLIANCE_RECORDS}?location=${loc.locationId}`);
+          }}
         >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-medium">Open Tasks</span>
-            <CheckSquare size={16} className="text-sky-600 dark:text-sky-400 group-hover:scale-110 transition-transform" />
-          </div>
-          <p className="text-2xl font-bold text-sky-600 dark:text-sky-300 mt-2">{kpis?.openTasks ?? 0}</p>
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">Pending Completion</span>
-        </div>
+          Records
+        </Button>
+      ),
+    },
+  ];
 
-        {/* Completed Tasks */}
-        <div
-          onClick={() => navigate(`${ROUTES.TASKS}?status=completed`)}
-          className="p-4 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-900/80 group shadow-sm dark:shadow-none"
-        >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-medium">Completed Tasks</span>
-            <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+            <LayoutDashboard size={20} />
           </div>
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-300 mt-2">{kpis?.completedTasks ?? 0}</p>
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">Successfully Resolved</span>
-        </div>
-      </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                Compliance Dashboard
+              </h1>
+              {rating && <Badge variant={rating.variant} size="md">{rating.label}</Badge>}
+            </div>
 
-      {/* ── Traffic Light Risk Matrix ─────────────────────────────────────────── */}
-      <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <span
-                className={`w-3 h-3 rounded-full animate-pulse ${
-                  traffic?.overallRating === 'green'
-                    ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50'
-                    : traffic?.overallRating === 'yellow'
-                    ? 'bg-amber-400 shadow-lg shadow-amber-400/50'
-                    : traffic?.overallRating === 'orange'
-                    ? 'bg-orange-500 shadow-lg shadow-orange-500/50'
-                    : 'bg-rose-500 shadow-lg shadow-rose-500/50'
+            {/* Breadcrumb — each level returns to that view */}
+            <nav aria-label="Dashboard level" className="flex items-center flex-wrap gap-1.5 text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+              <button
+                type="button"
+                onClick={() => setFilters((prev) => ({ category: prev.category }))}
+                className={`inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 ${
+                  level === 'national' ? 'font-semibold text-slate-900 dark:text-slate-100' : ''
                 }`}
-              />
-              Statutory Traffic Light Matrix
-            </h2>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">
-              (Overall Health Status:{' '}
-              <strong className="uppercase text-slate-800 dark:text-slate-200">{traffic?.overallRating || 'green'}</strong>)
-            </span>
-          </div>
-
-          <span className="text-[11px] text-slate-400 dark:text-slate-500">Click any indicator to view filtered records</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* GREEN: Compliant */}
-          <div
-            onClick={() => navigate(`${ROUTES.COMPLIANCE_RECORDS}?status=approved`)}
-            className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-500/30 hover:border-emerald-500 cursor-pointer transition-all hover:bg-emerald-100/60 dark:hover:bg-emerald-950/30 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-                <CheckCircle2 size={18} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Compliant</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Valid & Approved</p>
-              </div>
-            </div>
-            <p className="text-xl font-bold text-emerald-700 dark:text-emerald-200">{traffic?.green ?? 0}</p>
-          </div>
-
-          {/* YELLOW: Expiring Soon */}
-          <div
-            onClick={() => navigate(`${ROUTES.COMPLIANCE_RECORDS}?status=expiring_soon`)}
-            className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-500/30 hover:border-amber-500 cursor-pointer transition-all hover:bg-amber-100/60 dark:hover:bg-amber-950/30 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
-                <Clock size={18} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Expiring Soon</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Due within 30 days</p>
-              </div>
-            </div>
-            <p className="text-xl font-bold text-amber-700 dark:text-amber-200">{traffic?.yellow ?? 0}</p>
-          </div>
-
-          {/* ORANGE: Pending */}
-          <div
-            onClick={() => navigate(`${ROUTES.COMPLIANCE_RECORDS}?status=pending`)}
-            className="p-3.5 rounded-xl bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-500/30 hover:border-orange-500 cursor-pointer transition-all hover:bg-orange-100/60 dark:hover:bg-orange-950/30 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold">
-                <AlertTriangle size={18} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-orange-800 dark:text-orange-300">Pending Action</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Review & Corrections</p>
-              </div>
-            </div>
-            <p className="text-xl font-bold text-orange-700 dark:text-orange-200">{traffic?.orange ?? 0}</p>
-          </div>
-
-          {/* RED: Expired / Overdue */}
-          <div
-            onClick={() => navigate(`${ROUTES.COMPLIANCE_RECORDS}?status=expired`)}
-            className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-500/30 hover:border-rose-500 cursor-pointer transition-all hover:bg-rose-100/60 dark:hover:bg-rose-950/30 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold">
-                <AlertOctagon size={18} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-rose-800 dark:text-rose-300">Expired / Overdue</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Statutory breaches</p>
-              </div>
-            </div>
-            <p className="text-xl font-bold text-rose-700 dark:text-rose-200">{traffic?.red ?? 0}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Charts Grid (Row 1: Status Donut + State/Entity Breakdown) ───────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Compliance Status Distribution (Donut Chart) */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <ShieldCheck size={16} className="text-indigo-600 dark:text-indigo-400" />
-              Compliance Status Distribution
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Ratio of statutory records by lifecycle health</p>
-          </div>
-
-          <div className="h-64 my-2 relative flex items-center justify-center">
-            {charts?.statusDistribution && charts.statusDistribution.reduce((sum, item) => sum + item.value, 0) > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={charts.statusDistribution}
-                    innerRadius={60}
-                    outerRadius={95}
-                    paddingAngle={3}
-                    dataKey="value"
-                    onClick={(entry) => {
-                      if (entry.statusKey) {
-                        navigate(`${ROUTES.COMPLIANCE_RECORDS}?status=${entry.statusKey}`);
-                      }
-                    }}
-                    cursor="pointer"
-                  >
-                    {charts.statusDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-xs text-slate-400 dark:text-slate-500 text-center">No compliance record data available</div>
-            )}
-
-            {/* Inner Center Label */}
-            {charts?.statusDistribution && charts.statusDistribution.reduce((sum, item) => sum + item.value, 0) > 0 && (
-              <div className="absolute text-center pointer-events-none">
-                <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">{kpis?.compliancePercentage ?? 0}%</span>
-                <span className="block text-[10px] text-slate-400">Compliant</span>
-              </div>
-            )}
-          </div>
-
-          {/* Legend */}
-          <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-200 dark:border-slate-800/80">
-            {charts?.statusDistribution?.map((item) => (
-              <div
-                key={item.name}
-                onClick={() => navigate(`${ROUTES.COMPLIANCE_RECORDS}?status=${item.statusKey}`)}
-                className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
               >
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                <span className="text-slate-500 dark:text-slate-400 truncate">{item.name}:</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">{item.value}</span>
-              </div>
-            ))}
+                <Globe2 size={13} />
+                All locations
+              </button>
+              {data.selectedState && (
+                <>
+                  <ChevronRight size={12} className="text-slate-400" />
+                  <button
+                    type="button"
+                    onClick={() => setFilters((prev) => ({ category: prev.category, state: prev.state }))}
+                    className={`hover:text-indigo-600 dark:hover:text-indigo-400 ${
+                      level === 'state' ? 'font-semibold text-slate-900 dark:text-slate-100' : ''
+                    }`}
+                  >
+                    {data.selectedState}
+                  </button>
+                </>
+              )}
+              {data.selectedEntity && (
+                <>
+                  <ChevronRight size={12} className="text-slate-400" />
+                  <button
+                    type="button"
+                    onClick={() => setFilters((prev) => ({ ...prev, location: undefined }))}
+                    className={`hover:text-indigo-600 dark:hover:text-indigo-400 ${
+                      level === 'entity' ? 'font-semibold text-slate-900 dark:text-slate-100' : ''
+                    }`}
+                  >
+                    {data.selectedEntity.name}
+                  </button>
+                </>
+              )}
+              {data.selectedLocation && (
+                <>
+                  <ChevronRight size={12} className="text-slate-400" />
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">{data.selectedLocation.name}</span>
+                </>
+              )}
+            </nav>
           </div>
         </div>
 
-        {/* State-wise or Entity-wise Compliance Comparison Bar Chart */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm lg:col-span-2 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <TrendingUp size={16} className="text-indigo-600 dark:text-indigo-400" />
-                {level === 'national' ? 'State-wise Compliance Comparison' : 'Entity-wise Compliance Comparison'}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {level === 'national'
-                  ? 'Click any state bar to drill down into that state'
-                  : 'Click any entity bar to drill down into that entity'}
-              </p>
+        <Button variant="outline" leftIcon={<RefreshCw size={15} />} onClick={fetchDashboard} isLoading={isLoading}>
+          Refresh
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <Card padding="md">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-44">
+            <label className={LABEL_CLASS}>State</label>
+            <select
+              value={filters.state || ''}
+              onChange={(e) => setFilters({ ...filters, state: e.target.value || undefined, location: undefined })}
+              className={SELECT_CLASS}
+            >
+              <option value="">All States</option>
+              {filterOptions.states.map((state) => (
+                <option key={state} value={state}>
+                  {state}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[180px]">
+            <label className={LABEL_CLASS}>Entity</label>
+            <select
+              value={filters.entity || ''}
+              onChange={(e) => setFilters({ ...filters, entity: e.target.value || undefined, location: undefined })}
+              className={SELECT_CLASS}
+            >
+              <option value="">All Entities</option>
+              {filterOptions.entities.map((entity) => (
+                <option key={entity._id} value={entity._id}>
+                  {entity.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[180px]">
+            <label className={LABEL_CLASS}>Location</label>
+            <select
+              value={filters.location || ''}
+              onChange={(e) => setFilters({ ...filters, location: e.target.value || undefined })}
+              className={SELECT_CLASS}
+            >
+              <option value="">All Locations</option>
+              {availableLocations.map((loc) => (
+                <option key={loc._id} value={loc._id}>
+                  {loc.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="w-48">
+            <label className={LABEL_CLASS}>Category</label>
+            <select
+              value={filters.category || ''}
+              onChange={(e) => setFilters({ ...filters, category: e.target.value || undefined })}
+              className={SELECT_CLASS}
+            >
+              <option value="">All Categories</option>
+              {filterOptions.categories.map((category) => (
+                <option key={category._id} value={category._id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {hasFilters && (
+            <Button variant="ghost" onClick={() => setFilters({})} className="text-xs">
+              Reset
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      {/* Key numbers — each opens the matching list */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <button
+          type="button"
+          onClick={() => navigate(recordsLink())}
+          className="text-left p-4 rounded-xl border bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm dark:shadow-none transition-colors"
+        >
+          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Compliance Score</div>
+          {score === null ? (
+            <>
+              <div className="text-2xl font-bold text-slate-400 dark:text-slate-600 mt-1">—</div>
+              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">No records in this view</div>
+            </>
+          ) : (
+            <>
+              <div className={`text-2xl font-bold mt-1 ${scoreStyle(score).text}`}>
+                {score}%
+              </div>
+              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div className={`h-full rounded-full ${scoreStyle(score).bar}`} style={{ width: `${score}%` }} />
+              </div>
+              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">
+                {kpis.compliant + kpis.expiringSoon} of {kpis.total} records valid
+              </div>
+            </>
+          )}
+        </button>
+
+        {kpiCards.map((card) => (
+          <button
+            key={card.label}
+            type="button"
+            onClick={() => navigate(card.to)}
+            className="text-left p-4 rounded-xl border bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm dark:shadow-none transition-colors"
+          >
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{card.label}</div>
+            <div className={`text-2xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}>
+              {card.value}
             </div>
-            <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">Interactive Drilldown</span>
-          </div>
-
-          <div className="h-72 mt-3">
-            {level === 'national' && charts?.stateWiseCompliance && charts.stateWiseCompliance.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={charts.stateWiseCompliance}
-                  margin={{ top: 10, right: 10, left: -20, bottom: 20 }}
-                  onClick={(e: any) => {
-                    if (e && e.activeLabel) {
-                      handleSelectState(e.activeLabel);
-                    }
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.25} />
-                  <XAxis dataKey="state" stroke="#64748b" fontSize={11} interval={0} angle={-25} textAnchor="end" />
-                  <YAxis stroke="#64748b" fontSize={11} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar dataKey="compliant" name="Compliant" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="expiringSoon" name="Expiring Soon" stackId="a" fill="#f59e0b" />
-                  <Bar dataKey="pending" name="Pending" stackId="a" fill="#f97316" />
-                  <Bar dataKey="expired" name="Expired" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : charts?.entityWiseCompliance && charts.entityWiseCompliance.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={charts.entityWiseCompliance}
-                  margin={{ top: 10, right: 10, left: -20, bottom: 20 }}
-                  onClick={(e: any) => {
-                    if (e && e.activePayload && e.activePayload[0]?.payload?.entityId) {
-                      handleSelectEntity(e.activePayload[0].payload.entityId);
-                    }
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.25} />
-                  <XAxis dataKey="code" stroke="#64748b" fontSize={11} />
-                  <YAxis stroke="#64748b" fontSize={11} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar dataKey="compliant" name="Compliant" stackId="a" fill="#10b981" />
-                  <Bar dataKey="expiringSoon" name="Expiring Soon" stackId="a" fill="#f59e0b" />
-                  <Bar dataKey="pending" name="Pending" stackId="a" fill="#f97316" />
-                  <Bar dataKey="expired" name="Expired" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-400 dark:text-slate-500">
-                No breakdown data available for current selection.
-              </div>
-            )}
-          </div>
-        </div>
+            <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{card.hint}</div>
+          </button>
+        ))}
       </div>
 
-      {/* ── Charts Grid (Row 2: Expiry Timeline Trends + Task Trends) ────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Expiry Trends Timeline */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Clock size={16} className="text-amber-500 dark:text-amber-400" />
-              Statutory Expiry Trends & Upcoming Renewals
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Projected statutory expiration volumes over upcoming months</p>
+      {/* Needs attention */}
+      {alerts.length > 0 && (
+        <Card padding="md">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={16} className="text-rose-600 dark:text-rose-400" />
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Needs Attention</h2>
+            <span className="text-xs text-slate-500 dark:text-slate-400">({alerts.length})</span>
           </div>
 
-          <div className="h-64">
-            {charts?.expiryTrends && charts.expiryTrends.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={charts.expiryTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorExpiring" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorRenewed" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.25} />
-                  <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
-                  <YAxis stroke="#64748b" fontSize={11} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Area
-                    type="monotone"
-                    dataKey="expiring"
-                    name="Expiring Soon"
-                    stroke="#f59e0b"
-                    fillOpacity={1}
-                    fill="url(#colorExpiring)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="renewed"
-                    name="Renewed / Approved"
-                    stroke="#10b981"
-                    fillOpacity={1}
-                    fill="url(#colorRenewed)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-400 dark:text-slate-500">
-                No trend data available.
-              </div>
-            )}
-          </div>
-        </div>
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {alerts.map((alert) => (
+              <li key={alert.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="flex items-start gap-3 min-w-0">
+                  <Badge variant={alert.severity === 'critical' ? 'danger' : 'warning'} size="sm">
+                    {alert.type === 'expired_compliance' ? 'Expired' : alert.type === 'overdue_task' ? 'Overdue task' : 'Critical task'}
+                  </Badge>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate" title={alert.title}>
+                      {alert.title}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {alert.locationName} · {alert.entityName} · {formatRelativeDays(alert.date)}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() =>
+                    navigate(
+                      alert.recordId
+                        ? `${ROUTES.COMPLIANCE_RECORDS}/${alert.recordId}`
+                        : `${ROUTES.TASKS}?task=${alert.taskId}`
+                    )
+                  }
+                >
+                  {alert.recordId ? 'Open record' : 'Open task'}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
-        {/* Task Remediation Trends */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <CheckSquare size={16} className="text-indigo-600 dark:text-indigo-400" />
-              Remediation Action Item Trends
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Task resolution and overdue remediation velocity</p>
-          </div>
-
-          <div className="h-64">
-            {charts?.taskTrends && charts.taskTrends.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={charts.taskTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.25} />
-                  <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
-                  <YAxis stroke="#64748b" fontSize={11} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar dataKey="open" name="Open" fill="#38bdf8" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="completed" name="Completed" fill="#10b981" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="overdue" name="Overdue" fill="#ef4444" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-400 dark:text-slate-500">
-                No task trend data available.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Location-wise Performance & Drilldown Table ─────────────────────── */}
-      <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <MapPin size={16} className="text-indigo-600 dark:text-indigo-400" />
-              Location Performance Drill-Down
-            </h3>
+      {/* Row 1: where (map or next-level breakdown) + overall status mix */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {level === 'national' ? (
+          <Card padding="md" className="lg:col-span-2">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Compliance by State</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Click any location to inspect facility-level compliance obligations
+              Share of records currently valid. Select a state to drill down.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-3">
+              <div className="md:col-span-3">
+                <IndiaMap data={charts.stateWiseCompliance} onSelect={selectState} />
+              </div>
+
+              <div className="md:col-span-2">
+                {statesByScore.length === 0 ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No compliance records yet.</p>
+                ) : (
+                  <ul className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[340px] overflow-y-auto">
+                    {statesByScore.map((state) => (
+                      <li key={state.state}>
+                        <button
+                          type="button"
+                          onClick={() => selectState(state.state)}
+                          className="w-full flex items-center justify-between gap-3 py-2 px-1 text-left rounded hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                              {state.state}
+                            </span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">
+                              {state.total} {state.total === 1 ? 'record' : 'records'}
+                            </span>
+                          </span>
+                          <span className={`text-sm font-semibold ${scoreStyle(state.percentage).text}`}>
+                            {state.percentage}%
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {unmappedStates.length > 0 && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                    Not shown on the map (state name not recognised): {unmappedStates.map((s) => s.state).join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+        ) : breakdown ? (
+          <Card padding="md" className="lg:col-span-2">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{breakdown.title}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Select a bar to drill down</p>
+
+            <div className="h-72 mt-3">
+              {breakdown.rows.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={breakdown.rows}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    onClick={(e: any) => {
+                      const row = e?.activePayload?.[0]?.payload;
+                      if (row) breakdown.onSelect(row);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} vertical={false} />
+                    <XAxis dataKey={breakdown.xKey} stroke={chart.axis} fontSize={11} />
+                    <YAxis stroke={chart.axis} fontSize={11} allowDecimals={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} formatter={legendLabel} />
+                    {healthBars(72)}
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                  No compliance records in this view.
+                </div>
+              )}
+            </div>
+          </Card>
+        ) : null}
+
+        <Card padding="md" className={level === 'location' ? 'lg:col-span-3' : ''}>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Status Mix</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">All records by current health</p>
+
+          {kpis.total === 0 ? (
+            <div className="h-56 flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+              No compliance records in this view.
+            </div>
+          ) : (
+            <>
+              <div className="h-52 relative flex items-center justify-center mt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={statusSlices}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={58}
+                      outerRadius={88}
+                      startAngle={90}
+                      endAngle={-270}
+                      stroke={chart.surface}
+                      strokeWidth={2}
+                      isAnimationActive={false}
+                      cursor="pointer"
+                      onClick={(slice: any) => navigate(bucketLink[slice.bucket as keyof typeof bucketLink])}
+                    >
+                      {statusSlices.map((slice) => (
+                        <Cell key={slice.bucket} fill={chart.bucket[slice.bucket]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute text-center pointer-events-none">
+                  <span className="block text-2xl font-bold text-slate-900 dark:text-slate-100">{score}%</span>
+                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">valid</span>
+                </div>
+              </div>
+
+              <ul className="mt-3 space-y-1">
+                {statusSlices.map((slice) => (
+                  <li key={slice.bucket}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(bucketLink[slice.bucket])}
+                      className="w-full flex items-center justify-between gap-3 px-1 py-1 rounded text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    >
+                      <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                        <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: chart.bucket[slice.bucket] }} />
+                        {slice.name}
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
+                        {slice.value}
+                        <span className="font-normal text-slate-500 dark:text-slate-400">
+                          {' '}
+                          ({Math.round((slice.value / kpis.total) * 100)}%)
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </Card>
+      </div>
+
+      {/* Row 2: what kind of obligation + when validity ends */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card padding="md">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Compliance by Category</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Records in each regulatory area by health</p>
+
+          <div className="mt-3" style={{ height: Math.max(220, charts.categoryWiseCompliance.length * 44 + 70) }}>
+            {charts.categoryWiseCompliance.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={charts.categoryWiseCompliance}
+                  layout="vertical"
+                  margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} horizontal={false} />
+                  <XAxis type="number" stroke={chart.axis} fontSize={11} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" stroke={chart.axis} fontSize={11} width={150} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} formatter={legendLabel} />
+                  {healthBars(26, true)}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                No compliance records in this view.
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card padding="md">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Upcoming Expiries</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Valid records by the month their validity ends, next 12 months
+          </p>
+
+          <div className="h-64 mt-3">
+            {charts.upcomingExpiries.some((m) => m.expiring > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={charts.upcomingExpiries} margin={{ top: 18, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} vertical={false} />
+                  <XAxis dataKey="month" stroke={chart.axis} fontSize={10} interval={0} />
+                  <YAxis stroke={chart.axis} fontSize={11} allowDecimals={false} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
+                  <Bar
+                    isAnimationActive={false}
+                    dataKey="expiring"
+                    name="Expiring"
+                    fill={chart.bucket.expiringSoon}
+                    maxBarSize={32}
+                    radius={[4, 4, 0, 0]}
+                  >
+                    <LabelList
+                      dataKey="expiring"
+                      position="top"
+                      fontSize={11}
+                      fill={chart.axis}
+                      formatter={(value: number) => (value > 0 ? value : '')}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400 text-center px-4">
+                Nothing expires in the next 12 months.
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Row 3: who is carrying the task load + how stale the backlog is */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card padding="md" className="lg:col-span-2">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Task Workload by Assignee</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Active tasks per person, busiest first</p>
+
+          <div className="mt-3" style={{ height: Math.max(200, charts.taskWorkload.length * 40 + 70) }}>
+            {charts.taskWorkload.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={charts.taskWorkload} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} horizontal={false} />
+                  <XAxis type="number" stroke={chart.axis} fontSize={11} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" stroke={chart.axis} fontSize={11} width={130} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} formatter={legendLabel} />
+                  <Bar
+                    isAnimationActive={false}
+                    dataKey="onTime"
+                    name="On time"
+                    stackId="load"
+                    fill={chart.series}
+                    stroke={chart.surface}
+                    strokeWidth={2}
+                    maxBarSize={24}
+                  />
+                  <Bar
+                    isAnimationActive={false}
+                    dataKey="overdue"
+                    name="Overdue"
+                    stackId="load"
+                    fill={chart.critical}
+                    stroke={chart.surface}
+                    strokeWidth={2}
+                    maxBarSize={24}
+                    radius={[0, 4, 4, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                No active tasks in this view.
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card padding="md">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Overdue Task Age</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">How long overdue tasks have been waiting</p>
+
+          <div className="h-56 mt-3">
+            {kpis.overdueTasks > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={charts.overdueAgeing} margin={{ top: 18, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} vertical={false} />
+                  <XAxis dataKey="bucket" stroke={chart.axis} fontSize={11} />
+                  <YAxis stroke={chart.axis} fontSize={11} allowDecimals={false} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
+                  <Bar
+                    isAnimationActive={false}
+                    dataKey="tasks"
+                    name="Overdue tasks"
+                    fill={chart.critical}
+                    maxBarSize={48}
+                    radius={[4, 4, 0, 0]}
+                  >
+                    <LabelList dataKey="tasks" position="top" fontSize={11} fill={chart.axis} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                No overdue tasks.
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Locations */}
+      {level !== 'location' && (
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Locations</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Select a location to view its dashboard
             </p>
           </div>
-          <button
-            onClick={() => navigate(ROUTES.LOCATIONS)}
-            className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium"
-          >
-            View all locations <ArrowUpRight size={13} />
-          </button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-            <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="py-3 px-4 font-semibold">Location / Unit</th>
-                <th className="py-3 px-4 font-semibold">Entity</th>
-                <th className="py-3 px-4 font-semibold">State</th>
-                <th className="py-3 px-4 font-semibold">Records</th>
-                <th className="py-3 px-4 font-semibold">Health Score</th>
-                <th className="py-3 px-4 font-semibold">Status Breakdown</th>
-                <th className="py-3 px-4 font-semibold text-right">Drill Down</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
-              {charts?.locationWiseCompliance && charts.locationWiseCompliance.length > 0 ? (
-                charts.locationWiseCompliance.map((loc) => {
-                  const rating =
-                    loc.expired > 0
-                      ? 'red'
-                      : loc.expiringSoon > 0
-                      ? 'yellow'
-                      : loc.pending > 0
-                      ? 'orange'
-                      : 'green';
-
-                  return (
-                    <tr
-                      key={loc.locationId}
-                      onClick={() => handleSelectLocation(loc.locationId)}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors group"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                              rating === 'green'
-                                ? 'bg-emerald-500'
-                                : rating === 'yellow'
-                                ? 'bg-amber-500'
-                                : rating === 'orange'
-                                ? 'bg-orange-500'
-                                : 'bg-rose-500'
-                            }`}
-                          />
-                          <div>
-                            <p className="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
-                              {loc.name}
-                            </p>
-                            <span className="text-[10px] text-slate-500 font-mono">{loc.code}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{loc.entityName || '—'}</td>
-
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60">
-                          {loc.state}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-200">{loc.total}</td>
-
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                loc.percentage >= 80
-                                ? 'bg-emerald-500'
-                                : loc.percentage >= 60
-                                ? 'bg-amber-500'
-                                : 'bg-rose-500'
-                              }`}
-                              style={{ width: `${loc.percentage}%` }}
-                            />
-                          </div>
-                          <span className="font-bold text-xs text-slate-800 dark:text-slate-200">{loc.percentage}%</span>
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 text-[11px]">
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium" title="Compliant">
-                            {loc.compliant} ✓
-                          </span>
-                          <span className="text-slate-400 dark:text-slate-600">/</span>
-                          <span className="text-amber-600 dark:text-amber-400 font-medium" title="Expiring Soon">
-                            {loc.expiringSoon} ⏱
-                          </span>
-                          <span className="text-slate-400 dark:text-slate-600">/</span>
-                          <span className="text-rose-600 dark:text-rose-400 font-medium" title="Expired">
-                            {loc.expired} ✗
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`${ROUTES.COMPLIANCE_RECORDS}?location=${loc.locationId}`);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] font-medium transition-colors"
-                        >
-                          View Records →
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500">
-                    No locations match current filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── Critical Alerts & Urgent Attention ───────────────────────────────── */}
-      {data?.criticalAlerts && data.criticalAlerts.length > 0 && (
-        <div className="p-5 rounded-2xl bg-rose-950/20 border border-rose-500/30 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-rose-300 flex items-center gap-2">
-              <ShieldAlert size={16} className="text-rose-400 animate-pulse" />
-              Critical Statutory Action Items ({data.criticalAlerts.length})
-            </h3>
-            <span className="text-[11px] text-rose-400">Immediate Remediation Required</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {data.criticalAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                className="p-3.5 rounded-xl bg-slate-900/80 border border-rose-500/20 flex items-start justify-between gap-3 text-xs"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
-                        alert.severity === 'critical'
-                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      }`}
-                    >
-                      {alert.severity}
-                    </span>
-                    <p className="font-semibold text-slate-100">{alert.title}</p>
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    Facility: <span className="text-slate-300">{alert.locationName}</span> &middot; Entity:{' '}
-                    <span className="text-slate-300">{alert.entityName}</span>
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    if (alert.recordId) {
-                      navigate(`/compliance/records/${alert.recordId}`);
-                    } else if (alert.taskId) {
-                      navigate(ROUTES.TASKS);
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-300 border border-rose-500/40 text-[11px] font-medium flex-shrink-0 transition-colors"
-                >
-                  Resolve
-                </button>
-              </div>
-            ))}
-          </div>
+          <Table<LocationComplianceItem>
+            columns={locationColumns}
+            data={charts.locationWiseCompliance}
+            keyExtractor={(loc) => loc.locationId}
+            onRowClick={(loc) => setFilters((prev) => ({ ...prev, location: loc.locationId }))}
+            emptyMessage="No locations with compliance records in this view."
+          />
         </div>
       )}
     </div>

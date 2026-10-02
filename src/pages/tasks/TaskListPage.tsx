@@ -112,10 +112,17 @@ export const TaskListPage: React.FC = () => {
   });
 
   // Filters
-  const [activeCard, setActiveCard] = useState<CardKey | ''>(onOverduePath ? 'overdue' : '');
+  // ?card=<key> and ?status=<status> let other pages link to a filtered list
+  const [activeCard, setActiveCard] = useState<CardKey | ''>(() => {
+    if (onOverduePath) return 'overdue';
+    const card = searchParams.get('card');
+    return METRIC_CARDS.some((c) => c.key === card && c.key !== 'total') ? (card as CardKey) : '';
+  });
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('');
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>(
+    (searchParams.get('status') as TaskStatus | null) || ''
+  );
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
   const [sort, setSort] = useState(SORT_OPTIONS[0].value);
   const [page, setPage] = useState(1);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ClipboardCheck,
   Plus,
@@ -92,10 +92,18 @@ export const ComplianceRecordListPage: React.FC = () => {
   // Filter states
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [activeCard, setActiveCard] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedEntity, setSelectedEntity] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('');
+  // Initial filters can come from the URL, so dashboard drill-downs open a filtered list:
+  // ?status=a,b  ?card=<key>  ?overdue=true  ?entity=<id>  ?location=<id>  ?expiringWithin=<days>
+  const [searchParams] = useSearchParams();
+  const [activeCard, setActiveCard] = useState(
+    searchParams.get('overdue') === 'true' ? 'overdue' : searchParams.get('card') || ''
+  );
+  const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
+  const [selectedEntity, setSelectedEntity] = useState(searchParams.get('entity') || '');
+  const [selectedLocation, setSelectedLocation] = useState(searchParams.get('location') || '');
+  const [expiringWithinDays, setExpiringWithinDays] = useState(
+    Number(searchParams.get('expiringWithin')) || 0
+  );
   const [selectedRule, setSelectedRule] = useState('');
   const [dueDateFrom, setDueDateFrom] = useState('');
   const [dueDateTo, setDueDateTo] = useState('');
@@ -180,7 +188,14 @@ export const ComplianceRecordListPage: React.FC = () => {
         page: pagination.page,
         limit: pagination.limit,
         search: debouncedSearch || undefined,
-        status: card?.statuses?.join(',') || selectedStatus || undefined,
+        status:
+          card?.statuses?.join(',') ||
+          selectedStatus ||
+          (expiringWithinDays ? 'approved,expiring_soon' : undefined),
+        expiryDateFrom: expiringWithinDays ? new Date().toISOString() : undefined,
+        expiryDateTo: expiringWithinDays
+          ? new Date(Date.now() + expiringWithinDays * 24 * 60 * 60 * 1000).toISOString()
+          : undefined,
         overdue: card?.overdue ? 'true' : undefined,
         entity: selectedEntity || undefined,
         location: selectedLocation || undefined,
@@ -211,6 +226,7 @@ export const ComplianceRecordListPage: React.FC = () => {
     selectedRule,
     dueDateFrom,
     dueDateTo,
+    expiringWithinDays,
     toast,
   ]);
 
@@ -228,6 +244,7 @@ export const ComplianceRecordListPage: React.FC = () => {
     setSelectedRule('');
     setDueDateFrom('');
     setDueDateTo('');
+    setExpiringWithinDays(0);
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
@@ -257,7 +274,8 @@ export const ComplianceRecordListPage: React.FC = () => {
     selectedLocation ||
     selectedRule ||
     dueDateFrom ||
-    dueDateTo
+    dueDateTo ||
+    expiringWithinDays
   );
 
   // Create record submission
@@ -593,6 +611,7 @@ export const ComplianceRecordListPage: React.FC = () => {
               className={SELECT_CLASS}
             >
               <option value="">All Statuses</option>
+              {selectedStatus.includes(',') && <option value={selectedStatus}>Multiple statuses</option>}
               <option value="pending">Pending</option>
               <option value="submitted">Submitted</option>
               <option value="under_review">Under Review</option>
@@ -691,6 +710,20 @@ export const ComplianceRecordListPage: React.FC = () => {
               />
             </div>
           </div>
+
+          {expiringWithinDays > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setExpiringWithinDays(0);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-600/40 text-amber-800 dark:text-amber-200"
+              title="Remove this filter"
+            >
+              Expiring within {expiringWithinDays} days ✕
+            </button>
+          )}
 
           {hasActiveFilters && (
             <Button variant="ghost" onClick={handleResetFilters} className="text-xs">
