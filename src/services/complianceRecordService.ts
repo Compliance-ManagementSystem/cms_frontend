@@ -37,6 +37,21 @@ export interface WorkflowActionInfo {
   variant: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'info';
   requiresComments: boolean;
   description: string;
+  disabledReason?: string;
+}
+
+export interface DocumentRequirementItem {
+  documentTypeId: string | null;
+  documentTypeCode?: string;
+  label: string;
+  isMandatory: boolean;
+  status: 'missing' | 'pending' | 'verified' | 'rejected';
+  documents: Array<{
+    _id: string;
+    name: string;
+    verificationStatus: string;
+    currentVersion: number;
+  }>;
 }
 
 export interface ApprovalRecordItem {
@@ -63,6 +78,7 @@ export interface WorkflowApprovalsResponse {
   currentStatus: ComplianceRecordStatus;
   approvals: ApprovalRecordItem[];
   availableActions: WorkflowActionInfo[];
+  documentRequirements?: DocumentRequirementItem[];
 }
 
 export interface DocumentVersionItem {
@@ -89,11 +105,14 @@ export interface DocumentItem {
   name: string;
   title?: string;
   type?: string;
-  documentType?: {
-    _id: string;
-    code: string;
-    label: string;
-  };
+  // Populated on the detail view, a bare id on list responses
+  documentType?:
+    | string
+    | {
+        _id: string;
+        code: string;
+        label: string;
+      };
   description?: string;
   entity: string | { _id: string; name: string };
   location?: string | { _id: string; name: string };
@@ -231,7 +250,8 @@ export interface RecordQueryParams {
   entity?: string;
   location?: string;
   rule?: string;
-  status?: string;
+  status?: string; // single status or comma-separated list
+  overdue?: 'true';
   assignedUser?: string;
   dueDateFrom?: string;
   dueDateTo?: string;
@@ -389,14 +409,18 @@ export const complianceRecordService = {
     return res.data;
   },
 
-  getDownloadUrl: (id: string, version?: number) => {
-    const baseUrl = axiosInstance.defaults.baseURL || '/api';
-    return `${baseUrl}/documents/${id}/download${version ? `?version=${version}` : ''}`;
-  },
-
-  getPreviewUrl: (id: string, version?: number) => {
-    const baseUrl = axiosInstance.defaults.baseURL || '/api';
-    return `${baseUrl}/documents/${id}/preview${version ? `?version=${version}` : ''}`;
+  // Files are fetched through axios so the request carries the Bearer token;
+  // a plain link or iframe src cannot authenticate against the API.
+  fetchDocumentFile: async (id: string, options?: { version?: number; inline?: boolean }) => {
+    const res = await axiosInstance.get<Blob>(
+      `/documents/${id}/${options?.inline ? 'preview' : 'download'}`,
+      {
+        params: options?.version ? { version: options.version } : undefined,
+        responseType: 'blob',
+        timeout: 0,
+      }
+    );
+    return res.data;
   },
 
   // ── Workflow Endpoints ──────────────────────────────────────────────────────

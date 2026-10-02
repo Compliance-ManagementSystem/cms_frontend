@@ -4,12 +4,10 @@ import {
   ClipboardCheck,
   Plus,
   Search,
-  Eye,
   Trash2,
   AlertTriangle,
   RefreshCw,
   Clock,
-  Calendar,
   Building2,
   MapPin,
   FileText,
@@ -23,6 +21,8 @@ import Input from '@/components/ui/Input';
 import Table, { Column } from '@/components/ui/Table';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
+import { daysFromToday } from '@/utils/dates';
 import {
   complianceRecordService,
   ComplianceRecordItem,
@@ -33,9 +33,51 @@ import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem } from '@/services/locationService';
 import { adminService, UserItem } from '@/services/adminService';
 
+// Summary cards double as quick filters over one or more statuses
+interface MetricCard {
+  key: string;
+  label: string;
+  color: string;
+  statuses?: ComplianceRecordStatus[];
+  overdue?: boolean;
+}
+
+const METRIC_CARDS: MetricCard[] = [
+  { key: 'total', label: 'Total Records', color: 'text-slate-900 dark:text-white' },
+  { key: 'pending', label: 'Pending Action', color: 'text-amber-600 dark:text-amber-400', statuses: ['pending'] },
+  {
+    key: 'correction',
+    label: 'Needs Correction',
+    color: 'text-orange-600 dark:text-orange-400',
+    statuses: ['correction', 'rejected'],
+  },
+  {
+    key: 'review',
+    label: 'In Review',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    statuses: ['submitted', 'resubmitted', 'under_review'],
+  },
+  {
+    key: 'approved',
+    label: 'Approved',
+    color: 'text-emerald-600 dark:text-emerald-400',
+    statuses: ['approved', 'expiring_soon'],
+  },
+  { key: 'expired', label: 'Expired', color: 'text-rose-600 dark:text-rose-400', statuses: ['expired'] },
+  { key: 'overdue', label: 'Overdue', color: 'text-rose-600 dark:text-rose-400', overdue: true },
+];
+
+const SELECT_CLASS =
+  'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
+
+const refId = (ref?: string | { _id: string }) => (typeof ref === 'string' ? ref : ref?._id);
+
 export const ComplianceRecordListPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const { can } = useAuth();
+  const canCreate = can('compliance_record', 'create');
+  const canDelete = can('compliance_record', 'delete');
 
   const [records, setRecords] = useState<ComplianceRecordItem[]>([]);
   const [metrics, setMetrics] = useState<Record<string, number>>({});
@@ -49,6 +91,8 @@ export const ComplianceRecordListPage: React.FC = () => {
 
   // Filter states
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [activeCard, setActiveCard] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedEntity, setSelectedEntity] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
@@ -118,15 +162,26 @@ export const ComplianceRecordListPage: React.FC = () => {
       });
   }, []);
 
+  // Search fires once typing pauses
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPagination((p) => (p.page === 1 ? p : { ...p, page: 1 }));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   // Fetch Compliance Records
   const fetchRecords = useCallback(async () => {
     setIsLoading(true);
     try {
+      const card = METRIC_CARDS.find((c) => c.key === activeCard);
       const data = await complianceRecordService.getRecords({
         page: pagination.page,
         limit: pagination.limit,
-        search: search.trim() || undefined,
-        status: selectedStatus || undefined,
+        search: debouncedSearch || undefined,
+        status: card?.statuses?.join(',') || selectedStatus || undefined,
+        overdue: card?.overdue ? 'true' : undefined,
         entity: selectedEntity || undefined,
         location: selectedLocation || undefined,
         rule: selectedRule || undefined,
@@ -148,7 +203,8 @@ export const ComplianceRecordListPage: React.FC = () => {
   }, [
     pagination.page,
     pagination.limit,
-    search,
+    debouncedSearch,
+    activeCard,
     selectedStatus,
     selectedEntity,
     selectedLocation,
@@ -165,6 +221,7 @@ export const ComplianceRecordListPage: React.FC = () => {
   // Handlers
   const handleResetFilters = () => {
     setSearch('');
+    setActiveCard('');
     setSelectedStatus('');
     setSelectedEntity('');
     setSelectedLocation('');
@@ -173,6 +230,35 @@ export const ComplianceRecordListPage: React.FC = () => {
     setDueDateTo('');
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
+
+  const handleCardClick = (key: string) => {
+    setActiveCard(key === 'total' || key === activeCard ? '' : key);
+    setSelectedStatus('');
+    setPagination((p) => ({ ...p, page: 1 }));
+  };
+
+  const metricValue = (card: MetricCard) =>
+    card.overdue
+      ? metrics.overdue || 0
+      : card.statuses
+      ? card.statuses.reduce((sum, st) => sum + (metrics[st] || 0), 0)
+      : metrics.total || 0;
+
+  // Location options follow the selected entity
+  const filterLocations = selectedEntity
+    ? locations.filter((l) => refId(l.entity as any) === selectedEntity)
+    : locations;
+
+  const hasActiveFilters = !!(
+    search ||
+    activeCard ||
+    selectedStatus ||
+    selectedEntity ||
+    selectedLocation ||
+    selectedRule ||
+    dueDateFrom ||
+    dueDateTo
+  );
 
   // Create record submission
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -250,6 +336,10 @@ export const ComplianceRecordListPage: React.FC = () => {
         return <Badge variant="info" size="sm">SUBMITTED</Badge>;
       case 'under_review':
         return <Badge variant="info" size="sm">UNDER REVIEW</Badge>;
+      case 'correction':
+        return <Badge variant="warning" size="sm">NEEDS CORRECTION</Badge>;
+      case 'resubmitted':
+        return <Badge variant="info" size="sm">RESUBMITTED</Badge>;
       case 'expiring_soon':
         return <Badge variant="warning" size="sm">EXPIRING SOON</Badge>;
       case 'expired':
@@ -266,23 +356,21 @@ export const ComplianceRecordListPage: React.FC = () => {
   const columns: Column<ComplianceRecordItem>[] = [
     {
       key: 'recordNumber',
-      header: 'Record & Statutory Rule',
+      header: 'Record',
       cell: (row) => (
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 border border-indigo-200 dark:border-indigo-700/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-semibold text-sm flex-shrink-0">
             <ClipboardCheck size={16} />
           </div>
-          <div>
+          <div className="min-w-0">
             <div
-              className="font-semibold text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-              onClick={() => navigate(`/compliance/records/${row._id}`)}
+              className="font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[280px]"
+              title={row.rule?.name}
             >
               {row.rule?.name || 'Compliance Obligation'}
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
-              <span className="font-mono text-indigo-600 dark:text-indigo-300 font-semibold">{row.recordNumber}</span>
-              <span className="text-slate-400">&bull;</span>
-              <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{row.rule?.code}</span>
+            <div className="text-xs mt-0.5 whitespace-nowrap font-mono text-indigo-600 dark:text-indigo-300 font-semibold">
+              {row.recordNumber}
             </div>
           </div>
         </div>
@@ -307,28 +395,34 @@ export const ComplianceRecordListPage: React.FC = () => {
     {
       key: 'status',
       header: 'Status',
-      cell: (row) => renderStatusBadge(row.status),
+      cell: (row) => <span className="whitespace-nowrap">{renderStatusBadge(row.status)}</span>,
     },
     {
       key: 'dates',
-      header: 'Due / Expiry Date',
+      header: 'Due / Expiry',
       cell: (row) => {
-        const dueDateObj = row.dueDate ? new Date(row.dueDate) : null;
-        const expiryDateObj = row.expiryDate ? new Date(row.expiryDate) : null;
-        const isOverdue = dueDateObj && dueDateObj.getTime() < Date.now() && row.status !== 'approved';
+        const awaitingUnit = ['pending', 'correction', 'rejected'].includes(row.status);
+        const days = row.dueDate ? daysFromToday(row.dueDate) : null;
+        const isOverdue = awaitingUnit && days !== null && days < 0;
+        const isDueSoon = awaitingUnit && days !== null && days >= 0 && days <= 14;
 
         return (
-          <div className="text-xs space-y-0.5">
-            <div className="flex items-center gap-1.5">
-              <Clock size={12} className={isOverdue ? 'text-rose-500 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'} />
-              <span className={isOverdue ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-700 dark:text-slate-300'}>
-                Due: {dueDateObj ? dueDateObj.toLocaleDateString() : '—'}
+          <div className="text-xs space-y-1 whitespace-nowrap">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                <Clock size={12} className="text-slate-500 dark:text-slate-400" />
+                {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '—'}
               </span>
+              {isOverdue && (
+                <Badge variant="danger" size="sm">Overdue {Math.abs(days!)}d</Badge>
+              )}
+              {isDueSoon && (
+                <Badge variant="warning" size="sm">{days === 0 ? 'Due today' : `Due in ${days}d`}</Badge>
+              )}
             </div>
-            {expiryDateObj && (
-              <div className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 text-[11px]">
-                <Calendar size={11} />
-                <span>Exp: {expiryDateObj.toLocaleDateString()}</span>
+            {row.expiryDate && (
+              <div className="text-slate-500 dark:text-slate-400 text-[11px]">
+                Expires {new Date(row.expiryDate).toLocaleDateString()}
               </div>
             )}
           </div>
@@ -337,7 +431,7 @@ export const ComplianceRecordListPage: React.FC = () => {
     },
     {
       key: 'assignedUser',
-      header: 'Assigned Stakeholder',
+      header: 'Assignee',
       cell: (row) => (
         <div className="text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
           <User size={13} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
@@ -348,39 +442,60 @@ export const ComplianceRecordListPage: React.FC = () => {
     {
       key: 'documents',
       header: 'Documents',
-      cell: (row) => (
-        <div className="text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-          <FileText size={13} className="text-sky-600 dark:text-sky-400" />
-          <span>{row.documents?.length || 0} attached</span>
-        </div>
-      ),
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      cell: (row) => (
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => navigate(`/compliance/records/${row._id}`)}
-            className="p-1.5 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-            title="View Details & Documents"
+      cell: (row) => {
+        const required = row.rule?.requiredDocuments || [];
+        const attached = row.documents || [];
+
+        if (required.length === 0) {
+          return (
+            <div className="text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
+              <FileText size={13} className="text-sky-600 dark:text-sky-400" />
+              <span>{attached.length} attached</span>
+            </div>
+          );
+        }
+
+        const attachedTypes = new Set(attached.map((d) => refId(d.documentType)));
+        const provided = required.filter((r) => attachedTypes.has(refId(r.documentType))).length;
+        const complete = provided === required.length;
+
+        return (
+          <div
+            className={`text-xs flex items-center gap-1.5 whitespace-nowrap font-medium ${
+              complete ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+            }`}
           >
-            <Eye size={15} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setRecordToDelete(row);
-              setIsDeleteModalOpen(true);
-            }}
-            className="p-1.5 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-            title="Delete Record"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
-      ),
+            <FileText size={13} />
+            <span>
+              {provided} / {required.length} required
+            </span>
+          </div>
+        );
+      },
     },
+    // The row itself opens the record, so the only row action is delete
+    ...(canDelete
+      ? [
+          {
+            key: 'actions',
+            header: '',
+            align: 'right' as const,
+            cell: (row: ComplianceRecordItem) => (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRecordToDelete(row);
+                  setIsDeleteModalOpen(true);
+                }}
+                className="p-1.5 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                title="Delete Record"
+              >
+                <Trash2 size={15} />
+              </button>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -410,87 +525,79 @@ export const ComplianceRecordListPage: React.FC = () => {
           >
             Refresh
           </Button>
-          <Button
-            variant="outline"
-            leftIcon={<Zap size={15} className="text-amber-500 dark:text-amber-400" />}
-            onClick={() => setIsGenerateModalOpen(true)}
-          >
-            Auto-Generate for Unit
-          </Button>
-          <Button
-            variant="primary"
-            leftIcon={<Plus size={16} />}
-            onClick={() => setIsCreateModalOpen(true)}
-          >
-            New Record
-          </Button>
+          {canCreate && (
+            <>
+              <Button
+                variant="outline"
+                leftIcon={<Zap size={15} className="text-amber-500 dark:text-amber-400" />}
+                onClick={() => setIsGenerateModalOpen(true)}
+              >
+                Auto-Generate for Unit
+              </Button>
+              <Button
+                variant="primary"
+                leftIcon={<Plus size={16} />}
+                onClick={() => setIsCreateModalOpen(true)}
+              >
+                New Record
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Real MongoDB Metrics Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="p-3">
-          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Total Records</div>
-          <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">{metrics.total || pagination.total || 0}</div>
-        </Card>
-
-        <Card className="p-3">
-          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Pending Action</div>
-          <div className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">{metrics.pending || 0}</div>
-        </Card>
-
-        <Card className="p-3">
-          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Submitted</div>
-          <div className="text-xl font-bold text-sky-600 dark:text-sky-400 mt-1">{metrics.submitted || 0}</div>
-        </Card>
-
-        <Card className="p-3">
-          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Under Review</div>
-          <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">{metrics.under_review || 0}</div>
-        </Card>
-
-        <Card className="p-3">
-          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Approved & Active</div>
-          <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{metrics.approved || 0}</div>
-        </Card>
-
-        <Card className="p-3">
-          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Expired / Overdue</div>
-          <div className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-1">{metrics.expired || 0}</div>
-        </Card>
+      {/* Summary cards — click to filter */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+        {METRIC_CARDS.map((card) => {
+          const isActive = card.key === activeCard;
+          return (
+            <button
+              key={card.key}
+              type="button"
+              onClick={() => handleCardClick(card.key)}
+              aria-pressed={isActive}
+              className={`text-left p-3 rounded-xl border bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none transition-colors ${
+                isActive
+                  ? 'border-indigo-500 ring-2 ring-indigo-500/30'
+                  : 'border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600'
+              }`}
+            >
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{card.label}</div>
+              <div className={`text-xl font-bold mt-1 ${card.color}`}>{metricValue(card)}</div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filter Toolbar */}
       <Card padding="md">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
-          {/* Search */}
-          <div className="lg:col-span-2">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[180px]">
             <Input
-              placeholder="Search by record #, rule, notes..."
+              placeholder="Search record # or notes"
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPagination((p) => ({ ...p, page: 1 }));
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               leftAddon={<Search size={16} className="text-slate-400" />}
             />
           </div>
 
-          {/* Status Filter */}
-          <div>
+          <div className="w-32">
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Status</label>
             <select
               value={selectedStatus}
               onChange={(e) => {
                 setSelectedStatus(e.target.value);
+                setActiveCard('');
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              className={SELECT_CLASS}
             >
               <option value="">All Statuses</option>
               <option value="pending">Pending</option>
               <option value="submitted">Submitted</option>
               <option value="under_review">Under Review</option>
+              <option value="correction">Needs Correction</option>
+              <option value="resubmitted">Resubmitted</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
               <option value="expiring_soon">Expiring Soon</option>
@@ -498,16 +605,16 @@ export const ComplianceRecordListPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Entity Filter */}
-          <div>
+          <div className="w-32">
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Entity</label>
             <select
               value={selectedEntity}
               onChange={(e) => {
                 setSelectedEntity(e.target.value);
+                setSelectedLocation('');
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              className={SELECT_CLASS}
             >
               <option value="">All Entities</option>
               {entities.map((e) => (
@@ -518,8 +625,7 @@ export const ComplianceRecordListPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Location Filter */}
-          <div>
+          <div className="w-32">
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Location</label>
             <select
               value={selectedLocation}
@@ -527,10 +633,10 @@ export const ComplianceRecordListPage: React.FC = () => {
                 setSelectedLocation(e.target.value);
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              className={SELECT_CLASS}
             >
               <option value="">All Locations</option>
-              {locations.map((l) => (
+              {filterLocations.map((l) => (
                 <option key={l._id} value={l._id}>
                   {l.name}
                 </option>
@@ -538,8 +644,7 @@ export const ComplianceRecordListPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Rule Filter */}
-          <div>
+          <div className="w-32">
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Compliance Rule</label>
             <select
               value={selectedRule}
@@ -547,7 +652,7 @@ export const ComplianceRecordListPage: React.FC = () => {
                 setSelectedRule(e.target.value);
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
+              className={SELECT_CLASS}
             >
               <option value="">All Rules</option>
               {rules.map((r) => (
@@ -557,90 +662,67 @@ export const ComplianceRecordListPage: React.FC = () => {
               ))}
             </select>
           </div>
-        </div>
-
-        {/* Date Filters Row */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 items-end">
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Due Date From</label>
-            <input
-              type="date"
-              value={dueDateFrom}
-              onChange={(e) => {
-                setDueDateFrom(e.target.value);
-                setPagination((p) => ({ ...p, page: 1 }));
-              }}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
-            />
-          </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Due Date To</label>
-            <input
-              type="date"
-              value={dueDateTo}
-              onChange={(e) => {
-                setDueDateTo(e.target.value);
-                setPagination((p) => ({ ...p, page: 1 }));
-              }}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
-            />
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Due between</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                aria-label="Due date from"
+                value={dueDateFrom}
+                max={dueDateTo || undefined}
+                onChange={(e) => {
+                  setDueDateFrom(e.target.value);
+                  setPagination((p) => ({ ...p, page: 1 }));
+                }}
+                className={`${SELECT_CLASS} !w-[124px] !px-2 !text-xs h-[38px]`}
+              />
+              <span className="text-xs text-slate-400">to</span>
+              <input
+                type="date"
+                aria-label="Due date to"
+                value={dueDateTo}
+                min={dueDateFrom || undefined}
+                onChange={(e) => {
+                  setDueDateTo(e.target.value);
+                  setPagination((p) => ({ ...p, page: 1 }));
+                }}
+                className={`${SELECT_CLASS} !w-[124px] !px-2 !text-xs h-[38px]`}
+              />
+            </div>
           </div>
 
-          <div className="md:col-span-2 flex justify-end">
-            {(search || selectedStatus || selectedEntity || selectedLocation || selectedRule || dueDateFrom || dueDateTo) && (
-              <Button
-                variant="ghost"
-                onClick={handleResetFilters}
-                className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
-              >
-                Reset All Filters
-              </Button>
-            )}
-          </div>
+          {hasActiveFilters && (
+            <Button variant="ghost" onClick={handleResetFilters} className="text-xs">
+              Reset
+            </Button>
+          )}
         </div>
       </Card>
 
       {/* Records Table */}
-      <div className="overflow-hidden">
-        <Table<ComplianceRecordItem>
-          columns={columns}
-          data={records}
-          keyExtractor={(item) => item._id}
-          isLoading={isLoading}
-          onRowClick={(row) => navigate(`/compliance/records/${row._id}`)}
-          emptyMessage="No compliance tracking records found. Initialize compliance for an operating facility."
-        />
-
-        {/* Pagination */}
-        {pagination.total > pagination.limit && (
-          <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-sm text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900/60 rounded-b-xl border border-slate-200 dark:border-slate-800 mt-2">
-            <div>
-              Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
-              {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} records
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page <= 1}
-                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
-              >
-                Previous
-              </Button>
-              <span className="px-2 text-slate-800 dark:text-slate-300 font-medium">Page {pagination.page}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page * pagination.limit >= pagination.total}
-                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+      <Table<ComplianceRecordItem>
+        columns={columns}
+        data={records}
+        keyExtractor={(item) => item._id}
+        isLoading={isLoading}
+        onRowClick={(row) => navigate(`/compliance/records/${row._id}`)}
+        emptyMessage={
+          hasActiveFilters
+            ? 'No compliance records match these filters.'
+            : 'No compliance tracking records found. Initialize compliance for an operating facility.'
+        }
+        pagination={
+          pagination.total > pagination.limit
+            ? {
+                page: pagination.page,
+                limit: pagination.limit,
+                total: pagination.total,
+                onPageChange: (page) => setPagination((prev) => ({ ...prev, page })),
+              }
+            : undefined
+        }
+      />
 
       {/* Create Compliance Record Modal */}
       <Modal

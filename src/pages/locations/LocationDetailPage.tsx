@@ -25,6 +25,7 @@ import Badge from '@/components/ui/Badge';
 import { useToast } from '@/hooks/useToast';
 import { locationService, LocationDetailData } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
+import { openDocumentInNewTab } from '@/utils/documentFile';
 
 type TabType = 'overview' | 'compliance_licences' | 'documents_records' | 'tasks_audit';
 
@@ -68,6 +69,12 @@ export const LocationDetailPage: React.FC = () => {
     } else {
       toast.info(`Preview not available for ${name || 'this item'}. File stored securely.`);
     }
+  };
+
+  const handleViewDocument = (documentId: string) => {
+    openDocumentInNewTab(documentId).catch((err) =>
+      toast.error(err.message || 'Failed to open document')
+    );
   };
 
   if (isLoading) {
@@ -808,7 +815,7 @@ export const LocationDetailPage: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleViewFile(doc.latestVersionUrl || (doc as any).fileUrl, doc.title)}
+                            onClick={() => handleViewDocument(doc._id)}
                             className="text-emerald-600 dark:text-emerald-400 hover:underline p-1 text-xs"
                             leftIcon={<ExternalLink size={13} />}
                           >

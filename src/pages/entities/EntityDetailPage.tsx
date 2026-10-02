@@ -24,6 +24,7 @@ import Badge from '@/components/ui/Badge';
 import { useToast } from '@/hooks/useToast';
 import { entityService, EntityDetailData } from '@/services/entityService';
 import { ROUTES } from '@/constants/routes';
+import { openDocumentInNewTab } from '@/utils/documentFile';
 
 type TabType = 'overview' | 'locations' | 'compliance' | 'documents' | 'tasks' | 'audit';
 
@@ -716,16 +717,19 @@ export const EntityDetailPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {doc.latestVersionUrl ? (
-                          <a
-                            href={doc.latestVersionUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
                             className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDocumentInNewTab(doc._id).catch((err) =>
+                                toast.error(err.message || 'Failed to open document')
+                              );
+                            }}
                           >
                             <ExternalLink size={13} />
                             View
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}

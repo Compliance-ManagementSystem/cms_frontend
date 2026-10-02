@@ -31,32 +31,36 @@ import Badge from '@/components/ui/Badge';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
+import { daysFromToday, formatRelativeDays } from '@/utils/dates';
 import {
   complianceRecordService,
   ComplianceRecordItem,
   ComplianceRecordStatus,
   DocumentItem,
+  DocumentRequirementItem,
   WorkflowActionInfo,
   WorkflowApprovalsResponse,
 } from '@/services/complianceRecordService';
 import { adminService, MasterDataItem } from '@/services/adminService';
 import { ROUTES } from '@/constants/routes';
 
+const formatFileSize = (bytes: number): string =>
+  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(bytes / 1024, 0.1).toFixed(1)} KB`;
+
 export const ComplianceRecordDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
+  const { can } = useAuth();
+  const canUpload = can('document', 'upload');
+  const canVerify = can('document', 'update');
 
   const [record, setRecord] = useState<ComplianceRecordItem | null>(null);
   const [docTypes, setDocTypes] = useState<MasterDataItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'versions' | 'history'>('overview');
-
-  // Status Update Modal (Legacy fallback)
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [selectedNewStatus, setSelectedNewStatus] = useState<ComplianceRecordStatus>('submitted');
-  const [statusComments, setStatusComments] = useState('');
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'history'>('overview');
+  const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({});
 
   // Phase 9: Workflow State & Action Confirmation Modal
   const [workflowData, setWorkflowData] = useState<WorkflowApprovalsResponse | null>(null);
@@ -94,9 +98,9 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const [previewDocTitle, setPreviewDocTitle] = useState('');
 
   // Fetch Record
-  const fetchRecord = useCallback(async () => {
+  const fetchRecord = useCallback(async (silent = false) => {
     if (!id) return;
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
     try {
       const data = await complianceRecordService.getRecordById(id);
       setRecord(data);
@@ -134,34 +138,6 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       .catch(() => setDocTypes([]));
   }, []);
 
-  // Handle Status Update Submit
-  const handleStatusUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!record) return;
-
-    setIsUpdatingStatus(true);
-    try {
-      const res = await complianceRecordService.updateRecordStatus(record._id, {
-        status: selectedNewStatus,
-        comments: statusComments.trim() || undefined,
-        decision:
-          selectedNewStatus === 'approved'
-            ? 'approved'
-            : selectedNewStatus === 'rejected'
-            ? 'rejected'
-            : 'pending',
-      });
-      toast.success(res.message || 'Status updated successfully');
-      setIsStatusModalOpen(false);
-      fetchRecord();
-      fetchWorkflow();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update record status');
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-  };
-
   // Handle Workflow Action Open
   const handleOpenWorkflowModal = (actionInfo: WorkflowActionInfo) => {
     setSelectedActionInfo(actionInfo);
@@ -188,17 +164,24 @@ export const ComplianceRecordDetailPage: React.FC = () => {
         action: selectedActionInfo.action,
         comments: workflowComments.trim() || undefined,
       });
-      setRecord(res.data.record);
       toast.success(res.message || `Action "${selectedActionInfo.action}" completed successfully.`);
       setIsWorkflowModalOpen(false);
       setWorkflowComments('');
       setSelectedActionInfo(null);
-      await fetchWorkflow();
+      // The workflow response carries a trimmed record; reload the fully populated one
+      await Promise.all([fetchRecord(true), fetchWorkflow()]);
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || 'Workflow transition failed');
     } finally {
       setIsExecutingWorkflow(false);
     }
+  };
+
+  const openUploadFor = (requirement: DocumentRequirementItem) => {
+    setUploadDocType(requirement.documentTypeId || '');
+    setUploadDocName(requirement.label);
+    setUploadFile(null);
+    setIsUploadModalOpen(true);
   };
 
   // Handle Document Upload Submit
@@ -217,7 +200,11 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       formData.append('entity', record.entity._id);
       formData.append('location', record.location._id);
       formData.append('complianceRecord', record._id);
-      if (uploadDocType) formData.append('type', uploadDocType);
+      if (uploadDocType) {
+        formData.append('documentType', uploadDocType);
+        const typeCode = docTypes.find((dt) => dt._id === uploadDocType)?.code;
+        if (typeCode) formData.append('type', typeCode);
+      }
       if (uploadExpiryDate) formData.append('expiryDate', uploadExpiryDate);
 
       const res = await complianceRecordService.uploadDocument(formData);
@@ -225,8 +212,10 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       setIsUploadModalOpen(false);
       setUploadFile(null);
       setUploadDocName('');
+      setUploadDocType('');
       setUploadExpiryDate('');
-      fetchRecord();
+      fetchRecord(true);
+      fetchWorkflow();
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload document');
     } finally {
@@ -253,7 +242,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       setIsReplaceModalOpen(false);
       setReplaceFile(null);
       setReplaceNotes('');
-      fetchRecord();
+      fetchRecord(true);
+      fetchWorkflow();
     } catch (err: any) {
       toast.error(err.message || 'Failed to replace document version');
     } finally {
@@ -275,7 +265,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       toast.success(res.message || 'Document verified');
       setIsVerifyModalOpen(false);
       setVerificationNotes('');
-      fetchRecord();
+      fetchRecord(true);
+      fetchWorkflow();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update verification status');
     } finally {
@@ -284,17 +275,38 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   };
 
   // Open Preview Modal
-  const openPreview = (doc: DocumentItem, version?: number) => {
-    const url = complianceRecordService.getPreviewUrl(doc._id, version);
-    setPreviewDocUrl(url);
-    setPreviewDocTitle(`${doc.name} (v${version || doc.currentVersion || 1})`);
-    setIsPreviewModalOpen(true);
+  const openPreview = async (doc: DocumentItem, version?: number) => {
+    try {
+      const blob = await complianceRecordService.fetchDocumentFile(doc._id, { version, inline: true });
+      setPreviewDocUrl(URL.createObjectURL(blob));
+      setPreviewDocTitle(`${doc.name} (v${version || doc.currentVersion || 1})`);
+      setIsPreviewModalOpen(true);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load document preview');
+    }
+  };
+
+  const closePreview = () => {
+    setIsPreviewModalOpen(false);
+    if (previewDocUrl) URL.revokeObjectURL(previewDocUrl);
+    setPreviewDocUrl('');
   };
 
   // Trigger Download
-  const handleDownload = (docId: string, version?: number) => {
-    const url = complianceRecordService.getDownloadUrl(docId, version);
-    window.open(url, '_blank');
+  const handleDownload = async (docId: string, fileName: string, version?: number) => {
+    try {
+      const blob = await complianceRecordService.fetchDocumentFile(docId, { version });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to download document');
+    }
   };
 
   if (isLoading || !record) {
@@ -333,37 +345,51 @@ export const ComplianceRecordDetailPage: React.FC = () => {
     }
   };
 
-  // Collect all historical versions across all attached documents for Tab 3
-  const allHistoricalVersions: Array<{
-    documentId: string;
-    documentName: string;
-    version: number;
-    fileName: string;
-    fileSize: number;
-    uploadedBy: any;
-    uploadedAt: string;
-    notes?: string;
-    status: string;
-  }> = [];
+  const documentRequirements = workflowData?.documentRequirements || [];
+  const blockedReasons = Array.from(
+    new Set(
+      (workflowData?.availableActions || [])
+        .map((a) => a.disabledReason)
+        .filter((r): r is string => !!r)
+    )
+  );
 
-  (record.documents || []).forEach((doc) => {
-    (doc.versions || []).forEach((v) => {
-      allHistoricalVersions.push({
-        documentId: doc._id,
-        documentName: doc.name,
-        version: v.version,
-        fileName: v.fileName,
-        fileSize: v.fileSize,
-        uploadedBy: v.uploadedBy,
-        uploadedAt: v.uploadedAt,
-        notes: v.notes,
-        status: v.status,
-      });
-    });
-  });
+  // Workflow stepper position
+  const WORKFLOW_STEPS = ['Pending', 'Submitted', 'Under Review', 'Approved'];
+  const stepByStatus: Partial<Record<ComplianceRecordStatus, number>> = {
+    submitted: 1,
+    resubmitted: 1,
+    under_review: 2,
+    approved: 3,
+    expiring_soon: 3,
+  };
+  const currentStep = stepByStatus[record.status] ?? 0;
+  const workflowNote: { label: string; tone: 'amber' | 'rose' | 'sky' } | null =
+    record.status === 'correction'
+      ? { label: 'Returned for correction', tone: 'amber' }
+      : record.status === 'rejected'
+      ? { label: 'Rejected — resubmission needed', tone: 'rose' }
+      : record.status === 'expired'
+      ? { label: 'Expired — renewal required', tone: 'rose' }
+      : record.status === 'expiring_soon'
+      ? { label: 'Expiring soon', tone: 'amber' }
+      : record.status === 'resubmitted'
+      ? { label: 'Resubmitted after correction', tone: 'sky' }
+      : null;
+  const noteToneClass = {
+    amber: 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-600/40 text-amber-700 dark:text-amber-300',
+    rose: 'bg-rose-50 dark:bg-rose-950/50 border-rose-300 dark:border-rose-600/40 text-rose-700 dark:text-rose-300',
+    sky: 'bg-sky-50 dark:bg-sky-950/50 border-sky-300 dark:border-sky-600/40 text-sky-700 dark:text-sky-300',
+  };
 
-  allHistoricalVersions.sort(
-    (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+  // Relative due / expiry hints
+  const awaitingUnit = ['pending', 'correction', 'rejected'].includes(record.status);
+  const dueDays = record.dueDate ? daysFromToday(record.dueDate) : null;
+  const expiryDays = record.expiryDate ? daysFromToday(record.expiryDate) : null;
+
+  // Who wrote the comment currently stored on the record
+  const latestCommentSource = (workflowData?.approvals || []).find(
+    (a) => a.comments && a.comments === record.comments
   );
 
   return (
@@ -413,6 +439,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     variant="primary"
                     className="bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500/30 shadow-lg shadow-emerald-900/20"
                     leftIcon={<CheckCircle2 size={15} />}
+                    disabled={!!act.disabledReason}
+                    title={act.disabledReason}
                     onClick={() => handleOpenWorkflowModal(act)}
                   >
                     Approve Compliance
@@ -425,6 +453,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     key={act.action}
                     variant="danger"
                     leftIcon={<XCircle size={15} />}
+                    disabled={!!act.disabledReason}
+                    title={act.disabledReason}
                     onClick={() => handleOpenWorkflowModal(act)}
                   >
                     Reject
@@ -438,6 +468,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     variant="secondary"
                     className="bg-amber-600 hover:bg-amber-500 text-white border-amber-500/30 shadow-lg shadow-amber-900/20"
                     leftIcon={<AlertTriangle size={15} />}
+                    disabled={!!act.disabledReason}
+                    title={act.disabledReason}
                     onClick={() => handleOpenWorkflowModal(act)}
                   >
                     Request Correction
@@ -451,6 +483,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     variant="secondary"
                     className="bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500/30 shadow-lg shadow-indigo-900/20"
                     leftIcon={<ClipboardCheck size={15} />}
+                    disabled={!!act.disabledReason}
+                    title={act.disabledReason}
                     onClick={() => handleOpenWorkflowModal(act)}
                   >
                     Start Review
@@ -463,6 +497,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     key={act.action}
                     variant="primary"
                     leftIcon={<Send size={15} />}
+                    disabled={!!act.disabledReason}
+                    title={act.disabledReason}
                     onClick={() => handleOpenWorkflowModal(act)}
                   >
                     {act.label}
@@ -473,7 +509,9 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                 <Button
                   key={act.action}
                   variant="secondary"
-                  onClick={() => handleOpenWorkflowModal(act)}
+                  disabled={!!act.disabledReason}
+                    title={act.disabledReason}
+                    onClick={() => handleOpenWorkflowModal(act)}
                 >
                   {act.label}
                 </Button>
@@ -487,92 +525,81 @@ export const ComplianceRecordDetailPage: React.FC = () => {
           ) : null}
 
           {/* Upload Document */}
-          <Button
-            variant="outline"
-            leftIcon={<Upload size={15} />}
-            onClick={() => setIsUploadModalOpen(true)}
-          >
-            Upload Evidence
-          </Button>
+          {canUpload && (
+            <Button
+              variant="outline"
+              leftIcon={<Upload size={15} />}
+              onClick={() => setIsUploadModalOpen(true)}
+            >
+              Upload Evidence
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* ── Visual Workflow Stepper ────────────────────────────────────────── */}
-      <Card className="p-4 bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-              Approval Workflow Lifecycle:
+      {blockedReasons.length > 0 && (
+        <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-600/40 rounded-lg flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
+          <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            {blockedReasons.map((reason) => (
+              <p key={reason}>{reason}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Workflow Stepper ───────────────────────────────────────────────── */}
+      <Card className="p-5 bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          <ol className="flex items-center flex-1 min-w-0">
+            {WORKFLOW_STEPS.map((label, idx) => {
+              const isDone = idx < currentStep || (idx === currentStep && currentStep === WORKFLOW_STEPS.length - 1);
+              const isCurrent = idx === currentStep && !isDone;
+              return (
+                <li key={label} className={`flex items-center ${idx > 0 ? 'flex-1' : ''}`}>
+                  {idx > 0 && (
+                    <div
+                      className={`flex-1 h-0.5 mx-2 rounded ${
+                        idx <= currentStep ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'
+                      }`}
+                    />
+                  )}
+                  <div className="flex items-center gap-2 shrink-0" aria-current={isCurrent ? 'step' : undefined}>
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 ${
+                        isDone
+                          ? 'bg-emerald-500 border-emerald-500 text-white'
+                          : isCurrent
+                          ? 'border-indigo-500 text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60'
+                          : 'border-slate-300 dark:border-slate-600 text-slate-400 dark:text-slate-500'
+                      }`}
+                    >
+                      {isDone ? <Check size={14} /> : idx + 1}
+                    </div>
+                    <span
+                      className={`text-xs whitespace-nowrap ${
+                        isCurrent
+                          ? 'font-semibold text-slate-900 dark:text-white'
+                          : isDone
+                          ? 'font-medium text-slate-700 dark:text-slate-300'
+                          : 'text-slate-400 dark:text-slate-500'
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+
+          {workflowNote && (
+            <span
+              className={`self-start lg:self-center px-2.5 py-1 rounded-full border text-xs font-semibold whitespace-nowrap ${noteToneClass[workflowNote.tone]}`}
+            >
+              {workflowNote.label}
             </span>
-            {renderStatusBadge(record.status)}
-          </div>
-
-          {/* Progress Indicator */}
-          <div className="flex items-center gap-2 text-xs">
-            {/* Step 1: Submitted */}
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
-                ['submitted', 'under_review', 'approved', 'correction', 'resubmitted', 'rejected'].includes(
-                  record.status
-                )
-                  ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-600/50 text-sky-700 dark:text-sky-400 font-semibold'
-                  : 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50 text-slate-500'
-              }`}
-            >
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  record.status === 'submitted'
-                    ? 'bg-sky-500 animate-pulse'
-                    : ['under_review', 'approved'].includes(record.status)
-                    ? 'bg-sky-500'
-                    : 'bg-slate-400 dark:bg-slate-600'
-                }`}
-              />
-              1. Submitted
-            </div>
-
-            <ArrowRight size={13} className="text-slate-400 dark:text-slate-600" />
-
-            {/* Step 2: Under Review */}
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
-                record.status === 'under_review'
-                  ? 'bg-indigo-50 dark:bg-indigo-950/70 border-indigo-300 dark:border-indigo-500 text-indigo-700 dark:text-indigo-300 font-semibold ring-1 ring-indigo-500/50'
-                  : ['approved', 'rejected', 'correction'].includes(record.status)
-                  ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-700/40 text-indigo-700 dark:text-indigo-400'
-                  : 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50 text-slate-500'
-              }`}
-            >
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  record.status === 'under_review'
-                    ? 'bg-indigo-500 animate-pulse'
-                    : record.status === 'approved'
-                    ? 'bg-indigo-500'
-                    : 'bg-slate-400 dark:bg-slate-600'
-                }`}
-              />
-              2. Under Review
-            </div>
-
-            <ArrowRight size={13} className="text-slate-400 dark:text-slate-600" />
-
-            {/* Step 3: Approved */}
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
-                record.status === 'approved'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-300 dark:border-emerald-500 text-emerald-700 dark:text-emerald-300 font-semibold ring-1 ring-emerald-500/50'
-                  : 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50 text-slate-500'
-              }`}
-            >
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  record.status === 'approved' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400 dark:bg-slate-600'
-                }`}
-              />
-              3. Approved
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Correction / Rejection Notice Banner */}
@@ -630,17 +657,6 @@ export const ComplianceRecordDetailPage: React.FC = () => {
           Documents ({record.documents?.length || 0})
         </button>
         <button
-          onClick={() => setActiveTab('versions')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'versions'
-              ? 'border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400'
-              : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-          }`}
-        >
-          <History size={16} />
-          Version History ({allHistoricalVersions.length})
-        </button>
-        <button
           onClick={() => setActiveTab('history')}
           className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
             activeTab === 'history'
@@ -656,52 +672,172 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       {/* Tab 1: Overview */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Timeline Cards */}
+          {/* Key Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
               <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Clock size={14} className="text-amber-600 dark:text-amber-400" />
-                Statutory Due Date
+                <Clock size={14} />
+                Due Date
               </div>
               <div className="text-lg font-bold text-slate-900 dark:text-white mt-1">
                 {record.dueDate ? new Date(record.dueDate).toLocaleDateString() : '—'}
               </div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Submission Deadline</div>
+              <div
+                className={`text-[11px] mt-1 ${
+                  awaitingUnit && dueDays !== null && dueDays < 0
+                    ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                    : 'text-slate-400 dark:text-slate-500'
+                }`}
+              >
+                {!record.dueDate
+                  ? 'No deadline set'
+                  : !awaitingUnit
+                  ? 'Submission deadline'
+                  : dueDays! < 0
+                  ? `Overdue by ${Math.abs(dueDays!)} ${Math.abs(dueDays!) === 1 ? 'day' : 'days'}`
+                  : `Due ${formatRelativeDays(record.dueDate)}`}
+              </div>
             </Card>
 
             <Card className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
               <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Upload size={14} className="text-sky-600 dark:text-sky-400" />
-                Submission Date
+                <Upload size={14} />
+                Submitted
               </div>
-              <div className="text-lg font-bold text-sky-600 dark:text-sky-400 mt-1">
-                {record.submissionDate ? new Date(record.submissionDate).toLocaleDateString() : 'Pending'}
+              <div
+                className={`text-lg font-bold mt-1 ${
+                  record.submissionDate ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-600'
+                }`}
+              >
+                {record.submissionDate ? new Date(record.submissionDate).toLocaleDateString() : 'Not yet'}
               </div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Filing Record Date</div>
+              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                {record.submissionDate ? formatRelativeDays(record.submissionDate) : 'Awaiting submission'}
+              </div>
             </Card>
 
             <Card className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
               <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
-                Approval Date
+                <CheckCircle2 size={14} />
+                Approved
               </div>
-              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                {record.approvalDate ? new Date(record.approvalDate).toLocaleDateString() : 'Awaiting Review'}
+              <div
+                className={`text-lg font-bold mt-1 ${
+                  record.approvalDate ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'
+                }`}
+              >
+                {record.approvalDate ? new Date(record.approvalDate).toLocaleDateString() : 'Not yet'}
               </div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Authority Sign-off</div>
+              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                {record.approvalDate ? formatRelativeDays(record.approvalDate) : 'Awaiting sign-off'}
+              </div>
             </Card>
 
             <Card className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
               <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Calendar size={14} className="text-rose-600 dark:text-rose-400" />
-                Statutory Expiry Date
+                <Calendar size={14} />
+                Expiry Date
               </div>
               <div className="text-lg font-bold text-slate-900 dark:text-white mt-1">
                 {record.expiryDate ? new Date(record.expiryDate).toLocaleDateString() : '—'}
               </div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Validity Cut-off</div>
+              <div
+                className={`text-[11px] mt-1 ${
+                  expiryDays !== null && expiryDays < 0
+                    ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                    : expiryDays !== null && expiryDays <= 30
+                    ? 'text-amber-600 dark:text-amber-400 font-semibold'
+                    : 'text-slate-400 dark:text-slate-500'
+                }`}
+              >
+                {!record.expiryDate
+                  ? 'Set on approval'
+                  : expiryDays! < 0
+                  ? `Expired ${formatRelativeDays(record.expiryDate)}`
+                  : `Expires ${formatRelativeDays(record.expiryDate)}`}
+              </div>
             </Card>
           </div>
+
+          {/* Required Documents Checklist */}
+          {documentRequirements.length > 0 && (
+            <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <FileText size={18} className="text-sky-600 dark:text-sky-400" />
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Required Documents</h3>
+                </div>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {documentRequirements.filter((r) => r.status !== 'missing').length} of {documentRequirements.length} uploaded
+                  {' · '}
+                  {documentRequirements.filter((r) => r.status === 'verified').length} verified
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {documentRequirements.map((req, idx) => (
+                  <div
+                    key={`${req.documentTypeId}-${idx}`}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-lg"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 shrink-0">
+                        {req.status === 'verified' ? (
+                          <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400" />
+                        ) : req.status === 'pending' ? (
+                          <Clock size={18} className="text-amber-600 dark:text-amber-400" />
+                        ) : req.status === 'rejected' ? (
+                          <XCircle size={18} className="text-rose-600 dark:text-rose-400" />
+                        ) : (
+                          <div className="w-[18px] h-[18px] rounded-full border-2 border-slate-300 dark:border-slate-600" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{req.label}</span>
+                          <Badge variant={req.isMandatory ? 'danger' : 'default'} size="sm">
+                            {req.isMandatory ? 'MANDATORY' : 'OPTIONAL'}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          {req.status === 'missing'
+                            ? 'Not uploaded yet'
+                            : req.status === 'pending'
+                            ? `Uploaded — awaiting verification (${req.documents.map((d) => d.name).join(', ')})`
+                            : req.status === 'rejected'
+                            ? 'Rejected by reviewer — upload a corrected version'
+                            : `Verified (${req.documents.map((d) => d.name).join(', ')})`}
+                        </div>
+                      </div>
+                    </div>
+
+                    {req.status === 'missing' ? (
+                      canUpload && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<Upload size={13} />}
+                          onClick={() => openUploadFor(req)}
+                          className="self-end sm:self-center"
+                        >
+                          Upload
+                        </Button>
+                      )
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setActiveTab('documents')}
+                        className="self-end sm:self-center"
+                      >
+                        View in Documents
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Connected Details Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -782,10 +918,19 @@ export const ComplianceRecordDetailPage: React.FC = () => {
 
                 {record.comments && (
                   <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                    <span className="text-slate-500 dark:text-slate-400 block mb-1">Latest Compliance Notes:</span>
+                    <span className="text-slate-500 dark:text-slate-400 block mb-1">Latest Comment:</span>
                     <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg text-slate-700 dark:text-slate-200 italic border border-slate-200 dark:border-slate-700/60">
                       "{record.comments}"
                     </div>
+                    {latestCommentSource && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        {latestCommentSource.performedBy?.fullName ||
+                          latestCommentSource.performedBy?.email ||
+                          'Reviewer'}{' '}
+                        · {latestCommentSource.action} ·{' '}
+                        {new Date(latestCommentSource.performedAt).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -799,178 +944,161 @@ export const ComplianceRecordDetailPage: React.FC = () => {
         <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Statutory Evidence Documents</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Evidence Documents</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Upload certificates, inspection reports, and authorisations with automatic versioning
+                Certificates, inspection reports and authorisations. Replacing a file keeps every earlier version.
               </p>
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<Plus size={14} />}
-              onClick={() => setIsUploadModalOpen(true)}
-            >
-              Upload Document
-            </Button>
+            {canUpload && (
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<Plus size={14} />}
+                onClick={() => setIsUploadModalOpen(true)}
+              >
+                Upload Document
+              </Button>
+            )}
           </div>
 
           {!record.documents || record.documents.length === 0 ? (
             <div className="text-center py-12 text-slate-500 text-sm">
-              No evidence documents uploaded yet. Click "Upload Document" to attach statutory records.
+              No evidence documents uploaded yet.
             </div>
           ) : (
             <div className="space-y-3">
-              {record.documents.map((doc) => (
-                <div
-                  key={doc._id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-sm dark:shadow-none"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700/40 flex items-center justify-center text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5">
-                      <FileText size={20} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">{doc.name}</span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50">
-                          v{doc.currentVersion || doc.version || 1}
-                        </span>
-                        {doc.verificationStatus === 'verified' ? (
-                          <Badge variant="success" size="sm">VERIFIED</Badge>
-                        ) : doc.verificationStatus === 'rejected' ? (
-                          <Badge variant="danger" size="sm">REJECTED</Badge>
-                        ) : (
-                          <Badge variant="warning" size="sm">PENDING VERIFICATION</Badge>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-1">
-                        <span>{doc.fileName}</span>
-                        <span>•</span>
-                        <span>{(doc.fileSize / 1024).toFixed(1)} KB</span>
-                        <span>•</span>
-                        <span>By {doc.uploadedBy?.fullName || doc.uploadedBy?.email || 'User'}</span>
-                        <span>•</span>
-                        <span>{new Date(doc.uploadedAt).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  </div>
+              {record.documents.map((doc) => {
+                const versions = [...(doc.versions || [])].sort((a, b) => b.version - a.version);
+                const isExpanded = !!expandedDocs[doc._id];
 
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Eye size={13} />}
-                      onClick={() => openPreview(doc)}
-                    >
-                      Preview
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Download size={13} />}
-                      onClick={() => handleDownload(doc._id)}
-                    >
-                      Download
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<RefreshCw size={13} />}
-                      onClick={() => {
-                        setReplaceTargetDoc(doc);
-                        setIsReplaceModalOpen(true);
-                      }}
-                      title="Replace with new version (preserves history)"
-                    >
-                      New Version
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<ShieldCheck size={13} />}
-                      onClick={() => {
-                        setVerifyTargetDoc(doc);
-                        setIsVerifyModalOpen(true);
-                      }}
-                    >
-                      Verify
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* Tab 3: Version History (Never Destroy Old Versions) */}
-      {activeTab === 'versions' && (
-        <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Immutable Document Revision Audit Trail</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Full chronological ledger of every uploaded revision. Previous versions are strictly preserved.
-              </p>
-            </div>
-            <Badge variant="info" size="md">
-              {allHistoricalVersions.length} Recorded Versions
-            </Badge>
-          </div>
-
-          {allHistoricalVersions.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-sm">
-              No revision history available.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {allHistoricalVersions.map((v, idx) => (
-                <div
-                  key={idx}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/40 rounded-xl shadow-sm dark:shadow-none"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-700/50 flex items-center justify-center font-bold font-mono text-xs text-indigo-700 dark:text-indigo-300">
-                      v{v.version}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">{v.documentName}</span>
-                        {v.status === 'active' ? (
-                          <Badge variant="success" size="sm">ACTIVE REVISION</Badge>
-                        ) : (
-                          <Badge variant="default" size="sm">SUPERSEDED</Badge>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-1">
-                        <span className="font-mono text-slate-600 dark:text-slate-300">{v.fileName}</span>
-                        <span>•</span>
-                        <span>{(v.fileSize / 1024).toFixed(1)} KB</span>
-                        <span>•</span>
-                        <span>Uploaded by {v.uploadedBy?.fullName || v.uploadedBy?.email || 'User'}</span>
-                        <span>•</span>
-                        <span>{new Date(v.uploadedAt).toLocaleString()}</span>
-                      </div>
-                      {v.notes && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400 italic mt-1">
-                          Note: "{v.notes}"
+                return (
+                  <div
+                    key={doc._id}
+                    className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-sm dark:shadow-none"
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700/40 flex items-center justify-center text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5">
+                          <FileText size={20} />
                         </div>
-                      )}
-                    </div>
-                  </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">{doc.name}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50">
+                              v{doc.currentVersion || doc.version || 1}
+                            </span>
+                            {doc.verificationStatus === 'verified' ? (
+                              <Badge variant="success" size="sm">VERIFIED</Badge>
+                            ) : doc.verificationStatus === 'rejected' ? (
+                              <Badge variant="danger" size="sm">REJECTED</Badge>
+                            ) : (
+                              <Badge variant="warning" size="sm">PENDING VERIFICATION</Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2 mt-1">
+                            <span className="truncate max-w-[220px]" title={doc.fileName}>{doc.fileName}</span>
+                            <span>•</span>
+                            <span>{formatFileSize(doc.fileSize)}</span>
+                            <span>•</span>
+                            <span>By {doc.uploadedBy?.fullName || doc.uploadedBy?.email || 'User'}</span>
+                            <span>•</span>
+                            <span>{new Date(doc.uploadedAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Download size={13} />}
-                      onClick={() => handleDownload(v.documentId, v.version)}
-                    >
-                      Download v{v.version}
-                    </Button>
+                      <div className="flex flex-wrap items-center gap-2 self-end lg:self-center">
+                        <Button variant="outline" size="sm" leftIcon={<Eye size={13} />} onClick={() => openPreview(doc)}>
+                          Preview
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<Download size={13} />}
+                          onClick={() => handleDownload(doc._id, doc.fileName)}
+                        >
+                          Download
+                        </Button>
+                        {canUpload && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            leftIcon={<RefreshCw size={13} />}
+                            onClick={() => {
+                              setReplaceTargetDoc(doc);
+                              setIsReplaceModalOpen(true);
+                            }}
+                            title="Replace with new version (preserves history)"
+                          >
+                            New Version
+                          </Button>
+                        )}
+                        {canVerify && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            leftIcon={<ShieldCheck size={13} />}
+                            onClick={() => {
+                              setVerifyTargetDoc(doc);
+                              setIsVerifyModalOpen(true);
+                            }}
+                          >
+                            Verify
+                          </Button>
+                        )}
+                        {versions.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={<History size={13} />}
+                            aria-expanded={isExpanded}
+                            onClick={() => setExpandedDocs((prev) => ({ ...prev, [doc._id]: !prev[doc._id] }))}
+                          >
+                            {isExpanded ? 'Hide history' : `History (${versions.length})`}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="border-t border-slate-200 dark:border-slate-700/60 divide-y divide-slate-200 dark:divide-slate-700/60">
+                        {versions.map((v) => (
+                          <div key={v._id || v.version} className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs">
+                            <div className="flex items-start gap-3 min-w-0">
+                              <span className="font-mono font-semibold text-indigo-700 dark:text-indigo-300 w-8 shrink-0">
+                                v{v.version}
+                              </span>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 text-slate-700 dark:text-slate-300">
+                                  <span className="truncate max-w-[220px]" title={v.fileName}>{v.fileName}</span>
+                                  {v.status === 'active' ? (
+                                    <Badge variant="success" size="sm">CURRENT</Badge>
+                                  ) : (
+                                    <Badge variant="default" size="sm">SUPERSEDED</Badge>
+                                  )}
+                                </div>
+                                <div className="text-slate-500 dark:text-slate-400 mt-0.5">
+                                  {formatFileSize(v.fileSize)} · {v.uploadedBy?.fullName || v.uploadedBy?.email || 'User'} ·{' '}
+                                  {new Date(v.uploadedAt).toLocaleString()}
+                                  {v.notes ? ` · "${v.notes}"` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              leftIcon={<Download size={13} />}
+                              onClick={() => handleDownload(doc._id, v.fileName, v.version)}
+                            >
+                              Download
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>
@@ -983,10 +1111,10 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             <div>
               <h3 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                 <ShieldCheck size={18} className="text-indigo-600 dark:text-indigo-400" />
-                Statutory Compliance Approval Audit Trail
+                Approval Trail
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Cryptographically tracked lifecycle events, reviewer decisions, and correction records.
+                Every lifecycle event, reviewer decision and correction request for this record.
               </p>
             </div>
             <Badge variant="info" size="md">
@@ -1140,58 +1268,6 @@ export const ComplianceRecordDetailPage: React.FC = () => {
         </Card>
       )}
 
-      {/* ── Status Update Modal ──────────────────────────────────────────────── */}
-      <Modal
-        isOpen={isStatusModalOpen}
-        onClose={() => setIsStatusModalOpen(false)}
-        title="Update Compliance Record Status"
-        size="md"
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setIsStatusModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleStatusUpdate} isLoading={isUpdatingStatus}>
-              Save Status
-            </Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleStatusUpdate} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-              New Compliance Status *
-            </label>
-            <select
-              value={selectedNewStatus}
-              onChange={(e) => setSelectedNewStatus(e.target.value as ComplianceRecordStatus)}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
-            >
-              <option value="pending">Pending</option>
-              <option value="submitted">Submitted</option>
-              <option value="under_review">Under Review</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="expiring_soon">Expiring Soon</option>
-              <option value="expired">Expired</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-              Decision Comments / Reviewer Remarks
-            </label>
-            <textarea
-              rows={3}
-              value={statusComments}
-              onChange={(e) => setStatusComments(e.target.value)}
-              placeholder="e.g. SPCB verification complete. Approved for 2026/27 cycle."
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400 dark:placeholder-slate-500 resize-none shadow-sm dark:shadow-none"
-            />
-          </div>
-        </form>
-      </Modal>
-
       {/* ── Upload Document Modal ────────────────────────────────────────────── */}
       <Modal
         isOpen={isUploadModalOpen}
@@ -1249,7 +1325,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             >
               <option value="">-- General Document --</option>
               {docTypes.map((dt) => (
-                <option key={dt._id} value={dt.code}>
+                <option key={dt._id} value={dt._id}>
                   {dt.label} ({dt.code})
                 </option>
               ))}
@@ -1367,7 +1443,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       {/* ── Preview Document Modal ───────────────────────────────────────────── */}
       <Modal
         isOpen={isPreviewModalOpen}
-        onClose={() => setIsPreviewModalOpen(false)}
+        onClose={closePreview}
         title={`Preview: ${previewDocTitle}`}
         size="xl"
       >
