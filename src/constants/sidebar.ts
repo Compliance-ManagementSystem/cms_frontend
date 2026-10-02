@@ -4,15 +4,12 @@ import {
   MapPin,
   ClipboardCheck,
   CheckSquare,
-  BarChart3,
   History,
   Users,
   ShieldCheck,
   KeyRound,
   Database,
-  Sliders,
   Scale,
-  Bell,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from './routes';
