@@ -235,7 +235,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.LOCATION_EDIT}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin', 'location_manager']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin']}>
               <Suspense fallback={<PageLoader />}>
                 <LocationEditPage />
               </Suspense>

@@ -6,6 +6,7 @@
 
 import axiosInstance from '@/api/axiosInstance';
 import type { EntityAddress } from './entityService';
+import type { LicenceItem } from './licenceService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,16 @@ export interface LocationAgreement {
   renewalDate?: string;
   parties?: string[];
   notes?: string;
+}
+
+export interface LocationHealth {
+  total: number;
+  compliant: number;
+  expiringSoon: number;
+  pending: number;
+  expired: number;
+  /** Share of records currently valid (compliant + expiring soon) */
+  percentage: number;
 }
 
 export interface LocationItem {
@@ -69,12 +80,15 @@ export interface LocationItem {
   agreements?: LocationAgreement[];
   status: 'active' | 'inactive' | 'archived';
   complianceCount?: number;
+  /** Compliance health of this location's records (list responses) */
+  health?: LocationHealth;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface LocationDetailData {
   location: LocationItem;
+  health: LocationHealth;
   complianceStats: {
     total: number;
     approved: number;
@@ -86,14 +100,13 @@ export interface LocationDetailData {
     _id: string;
     recordNumber: string;
     status: string;
-    validFrom: string;
-    validTo: string;
+    dueDate?: string;
+    expiryDate?: string;
     complianceRule?: {
       name: string;
       code: string;
-      category?: string;
-      frequency?: string;
-      riskLevel?: string;
+      category?: { code: string; label: string } | null;
+      priority?: string;
     };
     createdAt: string;
   }>;
@@ -108,18 +121,7 @@ export interface LocationDetailData {
     status: string;
     createdAt: string;
   }>;
-  licences: Array<{
-    _id: string;
-    licenceNumber: string;
-    licenceType?: { code: string; label: string };
-    issuingAuthority?: string;
-    issueDate?: string;
-    expiryDate?: string;
-    fileUrl?: string;
-    latestVersionUrl?: string;
-    status: string;
-    createdAt: string;
-  }>;
+  licences: LicenceItem[];
   tasks: Array<{
     _id: string;
     title: string;
@@ -149,6 +151,8 @@ export interface LocationQueryParams {
   district?: string;
   city?: string;
   status?: string;
+  /** Only locations with at least one expired compliance record */
+  attention?: 'true';
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
@@ -171,11 +175,10 @@ export interface CreateLocationPayload {
   operatingHours?: string;
   parentLocation?: string | null;
   status?: 'active' | 'inactive' | 'archived';
-}
-
-export interface UpdateLocationPayload extends Partial<CreateLocationPayload> {
   agreements?: LocationAgreement[];
 }
+
+export type UpdateLocationPayload = Partial<CreateLocationPayload>;
 
 // ── Service Methods ───────────────────────────────────────────────────────────
 
@@ -188,6 +191,8 @@ export const locationService = {
         pagination: {
           total: number;
           activeCount?: number;
+          inactiveCount?: number;
+          attentionCount?: number;
           totalCompliance?: number;
           page: number;
           limit: number;

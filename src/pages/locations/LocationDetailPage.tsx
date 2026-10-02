@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Plus,
   Eye,
+  Trash2,
   FileCheck2,
   ArrowUpRight,
 } from 'lucide-react';
@@ -23,16 +24,36 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
 import { locationService, LocationDetailData } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
 import { openDocumentInNewTab } from '@/utils/documentFile';
+import Modal from '@/components/ui/Modal';
+import { licenceService, LicenceItem } from '@/services/licenceService';
+import LocationDocumentUploadModal from './LocationDocumentUploadModal';
+import LocationLicenceModal from './LocationLicenceModal';
 
-type TabType = 'overview' | 'compliance_licences' | 'documents_records' | 'tasks_audit';
+type TabType = 'overview' | 'compliance' | 'licences' | 'documents' | 'tasks' | 'history';
 
 export const LocationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
+  const { can } = useAuth();
+  const canUpdate = can('location', 'update');
+  const canUploadDocument = can('document', 'upload');
+  const canAddLicence = can('licence', 'create');
+  const canEditLicence = can('licence', 'update');
+  const canDeleteLicence = can('licence', 'delete');
+
+  // Dialogs
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [licenceDialog, setLicenceDialog] = useState<{ open: boolean; licence: LicenceItem | null }>({
+    open: false,
+    licence: null,
+  });
+  const [licenceToDelete, setLicenceToDelete] = useState<LicenceItem | null>(null);
+  const [isDeletingLicence, setIsDeletingLicence] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [data, setData] = useState<LocationDetailData | null>(null);
@@ -55,19 +76,18 @@ export const LocationDetailPage: React.FC = () => {
     fetchLocationDetails();
   }, [fetchLocationDetails]);
 
-  const handleDocumentUploadClick = () => {
-    toast.info('Document upload dialog: select a statutory document or lease agreement to upload.');
-  };
-
-  const handleAddLicenceClick = () => {
-    toast.info('Add Licence dialog: enter statutory operating licence or clearance details.');
-  };
-
-  const handleViewFile = (url?: string, name?: string) => {
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } else {
-      toast.info(`Preview not available for ${name || 'this item'}. File stored securely.`);
+  const confirmDeleteLicence = async () => {
+    if (!licenceToDelete) return;
+    setIsDeletingLicence(true);
+    try {
+      await licenceService.deleteLicence(licenceToDelete._id);
+      toast.success(`Licence ${licenceToDelete.licenceNumber} deleted`);
+      setLicenceToDelete(null);
+      fetchLocationDetails();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete licence');
+    } finally {
+      setIsDeletingLicence(false);
     }
   };
 
@@ -103,29 +123,29 @@ export const LocationDetailPage: React.FC = () => {
     );
   }
 
-  const { location, complianceStats, complianceRecords, documents, licences, tasks, auditLogs } = data;
+  const { location, health, complianceStats, complianceRecords, documents, licences, tasks, auditLogs } = data;
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
-    { key: 'overview', label: 'Overview & Hierarchy', icon: <MapPin size={16} /> },
+    { key: 'overview', label: 'Overview', icon: <MapPin size={16} /> },
+    { key: 'compliance', label: 'Compliance', icon: <ClipboardCheck size={16} />, count: complianceStats?.total || 0 },
+    { key: 'licences', label: 'Licences', icon: <Award size={16} />, count: licences.length },
     {
-      key: 'compliance_licences',
-      label: 'Compliance & Licences',
-      icon: <ClipboardCheck size={16} />,
-      count: (complianceStats?.total || 0) + licences.length,
-    },
-    {
-      key: 'documents_records',
-      label: 'Documents & Records',
+      key: 'documents',
+      label: 'Documents',
       icon: <FileText size={16} />,
       count: documents.length + (location.agreements?.length || 0),
     },
-    {
-      key: 'tasks_audit',
-      label: 'Tasks & Audit Trail',
-      icon: <History size={16} />,
-      count: tasks.length,
-    },
+    { key: 'tasks', label: 'Tasks', icon: <CheckSquare size={16} />, count: tasks.length },
+    { key: 'history', label: 'History', icon: <History size={16} /> },
   ];
+
+  // Full class names so Tailwind can see them
+  const scoreStyle =
+    health.percentage >= 80
+      ? { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
+      : health.percentage >= 60
+      ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+      : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
 
   const statusLabel = location.status
     ? location.status.charAt(0).toUpperCase() + location.status.slice(1)
@@ -161,16 +181,18 @@ export const LocationDetailPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => navigate(`/locations/${location._id}/edit`)}
-            leftIcon={<Edit2 size={15} />}
-          >
-            Edit Location
-          </Button>
-        </div>
+        {canUpdate && (
+          <div className="flex items-center gap-3">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => navigate(`/locations/${location._id}/edit`)}
+              leftIcon={<Edit2 size={15} />}
+            >
+              Edit Location
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Location Banner */}
@@ -239,33 +261,46 @@ export const LocationDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Compliance Metrics */}
-          <div className="flex items-center gap-3 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 pt-4 md:pt-0 md:pl-6">
-            <div className="text-center px-3">
-              <span className="block text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                {complianceStats?.approved || 0}
-              </span>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Compliant</span>
-            </div>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-            <div className="text-center px-3">
-              <span className="block text-2xl font-bold text-amber-600 dark:text-amber-400">
-                {complianceStats?.pending || 0}
-              </span>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Pending</span>
-            </div>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-            <div className="text-center px-3">
-              <span className="block text-2xl font-bold text-rose-600 dark:text-rose-400">
-                {complianceStats?.expired || 0}
-              </span>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Expired</span>
-            </div>
-          </div>
+          {/* Compliance health — same definition as the dashboard */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('compliance')}
+            className="text-left border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 pt-4 md:pt-0 md:pl-6 min-w-[220px] rounded-r-lg hover:opacity-90"
+            title="View compliance records"
+          >
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Compliance
+            </span>
+            {health.total === 0 ? (
+              <span className="block text-sm text-slate-500 dark:text-slate-400 mt-1">No compliance records yet</span>
+            ) : (
+              <>
+                <span className="flex items-baseline gap-2 mt-0.5">
+                  <span className={`text-3xl font-bold ${scoreStyle.text}`}>{health.percentage}%</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {health.compliant + health.expiringSoon} of {health.total} valid
+                  </span>
+                </span>
+                <span className="block w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                  <span className={`block h-full rounded-full ${scoreStyle.bar}`} style={{ width: `${health.percentage}%` }} />
+                </span>
+                <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1.5">
+                  {[
+                    [health.expiringSoon, 'expiring soon'],
+                    [health.pending, 'pending'],
+                    [health.expired, 'expired'],
+                  ]
+                    .filter(([count]) => (count as number) > 0)
+                    .map(([count, label]) => `${count} ${label}`)
+                    .join(' · ') || 'All records valid'}
+                </span>
+              </>
+            )}
+          </button>
         </div>
       </Card>
 
-      {/* Tab Navigation — 4 Clean Tabs */}
+      {/* Tab Navigation */}
       <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-px">
         {tabs.map((tab) => (
           <button
@@ -295,7 +330,7 @@ export const LocationDetailPage: React.FC = () => {
         ))}
       </div>
 
-      {/* ── Tab 1: Overview & Hierarchy ── */}
+      {/* ── Overview ── */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -465,14 +500,16 @@ export const LocationDetailPage: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/locations/${location._id}/edit`)}
-                    rightIcon={<Edit2 size={13} />}
-                  >
-                    {location.manager ? 'Change' : 'Assign'}
-                  </Button>
+                  {canUpdate && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/locations/${location._id}/edit`)}
+                      rightIcon={<Edit2 size={13} />}
+                    >
+                      {location.manager ? 'Change' : 'Assign'}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Parent Location / Campus Linkage (if sub-unit) */}
@@ -502,87 +539,104 @@ export const LocationDetailPage: React.FC = () => {
               </div>
             </Card>
           </div>
-
-          {/* Compliance Health Snapshot Widget */}
-          <Card padding="lg" className="border-slate-200 dark:border-slate-800">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <ClipboardCheck size={18} className="text-emerald-600 dark:text-emerald-400" />
-                  Compliance & Regulatory Snapshot
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Overview of current statutory obligations, valid licenses, and pending reviews.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setActiveTab('compliance_licences')}
-                rightIcon={<ArrowUpRight size={14} />}
-              >
-                View Full Compliance Records
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30">
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 block">Compliant</span>
-                <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-                  {complianceStats?.approved || 0}
-                </span>
-              </div>
-              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30">
-                <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 block">Pending Review</span>
-                <span className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                  {complianceStats?.pending || 0}
-                </span>
-              </div>
-              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/30">
-                <span className="text-xs font-semibold text-rose-700 dark:text-rose-400 block">Expired / Overdue</span>
-                <span className="text-2xl font-bold text-rose-700 dark:text-rose-400">
-                  {complianceStats?.expired || 0}
-                </span>
-              </div>
-              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30">
-                <span className="text-xs font-semibold text-blue-700 dark:text-blue-400 block">Active Licences</span>
-                <span className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-                  {licences.length}
-                </span>
-              </div>
-            </div>
-          </Card>
         </div>
       )}
 
-      {/* ── Tab 2: Compliance & Licences ── */}
-      {activeTab === 'compliance_licences' && (
+      {/* ── Compliance ── */}
+      {activeTab === 'compliance' && (
         <div className="space-y-6">
-          {/* Compliance Stats Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <Card padding="sm" className="text-center shadow-sm dark:shadow-none">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Total Obligations</span>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{complianceStats?.total || 0}</p>
-            </Card>
-            <Card padding="sm" className="text-center bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/30 shadow-sm dark:shadow-none">
-              <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Compliant / Approved</span>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{complianceStats?.approved || 0}</p>
-            </Card>
-            <Card padding="sm" className="text-center bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30 shadow-sm dark:shadow-none">
-              <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Pending Review</span>
-              <p className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-1">{complianceStats?.pending || 0}</p>
-            </Card>
-            <Card padding="sm" className="text-center bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800/30 shadow-sm dark:shadow-none">
-              <span className="text-xs text-red-700 dark:text-red-400 font-medium">Expired / Overdue</span>
-              <p className="text-2xl font-bold text-red-700 dark:text-red-400 mt-1">{complianceStats?.expired || 0}</p>
-            </Card>
-            <Card padding="sm" className="text-center bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/30 shadow-sm dark:shadow-none">
-              <span className="text-xs text-rose-700 dark:text-rose-400 font-medium">Rejected</span>
-              <p className="text-2xl font-bold text-rose-700 dark:text-rose-400 mt-1">{complianceStats?.rejected || 0}</p>
-            </Card>
-          </div>
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <FileCheck2 size={18} className="text-emerald-600 dark:text-emerald-400" />
+                Compliance Obligations & Audit Records
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Click any obligation row below to inspect audit evidence, filing history, and checklists.
+              </p>
+            </div>
 
-          {/* Section A: Statutory Operating Licences */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left">Record # & Rule</th>
+                    <th className="px-4 py-3 text-left">Category</th>
+                    <th className="px-4 py-3 text-left">Due / Expiry</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {complianceRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
+                        No compliance records registered for this location.
+                      </td>
+                    </tr>
+                  ) : (
+                    complianceRecords.map((rec) => (
+                      <tr
+                        key={rec._id}
+                        onClick={() => navigate(`/compliance/records/${rec._id}`)}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-slate-900 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                            {rec.complianceRule?.name || 'Obligation'}
+                          </div>
+                          <div className="text-xs font-mono text-emerald-600 dark:text-emerald-300">
+                            {rec.recordNumber || rec.complianceRule?.code}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                          {rec.complianceRule?.category?.label || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
+                          <div>Due {rec.dueDate ? new Date(rec.dueDate).toLocaleDateString() : '—'}</div>
+                          {rec.expiryDate && <div>Expires {new Date(rec.expiryDate).toLocaleDateString()}</div>}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge
+                            variant={
+                              rec.status === 'approved'
+                                ? 'success'
+                                : rec.status === 'expired' || rec.status === 'rejected'
+                                ? 'expired'
+                                : rec.status === 'not_applicable'
+                                ? 'default'
+                                : 'pending'
+                            }
+                            size="sm"
+                            dot
+                          >
+                            {rec.status.replace(/_/g, ' ').toUpperCase()}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/compliance/records/${rec._id}`)}
+                            className="text-slate-500 hover:text-emerald-600 p-1.5"
+                            title="View Details"
+                          >
+                            <Eye size={15} />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Licences ── */}
+      {activeTab === 'licences' && (
+        <div className="space-y-6">
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
@@ -594,14 +648,16 @@ export const LocationDetailPage: React.FC = () => {
                   Municipal trade licenses, Clinical Establishment Act permits, Fire NOC, and pollution clearances.
                 </p>
               </div>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleAddLicenceClick}
-                leftIcon={<Plus size={15} />}
-              >
-                Add Licence
-              </Button>
+              {canAddLicence && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setLicenceDialog({ open: true, licence: null })}
+                  leftIcon={<Plus size={15} />}
+                >
+                  Add Licence
+                </Button>
+              )}
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none">
@@ -634,112 +690,64 @@ export const LocationDetailPage: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{lic.issuingAuthority || '—'}</td>
                         <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                          {lic.expiryDate ? new Date(lic.expiryDate).toLocaleDateString() : 'Permanent / N/A'}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge variant={lic.status === 'active' ? 'success' : 'default'} size="sm" dot>
-                            {lic.status.toUpperCase()}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewFile(lic.latestVersionUrl || (lic as any).fileUrl, lic.licenceNumber)}
-                            className="text-emerald-600 dark:text-emerald-400 hover:underline p-1 text-xs"
-                            leftIcon={<ExternalLink size={13} />}
-                          >
-                            View
-                          </Button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Section B: Compliance Obligations */}
-          <div className="space-y-3 pt-2">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <FileCheck2 size={18} className="text-emerald-600 dark:text-emerald-400" />
-                Compliance Obligations & Audit Records
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Click any obligation row below to inspect audit evidence, filing history, and checklists.
-              </p>
-            </div>
-
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                    <th className="px-4 py-3 text-left">Record # & Rule</th>
-                    <th className="px-4 py-3 text-left">Category</th>
-                    <th className="px-4 py-3 text-left">Validity Period</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {complianceRecords.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
-                        No compliance records registered for this location.
-                      </td>
-                    </tr>
-                  ) : (
-                    complianceRecords.map((rec) => (
-                      <tr
-                        key={rec._id}
-                        onClick={() => navigate(`/compliance/records/${rec._id}`)}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-900 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-                            {rec.complianceRule?.name || 'Obligation'}
-                          </div>
-                          <div className="text-xs font-mono text-emerald-600 dark:text-emerald-300">
-                            {rec.recordNumber || rec.complianceRule?.code}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                          {rec.complianceRule?.category || 'General'}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                          {rec.validFrom ? new Date(rec.validFrom).toLocaleDateString() : '—'}
-                          {' to '}
-                          {rec.validTo ? new Date(rec.validTo).toLocaleDateString() : '—'}
+                          {lic.expiryDate ? new Date(lic.expiryDate).toLocaleDateString() : '—'}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <Badge
                             variant={
-                              rec.status === 'approved'
+                              lic.status === 'active'
                                 ? 'success'
-                                : rec.status === 'pending'
-                                ? 'pending'
-                                : rec.status === 'expired'
+                                : lic.status === 'expired'
                                 ? 'expired'
+                                : lic.status === 'pending_renewal'
+                                ? 'warning'
                                 : 'default'
                             }
                             size="sm"
                             dot
                           >
-                            {rec.status.toUpperCase()}
+                            {lic.status.replace(/_/g, ' ').toUpperCase()}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate(`/compliance/records/${rec._id}`)}
-                            className="text-slate-500 hover:text-emerald-600 p-1.5"
-                            title="View Details"
-                          >
-                            <Eye size={15} />
-                          </Button>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {lic.document && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewDocument(lic.document!._id)}
+                                className="text-emerald-600 dark:text-emerald-400 p-1.5"
+                                title="View certificate"
+                                aria-label={`View certificate for ${lic.licenceNumber}`}
+                              >
+                                <ExternalLink size={15} />
+                              </Button>
+                            )}
+                            {canEditLicence && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setLicenceDialog({ open: true, licence: lic })}
+                                className="text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 p-1.5"
+                                title="Edit or renew licence"
+                                aria-label={`Edit licence ${lic.licenceNumber}`}
+                              >
+                                <Edit2 size={15} />
+                              </Button>
+                            )}
+                            {canDeleteLicence && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setLicenceToDelete(lic)}
+                                className="text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-red-400 p-1.5"
+                                title="Delete licence"
+                                aria-label={`Delete licence ${lic.licenceNumber}`}
+                              >
+                                <Trash2 size={15} />
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -751,8 +759,8 @@ export const LocationDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── Tab 3: Documents & Records ── */}
-      {activeTab === 'documents_records' && (
+      {/* ── Documents ── */}
+      {activeTab === 'documents' && (
         <div className="space-y-6">
           {/* Section A: Site Documents */}
           <div className="space-y-3">
@@ -766,14 +774,16 @@ export const LocationDetailPage: React.FC = () => {
                   Floor layouts, property records, NOCs, and municipal sanctions for this location.
                 </p>
               </div>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleDocumentUploadClick}
-                leftIcon={<Plus size={15} />}
-              >
-                Upload Document
-              </Button>
+              {canUploadDocument && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setIsUploadOpen(true)}
+                  leftIcon={<Plus size={15} />}
+                >
+                  Upload Document
+                </Button>
+              )}
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none">
@@ -895,10 +905,9 @@ export const LocationDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── Tab 4: Tasks & Audit Trail ── */}
-      {activeTab === 'tasks_audit' && (
+      {/* ── Tasks ── */}
+      {activeTab === 'tasks' && (
         <div className="space-y-6">
-          {/* Section A: Operational Tasks */}
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
@@ -913,7 +922,7 @@ export const LocationDetailPage: React.FC = () => {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => navigate(`${ROUTES.TASKS}?locationId=${location._id}`)}
+                onClick={() => navigate(`${ROUTES.TASKS}?location=${location._id}`)}
                 leftIcon={<Plus size={15} />}
               >
                 Create Task
@@ -980,9 +989,13 @@ export const LocationDetailPage: React.FC = () => {
               </table>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Section B: Audit Trail History */}
-          <div className="space-y-3 pt-2">
+      {/* ── History ── */}
+      {activeTab === 'history' && (
+        <div className="space-y-6">
+          <div className="space-y-3">
             <div>
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <History size={18} className="text-emerald-600 dark:text-emerald-400" />
@@ -1037,6 +1050,45 @@ export const LocationDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <LocationDocumentUploadModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUploaded={fetchLocationDetails}
+        locationId={location._id}
+        entityId={location.entity?._id || ''}
+      />
+
+      <LocationLicenceModal
+        isOpen={licenceDialog.open}
+        onClose={() => setLicenceDialog({ open: false, licence: null })}
+        onSaved={fetchLocationDetails}
+        locationId={location._id}
+        locationState={location.address?.state}
+        licence={licenceDialog.licence}
+      />
+
+      <Modal
+        isOpen={!!licenceToDelete}
+        onClose={() => setLicenceToDelete(null)}
+        title="Delete Licence"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setLicenceToDelete(null)} disabled={isDeletingLicence}>
+              Keep Licence
+            </Button>
+            <Button variant="danger" onClick={confirmDeleteLicence} isLoading={isDeletingLicence}>
+              Delete Licence
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-700 dark:text-slate-300">
+          Delete licence <strong>{licenceToDelete?.licenceNumber}</strong>? Its certificate file is archived, not
+          destroyed.
+        </p>
+      </Modal>
     </div>
   );
 };
