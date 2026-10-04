@@ -629,13 +629,15 @@ export const ComplianceRecordListPage: React.FC = () => {
           </Button>
           {canCreate && (
             <>
-              <Button
-                variant="outline"
-                leftIcon={<Zap size={15} className="text-amber-500 dark:text-amber-400" />}
-                onClick={() => setIsGenerateModalOpen(true)}
-              >
-                Auto-Generate for Unit
-              </Button>
+              {FEATURES.recordAutoGenerate && (
+                <Button
+                  variant="outline"
+                  leftIcon={<Zap size={15} className="text-amber-500 dark:text-amber-400" />}
+                  onClick={() => setIsGenerateModalOpen(true)}
+                >
+                  Auto-Generate for Unit
+                </Button>
+              )}
               {FEATURES.recordManualCreate && (
                 <Button
                   variant="primary"
@@ -942,18 +944,20 @@ export const ComplianceRecordListPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={FEATURES.recordAssignment ? 'grid grid-cols-2 gap-3' : ''}>
+            {FEATURES.recordAssignment && (
+              <div>
+                <Input
+                  label="Due Date"
+                  type="date"
+                  value={createForm.dueDate}
+                  onChange={(e) => setCreateForm({ ...createForm, dueDate: e.target.value })}
+                />
+              </div>
+            )}
             <div>
               <Input
-                label="Due Date"
-                type="date"
-                value={createForm.dueDate}
-                onChange={(e) => setCreateForm({ ...createForm, dueDate: e.target.value })}
-              />
-            </div>
-            <div>
-              <Input
-                label="Statutory Expiry Date"
+                label="Expiry Date"
                 type="date"
                 value={createForm.expiryDate}
                 onChange={(e) => setCreateForm({ ...createForm, expiryDate: e.target.value })}
@@ -961,7 +965,8 @@ export const ComplianceRecordListPage: React.FC = () => {
             </div>
           </div>
 
-          <div>
+{FEATURES.recordAssignment && (
+                    <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
               Assigned Stakeholder
             </label>
@@ -978,6 +983,7 @@ export const ComplianceRecordListPage: React.FC = () => {
               ))}
             </select>
           </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">

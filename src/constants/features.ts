@@ -19,8 +19,10 @@ export const FEATURES = {
   recordApprovalWorkflow: false,
   /** Assignee and due date */
   recordAssignment: false,
-  /** "New Record" button (Auto-Generate for Unit creates a unit's records) */
-  recordManualCreate: false,
+  /** "New Record" button, for adding one licence to one unit by hand */
+  recordManualCreate: true,
+  /** "Auto-Generate for Unit" button, which creates all of a unit's licence records at once */
+  recordAutoGenerate: false,
   /** Verify / reject step on uploaded documents */
   documentVerification: false,
 } as const;
