@@ -6,10 +6,6 @@ import {
   CheckSquare,
   History,
   Users,
-  ShieldCheck,
-  KeyRound,
-  Database,
-  Scale,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from './routes';
@@ -70,15 +66,15 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
   {
     title: 'Compliance',
     items: [
-      {
-        label: 'Compliance Rules',
-        path: ROUTES.COMPLIANCE_RULES,
-        icon: Scale,
-        phase: 7,
-        disabled: false,
-        roles: ['super_admin', 'admin', 'compliance_officer', 'entity_admin'],
-        permission: 'compliance_rule:read',
-      },
+      // {
+      //   label: 'Compliance Rules',
+      //   path: ROUTES.COMPLIANCE_RULES,
+      //   icon: Scale,
+      //   phase: 7,
+      //   disabled: false,
+      //   roles: ['super_admin', 'admin', 'compliance_officer', 'entity_admin'],
+      //   permission: 'compliance_rule:read',
+      // },
       {
         label: 'Compliance Records',
         path: ROUTES.COMPLIANCE_RECORDS,
@@ -137,27 +133,27 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         phase: 4,
         roles: ['super_admin', 'admin'],
       },
-      {
-        label: 'Roles',
-        path: ROUTES.ADMIN_ROLES,
-        icon: ShieldCheck,
-        phase: 4,
-        roles: ['super_admin', 'admin'],
-      },
-      {
-        label: 'Permissions',
-        path: ROUTES.ADMIN_PERMISSIONS,
-        icon: KeyRound,
-        phase: 4,
-        roles: ['super_admin', 'admin'],
-      },
-      {
-        label: 'Master Data',
-        path: ROUTES.ADMIN_MASTER_DATA,
-        icon: Database,
-        phase: 4,
-        roles: ['super_admin', 'admin'],
-      },
+      // {
+      //   label: 'Roles',
+      //   path: ROUTES.ADMIN_ROLES,
+      //   icon: ShieldCheck,
+      //   phase: 4,
+      //   roles: ['super_admin', 'admin'],
+      // },
+      // {
+      //   label: 'Permissions',
+      //   path: ROUTES.ADMIN_PERMISSIONS,
+      //   icon: KeyRound,
+      //   phase: 4,
+      //   roles: ['super_admin', 'admin'],
+      // },
+      // {
+      //   label: 'Master Data',
+      //   path: ROUTES.ADMIN_MASTER_DATA,
+      //   icon: Database,
+      //   phase: 4,
+      //   roles: ['super_admin', 'admin'],
+      // },
       // {
       //   label: 'System Settings',
       //   path: ROUTES.ADMIN_SETTINGS,

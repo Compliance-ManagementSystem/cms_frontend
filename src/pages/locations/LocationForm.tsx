@@ -9,10 +9,15 @@ import {
   CreateLocationPayload,
   LocationItem,
   LocationAgreement,
+  AreaType,
+  OperatingModel,
+  AREA_TYPE_LABELS,
+  OPERATING_MODEL_LABELS,
 } from '@/services/locationService';
 import { entityService, EntityItem } from '@/services/entityService';
 import type { MasterDataItem } from '@/services/adminService';
 import { lookupService, LookupUser } from '@/services/lookupService';
+import { FEATURES } from '@/constants/features';
 
 /** The form element's id, so a button outside the form can submit it */
 export const LOCATION_FORM_ID = 'location-form';
@@ -35,6 +40,9 @@ interface FormState {
   manager: string;
   parentLocation: string;
   openingDate: string;
+  closingDate: string;
+  areaType: AreaType | '';
+  operatingModel: OperatingModel | '';
   description: string;
   area: string;
   areaUnit: 'sqft' | 'sqm';
@@ -75,6 +83,9 @@ const toFormState = (loc?: LocationItem, defaultEntityId = ''): FormState => ({
   manager: loc?.manager?._id || '',
   parentLocation: loc?.parentLocation?._id || '',
   openingDate: dateInput(loc?.openingDate),
+  closingDate: dateInput(loc?.closingDate),
+  areaType: loc?.areaType || '',
+  operatingModel: loc?.operatingModel || '',
   description: loc?.description || '',
   area: loc?.area ? String(loc.area) : '',
   areaUnit: loc?.areaUnit || 'sqft',
@@ -106,6 +117,16 @@ const toAgreementRows = (loc?: LocationItem): LocationAgreement[] =>
     notes: agr.notes || '',
   }));
 
+interface CoEntityRow {
+  entity: string;
+  openingDate: string;
+}
+
+const toCoEntityRows = (loc?: LocationItem): CoEntityRow[] =>
+  (loc?.coEntities || [])
+    .filter((co) => co.entity)
+    .map((co) => ({ entity: co.entity!._id, openingDate: dateInput(co.openingDate) }));
+
 const isBlankAgreement = (agr: LocationAgreement) =>
   !agr.agreementNumber.trim() && !agr.startDate && !agr.endDate && !agr.notes?.trim() && !(agr.parties || []).length;
 
@@ -115,6 +136,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
 
   const [form, setForm] = useState<FormState>(() => toFormState(initial, defaultEntityId));
   const [agreements, setAgreements] = useState<LocationAgreement[]>(() => toAgreementRows(initial));
+  const [coEntities, setCoEntities] = useState<CoEntityRow[]>(() => toCoEntityRows(initial));
 
   const [entities, setEntities] = useState<EntityItem[]>([]);
   const [locationTypes, setLocationTypes] = useState<MasterDataItem[]>([]);
@@ -179,6 +201,9 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
   const stateDistricts = selectedState ? districts.filter((d) => d.parent?._id === selectedState._id) : [];
   const districtOptions = stateDistricts.length > 0 ? stateDistricts : selectedState ? [] : districts;
 
+  const updateCoEntity = (index: number, patch: Partial<CoEntityRow>) =>
+    setCoEntities((prev) => prev.map((co, i) => (i === index ? { ...co, ...patch } : co)));
+
   const updateAgreement = (index: number, patch: Partial<LocationAgreement>) =>
     setAgreements((prev) => prev.map((agr, i) => (i === index ? { ...agr, ...patch } : agr)));
 
@@ -190,14 +215,27 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
       [!form.entity, 'Entity'],
       [!form.locationType, 'Location type'],
       [!form.address.line1.trim(), 'Address line 1'],
-      [!form.address.city.trim(), 'City'],
       [!form.address.state.trim(), 'State'],
-      [!form.address.pincode.trim(), 'Pincode'],
     ]
       .filter(([isMissing]) => isMissing)
       .map(([, label]) => label);
     if (missing.length > 0) {
       toast.error(`Please fill in: ${missing.join(', ')}`);
+      return;
+    }
+
+    // Rows left without an entity are dropped
+    const chosenCoEntities = coEntities.filter((co) => co.entity);
+    if (chosenCoEntities.some((co) => co.entity === form.entity)) {
+      toast.error('A co-entity must be different from the owning entity');
+      return;
+    }
+    if (new Set(chosenCoEntities.map((co) => co.entity)).size !== chosenCoEntities.length) {
+      toast.error('The same co-entity is listed more than once');
+      return;
+    }
+    if (form.closingDate && form.openingDate && form.closingDate < form.openingDate) {
+      toast.error('The closing date cannot be before the opening date');
       return;
     }
 
@@ -221,6 +259,10 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
       manager: form.manager || null,
       parentLocation: form.parentLocation || null,
       openingDate: form.openingDate || null,
+      closingDate: form.closingDate || null,
+      areaType: form.areaType || null,
+      operatingModel: form.operatingModel || null,
+      coEntities: chosenCoEntities.map((co) => ({ entity: co.entity, openingDate: co.openingDate || null })),
       description: form.description.trim(),
       area: form.area ? Number(form.area) : null,
       areaUnit: form.areaUnit,
@@ -332,6 +374,8 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             </select>
           </div>
 
+          {FEATURES.locationSiteDetails && (
+          <>
           <div>
             <label className={LABEL_CLASS} htmlFor="location-parent">
               Parent Location
@@ -351,6 +395,8 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             </select>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Set this for a wing or sub-unit of another site.</p>
           </div>
+          </>
+          )}
 
           <div>
             <label className={LABEL_CLASS} htmlFor="location-manager">
@@ -410,6 +456,40 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             />
           </div>
 
+          <div>
+            <label className={LABEL_CLASS} htmlFor="location-closing">
+              Closing Date
+            </label>
+            <input
+              id="location-closing"
+              type="date"
+              value={form.closingDate}
+              onChange={(e) => setField('closingDate', e.target.value)}
+              className={FIELD_CLASS}
+            />
+          </div>
+
+          <div>
+            <label className={LABEL_CLASS} htmlFor="location-model">
+              Operating Model
+            </label>
+            <select
+              id="location-model"
+              value={form.operatingModel}
+              onChange={(e) => setField('operatingModel', e.target.value as FormState['operatingModel'])}
+              className={FIELD_CLASS}
+            >
+              <option value="">Not set</option>
+              {(Object.keys(OPERATING_MODEL_LABELS) as OperatingModel[]).map((model) => (
+                <option key={model} value={model}>
+                  {OPERATING_MODEL_LABELS[model]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {FEATURES.locationSiteDetails && (
+          <>
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Floor Area"
@@ -441,6 +521,69 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             onChange={(e) => setField('operatingHours', e.target.value)}
             placeholder="e.g. Mon-Sat: 08:00 - 20:00"
           />
+          </>
+          )}
+
+          <div className="md:col-span-2">
+            <span className={LABEL_CLASS}>Other Companies at this Unit</span>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+              For example a pharmacy run by another group company inside this clinic.
+            </p>
+            <div className="space-y-2">
+              {coEntities.map((co, index) => (
+                <div key={index} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center">
+                  <select
+                    aria-label={`Co-entity ${index + 1}`}
+                    value={co.entity}
+                    onChange={(e) => updateCoEntity(index, { entity: e.target.value })}
+                    className={FIELD_CLASS}
+                  >
+                    <option value="">Select entity</option>
+                    {/* Keep a saved co-entity selectable even if it is no longer active */}
+                    {co.entity && !entities.some((ent) => ent._id === co.entity) && (
+                      <option value={co.entity}>
+                        {initial?.coEntities?.find((saved) => saved.entity?._id === co.entity)?.entity?.name || co.entity}
+                      </option>
+                    )}
+                    {entities
+                      .filter((ent) => ent._id !== form.entity)
+                      .map((ent) => (
+                        <option key={ent._id} value={ent._id}>
+                          {ent.name} ({ent.entityCode || ent.code})
+                        </option>
+                      ))}
+                  </select>
+                  <input
+                    type="date"
+                    aria-label={`Co-entity ${index + 1} opening date`}
+                    title="Opening date for this company"
+                    value={co.openingDate}
+                    onChange={(e) => updateCoEntity(index, { openingDate: e.target.value })}
+                    className={FIELD_CLASS}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Remove co-entity ${index + 1}`}
+                    onClick={() => setCoEntities((prev) => prev.filter((_, i) => i !== index))}
+                  >
+                    <Trash2 size={15} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              leftIcon={<Plus size={15} />}
+              onClick={() => setCoEntities((prev) => [...prev, { entity: '', openingDate: '' }])}
+            >
+              Add company
+            </Button>
+          </div>
 
           <div className="md:col-span-2">
             <label className={LABEL_CLASS} htmlFor="location-description">
@@ -459,6 +602,8 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
       </Card>
 
       {/* Section 2: Contact */}
+      {FEATURES.locationContact && (
+      <>
       <Card padding="lg">
         <Card.Header
           title="Contact"
@@ -491,6 +636,8 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
           />
         </div>
       </Card>
+      </>
+      )}
 
       {/* Section 3: Address */}
       <Card padding="lg">
@@ -525,7 +672,6 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             value={form.address.city}
             onChange={(e) => setAddress('city', e.target.value)}
             placeholder="e.g. Bengaluru"
-            required
           />
 
           <div>
@@ -594,13 +740,32 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             )}
           </div>
 
+          <div>
+            <label className={LABEL_CLASS} htmlFor="location-area-type">
+              Area Type
+            </label>
+            <select
+              id="location-area-type"
+              value={form.areaType}
+              onChange={(e) => setField('areaType', e.target.value as FormState['areaType'])}
+              className={FIELD_CLASS}
+            >
+              <option value="">Not set</option>
+              {(Object.keys(AREA_TYPE_LABELS) as AreaType[]).map((type) => (
+                <option key={type} value={type}>
+                  {AREA_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">The local body the unit falls under.</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Pincode"
               value={form.address.pincode}
               onChange={(e) => setAddress('pincode', e.target.value)}
               placeholder="e.g. 560034"
-              required
             />
             <Input
               label="Country"
@@ -612,7 +777,9 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
       </Card>
 
       {/* Section 4: Agreements */}
-      <Card padding="lg">
+      {FEATURES.locationAgreements && (
+        <>
+        <Card padding="lg">
         <Card.Header
           title="Leases & Agreements"
           description="Lease contracts, MOUs and other agreements for this site"
@@ -756,6 +923,8 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
           </Button>
         </div>
       </Card>
+        </>
+      )}
 
       {/* Footer Actions */}
       <div className="flex items-center justify-end gap-3">

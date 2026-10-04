@@ -25,13 +25,19 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
-import { locationService, LocationDetailData } from '@/services/locationService';
+import {
+  locationService,
+  LocationDetailData,
+  AREA_TYPE_LABELS,
+  OPERATING_MODEL_LABELS,
+} from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
 import { openDocumentInNewTab } from '@/utils/documentFile';
 import Modal from '@/components/ui/Modal';
 import { licenceService, LicenceItem } from '@/services/licenceService';
 import DocumentUploadModal from '@/components/documents/DocumentUploadModal';
 import LocationLicenceModal from './LocationLicenceModal';
+import { FEATURES } from '@/constants/features';
 
 type TabType = 'overview' | 'compliance' | 'licences' | 'documents' | 'tasks' | 'history';
 
@@ -128,12 +134,14 @@ export const LocationDetailPage: React.FC = () => {
   const tabs: { key: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'overview', label: 'Overview', icon: <MapPin size={16} /> },
     { key: 'compliance', label: 'Compliance', icon: <ClipboardCheck size={16} />, count: complianceStats?.total || 0 },
-    { key: 'licences', label: 'Licences', icon: <Award size={16} />, count: licences.length },
+    ...(FEATURES.locationLicences
+      ? [{ key: 'licences' as TabType, label: 'Licences', icon: <Award size={16} />, count: licences.length }]
+      : []),
     {
       key: 'documents',
       label: 'Documents',
       icon: <FileText size={16} />,
-      count: documents.length + (location.agreements?.length || 0),
+      count: documents.length + (FEATURES.locationAgreements ? location.agreements?.length || 0 : 0),
     },
     { key: 'tasks', label: 'Tasks', icon: <CheckSquare size={16} />, count: tasks.length },
     { key: 'history', label: 'History', icon: <History size={16} /> },
@@ -224,7 +232,7 @@ export const LocationDetailPage: React.FC = () => {
                 <Badge variant="info" size="sm">
                   {location.locationType?.label || location.locationType?.code || 'Location'}
                 </Badge>
-                {location.parentLocation && (
+                {FEATURES.locationSiteDetails && location.parentLocation && (
                   <Badge variant="default" size="sm">
                     Sub-unit of {location.parentLocation.name}
                   </Badge>
@@ -365,6 +373,37 @@ export const LocationDetailPage: React.FC = () => {
                     {location.openingDate ? new Date(location.openingDate).toLocaleDateString() : '—'}
                   </dd>
                 </div>
+                {location.closingDate && (
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Closing Date</dt>
+                    <dd className="mt-1 text-slate-900 dark:text-slate-200">
+                      {new Date(location.closingDate).toLocaleDateString()}
+                    </dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Area Type</dt>
+                  <dd className="mt-1 text-slate-900 dark:text-slate-200">
+                    {location.areaType ? AREA_TYPE_LABELS[location.areaType] : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Operating Model</dt>
+                  <dd className="mt-1 text-slate-900 dark:text-slate-200">
+                    {location.operatingModel ? OPERATING_MODEL_LABELS[location.operatingModel] : '—'}
+                  </dd>
+                </div>
+                {(location.coEntities || []).map((co) => (
+                  <div key={co.entity?._id}>
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Also Operated By</dt>
+                    <dd className="mt-1 text-slate-900 dark:text-slate-200">
+                      {co.entity?.name || '—'}
+                      {co.openingDate ? ` (since ${new Date(co.openingDate).toLocaleDateString()})` : ''}
+                    </dd>
+                  </div>
+                ))}
+                {FEATURES.locationSiteDetails && (
+                  <>
                 <div>
                   <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Floor Area</dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">
@@ -375,6 +414,8 @@ export const LocationDetailPage: React.FC = () => {
                   <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Operating Hours</dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">{location.operatingHours || 'Standard Business Hours'}</dd>
                 </div>
+                  </>
+                )}
                 <div className="sm:col-span-2">
                   <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Description</dt>
                   <dd className="mt-1 text-slate-700 dark:text-slate-300 leading-relaxed">
@@ -407,6 +448,8 @@ export const LocationDetailPage: React.FC = () => {
             </Card>
 
             {/* Unit Communication */}
+            {FEATURES.locationContact && (
+              <>
             <Card padding="lg">
               <Card.Header
                 title="Unit Communication & Contact"
@@ -448,6 +491,8 @@ export const LocationDetailPage: React.FC = () => {
                 </div>
               </dl>
             </Card>
+              </>
+            )}
 
             {/* Governance & Corporate Hierarchy */}
             <Card padding="lg">
@@ -513,7 +558,7 @@ export const LocationDetailPage: React.FC = () => {
                 </div>
 
                 {/* Parent Location / Campus Linkage (if sub-unit) */}
-                {location.parentLocation && (
+                {FEATURES.locationSiteDetails && location.parentLocation && (
                   <div className="p-3.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30 flex items-center justify-between">
                     <div>
                       <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block">
@@ -562,7 +607,7 @@ export const LocationDetailPage: React.FC = () => {
                   <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                     <th className="px-4 py-3 text-left">Record # & Rule</th>
                     <th className="px-4 py-3 text-left">Category</th>
-                    <th className="px-4 py-3 text-left">Due / Expiry</th>
+                    <th className="px-4 py-3 text-left">{FEATURES.recordAssignment ? 'Due / Expiry' : 'Expiry'}</th>
                     <th className="px-4 py-3 text-center">Status</th>
                     <th className="px-4 py-3 text-right">Action</th>
                   </tr>
@@ -593,8 +638,14 @@ export const LocationDetailPage: React.FC = () => {
                           {rec.complianceRule?.category?.label || '—'}
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                          <div>Due {rec.dueDate ? new Date(rec.dueDate).toLocaleDateString() : '—'}</div>
-                          {rec.expiryDate && <div>Expires {new Date(rec.expiryDate).toLocaleDateString()}</div>}
+                          {FEATURES.recordAssignment && (
+                            <div>Due {rec.dueDate ? new Date(rec.dueDate).toLocaleDateString() : '—'}</div>
+                          )}
+                          {rec.expiryDate ? (
+                            <div>Expires {new Date(rec.expiryDate).toLocaleDateString()}</div>
+                          ) : (
+                            !FEATURES.recordAssignment && <div>—</div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <Badge
@@ -610,7 +661,11 @@ export const LocationDetailPage: React.FC = () => {
                             size="sm"
                             dot
                           >
-                            {rec.status.replace(/_/g, ' ').toUpperCase()}
+                            {!FEATURES.recordApprovalWorkflow && rec.status === 'pending'
+                              ? 'TO BE APPLIED'
+                              : rec.status === 'in_progress'
+                              ? 'APPLIED'
+                              : rec.status.replace(/_/g, ' ').toUpperCase()}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -635,7 +690,7 @@ export const LocationDetailPage: React.FC = () => {
       )}
 
       {/* ── Licences ── */}
-      {activeTab === 'licences' && (
+      {FEATURES.locationLicences && activeTab === 'licences' && (
         <div className="space-y-6">
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -841,6 +896,8 @@ export const LocationDetailPage: React.FC = () => {
           </div>
 
           {/* Section B: Property Leases & Site Agreements */}
+          {FEATURES.locationAgreements && (
+            <>
           <div className="space-y-3 pt-2">
             <div>
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -902,6 +959,8 @@ export const LocationDetailPage: React.FC = () => {
               </table>
             </div>
           </div>
+            </>
+          )}
         </div>
       )}
 

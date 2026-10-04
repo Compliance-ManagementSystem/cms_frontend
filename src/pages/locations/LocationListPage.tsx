@@ -312,7 +312,7 @@ export const LocationListPage: React.FC = () => {
       header: 'City & State',
       cell: (row) => (
         <div className="text-xs whitespace-nowrap">
-          <div className="font-medium text-slate-800 dark:text-slate-200">{row.address?.city || '—'}</div>
+          <div className="font-medium text-slate-800 dark:text-slate-200">{row.address?.city || row.address?.district || '—'}</div>
           <div className="text-slate-500 dark:text-slate-400">{row.address?.state || ''}</div>
         </div>
       ),

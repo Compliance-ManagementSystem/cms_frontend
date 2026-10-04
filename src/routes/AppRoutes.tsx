@@ -13,9 +13,9 @@ const NotFound     = React.lazy(() => import('@/pages/NotFound'));
 
 // Phase 4 – Administration & Master Data
 const AdminUsers       = React.lazy(() => import('@/pages/admin/UsersPage'));
-const AdminRoles       = React.lazy(() => import('@/pages/admin/RolesPage'));
-const AdminPermissions = React.lazy(() => import('@/pages/admin/PermissionsPage'));
-const AdminMasterData  = React.lazy(() => import('@/pages/admin/MasterDataPage'));
+// const AdminRoles       = React.lazy(() => import('@/pages/admin/RolesPage'));
+// const AdminPermissions = React.lazy(() => import('@/pages/admin/PermissionsPage'));
+// const AdminMasterData  = React.lazy(() => import('@/pages/admin/MasterDataPage'));
 const AdminSettings    = React.lazy(() => import('@/pages/admin/SettingsPage'));
 
 // Phase 5 – Entity Management
@@ -31,10 +31,10 @@ const LocationDetailPage = React.lazy(() => import('@/pages/locations/LocationDe
 const LocationEditPage   = React.lazy(() => import('@/pages/locations/LocationEditPage'));
 
 // Phase 7 – Compliance Rule Engine
-const ComplianceRuleListPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleListPage'));
-const ComplianceRuleCreatePage = React.lazy(() => import('@/pages/compliance/ComplianceRuleCreatePage'));
-const ComplianceRuleDetailPage = React.lazy(() => import('@/pages/compliance/ComplianceRuleDetailPage'));
-const ComplianceRuleEditPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleEditPage'));
+// const ComplianceRuleListPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleListPage'));
+// const ComplianceRuleCreatePage = React.lazy(() => import('@/pages/compliance/ComplianceRuleCreatePage'));
+// const ComplianceRuleDetailPage = React.lazy(() => import('@/pages/compliance/ComplianceRuleDetailPage'));
+// const ComplianceRuleEditPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleEditPage'));
 
 // Phase 8 – Compliance Records & Document Management
 const ComplianceRecordListPage   = React.lazy(() => import('@/pages/compliance/ComplianceRecordListPage'));
@@ -108,6 +108,9 @@ const AppRoutes: React.FC = () => {
         />
 
         {/* ── Phase 4: Administration & Master Data (Super Admin & Admin only) ── */}
+        {/* Roles, Permissions, Master Data and Compliance Rules are hidden for every role:
+            their addresses send people back to the dashboard. To bring one back, restore
+            its lazy import above, its route element here and its entry in constants/sidebar.ts. */}
         <Route
           path={ROUTES.ADMIN_USERS}
           element={
@@ -120,33 +123,15 @@ const AppRoutes: React.FC = () => {
         />
         <Route
           path={ROUTES.ADMIN_ROLES}
-          element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-              <Suspense fallback={<PageLoader />}>
-                <AdminRoles />
-              </Suspense>
-            </ProtectedRoute>
-          }
+          element={<Navigate to={ROUTES.DASHBOARD} replace />}
         />
         <Route
           path={ROUTES.ADMIN_PERMISSIONS}
-          element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-              <Suspense fallback={<PageLoader />}>
-                <AdminPermissions />
-              </Suspense>
-            </ProtectedRoute>
-          }
+          element={<Navigate to={ROUTES.DASHBOARD} replace />}
         />
         <Route
           path={ROUTES.ADMIN_MASTER_DATA}
-          element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-              <Suspense fallback={<PageLoader />}>
-                <AdminMasterData />
-              </Suspense>
-            </ProtectedRoute>
-          }
+          element={<Navigate to={ROUTES.DASHBOARD} replace />}
         />
         <Route
           path={ROUTES.ADMIN_SETTINGS}
@@ -246,43 +231,19 @@ const AppRoutes: React.FC = () => {
         {/* Phase 7 – Compliance Rule Engine */}
         <Route
           path={ROUTES.COMPLIANCE_RULES}
-          element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'compliance_officer', 'entity_admin']}>
-              <Suspense fallback={<PageLoader />}>
-                <ComplianceRuleListPage />
-              </Suspense>
-            </ProtectedRoute>
-          }
+          element={<Navigate to={ROUTES.DASHBOARD} replace />}
         />
         <Route
           path={ROUTES.COMPLIANCE_RULE_CREATE}
-          element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-              <Suspense fallback={<PageLoader />}>
-                <ComplianceRuleCreatePage />
-              </Suspense>
-            </ProtectedRoute>
-          }
+          element={<Navigate to={ROUTES.DASHBOARD} replace />}
         />
         <Route
           path={ROUTES.COMPLIANCE_RULE_DETAILS}
-          element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'compliance_officer', 'entity_admin']}>
-              <Suspense fallback={<PageLoader />}>
-                <ComplianceRuleDetailPage />
-              </Suspense>
-            </ProtectedRoute>
-          }
+          element={<Navigate to={ROUTES.DASHBOARD} replace />}
         />
         <Route
           path={ROUTES.COMPLIANCE_RULE_EDIT}
-          element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-              <Suspense fallback={<PageLoader />}>
-                <ComplianceRuleEditPage />
-              </Suspense>
-            </ProtectedRoute>
-          }
+          element={<Navigate to={ROUTES.DASHBOARD} replace />}
         />
 
         {/* Phase 8 – Compliance Records Lifecycle */}

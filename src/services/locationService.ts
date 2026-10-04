@@ -21,6 +21,26 @@ export interface LocationAgreement {
   notes?: string;
 }
 
+export type AreaType = 'GP' | 'NAC' | 'MUN';
+export type OperatingModel = 'CoCo' | 'CoDo';
+
+export const AREA_TYPE_LABELS: Record<AreaType, string> = {
+  GP: 'Gram Panchayat (GP)',
+  NAC: 'Notified Area Council (NAC)',
+  MUN: 'Municipality (MUN)',
+};
+
+export const OPERATING_MODEL_LABELS: Record<OperatingModel, string> = {
+  CoCo: 'Company owned, company operated (CoCo)',
+  CoDo: 'Company owned, dealer operated (CoDo)',
+};
+
+/** Another group company operating at the same unit */
+export interface LocationCoEntity {
+  entity: { _id: string; name: string; code: string } | null;
+  openingDate?: string;
+}
+
 export interface LocationHealth {
   total: number;
   compliant: number;
@@ -68,6 +88,10 @@ export interface LocationItem {
     };
   } | null;
   openingDate?: string;
+  closingDate?: string;
+  areaType?: AreaType;
+  operatingModel?: OperatingModel;
+  coEntities?: LocationCoEntity[];
   description?: string;
   area?: number;
   areaUnit?: 'sqft' | 'sqm';
@@ -150,6 +174,7 @@ export interface LocationQueryParams {
   state?: string;
   district?: string;
   city?: string;
+  areaType?: AreaType;
   status?: string;
   /** Only locations with at least one expired compliance record */
   attention?: 'true';
@@ -169,6 +194,10 @@ export interface CreateLocationPayload {
   contactPhone?: string;
   manager?: string | null;
   openingDate?: string | null;
+  closingDate?: string | null;
+  areaType?: AreaType | null;
+  operatingModel?: OperatingModel | null;
+  coEntities?: Array<{ entity: string; openingDate?: string | null }>;
   description?: string;
   area?: number | null;
   areaUnit?: 'sqft' | 'sqm';

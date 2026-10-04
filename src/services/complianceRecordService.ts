@@ -231,9 +231,12 @@ export interface ComplianceRecordItem {
     email: string;
     fullName?: string;
   };
+  /** Number printed on the licence / registration certificate */
+  licenceNumber?: string;
   dueDate?: string;
   submissionDate?: string;
   approvalDate?: string;
+  issueDate?: string;
   expiryDate?: string;
   comments?: string;
   notes?: string;
@@ -277,6 +280,8 @@ export interface CreateRecordPayload {
 
 export interface UpdateRecordPayload {
   assignedUser?: string;
+  licenceNumber?: string;
+  issueDate?: string | null;
   dueDate?: string;
   expiryDate?: string;
   submissionDate?: string;
@@ -289,6 +294,10 @@ export interface UpdateRecordPayload {
 export interface UpdateRecordStatusPayload {
   status: ComplianceRecordStatus;
   comments?: string;
+  /** Licence details saved together with the status; '' or null clears a date */
+  licenceNumber?: string;
+  issueDate?: string | null;
+  expiryDate?: string | null;
   decision?: 'pending' | 'approved' | 'rejected' | 'escalated';
 }
 

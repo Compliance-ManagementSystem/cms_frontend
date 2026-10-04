@@ -32,6 +32,7 @@ import { complianceRuleService, ComplianceRuleItem } from '@/services/compliance
 import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem } from '@/services/locationService';
 import { adminService, UserItem } from '@/services/adminService';
+import { FEATURES } from '@/constants/features';
 
 // Summary cards double as quick filters over one or more statuses
 interface MetricCard {
@@ -42,7 +43,27 @@ interface MetricCard {
   overdue?: boolean;
 }
 
-const METRIC_CARDS: MetricCard[] = [
+// The five statuses of the Location Master sheet
+const SHEET_METRIC_CARDS: MetricCard[] = [
+  { key: 'total', label: 'Total Records', color: 'text-slate-900 dark:text-white' },
+  { key: 'pending', label: 'To Be Applied', color: 'text-amber-600 dark:text-amber-400', statuses: ['pending'] },
+  { key: 'applied', label: 'Applied', color: 'text-indigo-600 dark:text-indigo-400', statuses: ['in_progress'] },
+  {
+    key: 'approved',
+    label: 'Approved',
+    color: 'text-emerald-600 dark:text-emerald-400',
+    statuses: ['approved', 'expiring_soon'],
+  },
+  { key: 'expired', label: 'Expired', color: 'text-rose-600 dark:text-rose-400', statuses: ['expired'] },
+  {
+    key: 'not_applicable',
+    label: 'Not Applicable',
+    color: 'text-slate-500 dark:text-slate-400',
+    statuses: ['not_applicable'],
+  },
+];
+
+const WORKFLOW_METRIC_CARDS: MetricCard[] = [
   { key: 'total', label: 'Total Records', color: 'text-slate-900 dark:text-white' },
   { key: 'pending', label: 'Pending Action', color: 'text-amber-600 dark:text-amber-400', statuses: ['pending'] },
   {
@@ -66,6 +87,32 @@ const METRIC_CARDS: MetricCard[] = [
   { key: 'expired', label: 'Expired', color: 'text-rose-600 dark:text-rose-400', statuses: ['expired'] },
   { key: 'overdue', label: 'Overdue', color: 'text-rose-600 dark:text-rose-400', overdue: true },
 ];
+
+const METRIC_CARDS = FEATURES.recordApprovalWorkflow ? WORKFLOW_METRIC_CARDS : SHEET_METRIC_CARDS;
+
+const SHEET_STATUS_OPTIONS = [
+  { value: 'pending', label: 'To Be Applied' },
+  { value: 'in_progress', label: 'Applied' },
+  { value: 'approved,expiring_soon', label: 'Approved' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'not_applicable', label: 'Not Applicable' },
+];
+
+const WORKFLOW_STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'in_progress', label: 'Applied' },
+  { value: 'not_applicable', label: 'Not Applicable' },
+  { value: 'submitted', label: 'Submitted' },
+  { value: 'under_review', label: 'Under Review' },
+  { value: 'correction', label: 'Needs Correction' },
+  { value: 'resubmitted', label: 'Resubmitted' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'expiring_soon', label: 'Expiring Soon' },
+  { value: 'expired', label: 'Expired' },
+];
+
+const STATUS_OPTIONS = FEATURES.recordApprovalWorkflow ? WORKFLOW_STATUS_OPTIONS : SHEET_STATUS_OPTIONS;
 
 const SELECT_CLASS =
   'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
@@ -192,16 +239,19 @@ export const ComplianceRecordListPage: React.FC = () => {
           card?.statuses?.join(',') ||
           selectedStatus ||
           (expiringWithinDays ? 'approved,expiring_soon' : undefined),
-        expiryDateFrom: expiringWithinDays ? new Date().toISOString() : undefined,
+        expiryDateFrom: expiringWithinDays
+          ? new Date().toISOString()
+          : (!FEATURES.recordAssignment && dueDateFrom) || undefined,
         expiryDateTo: expiringWithinDays
           ? new Date(Date.now() + expiringWithinDays * 24 * 60 * 60 * 1000).toISOString()
-          : undefined,
+          : (!FEATURES.recordAssignment && dueDateTo) || undefined,
         overdue: card?.overdue ? 'true' : undefined,
         entity: selectedEntity || undefined,
         location: selectedLocation || undefined,
         rule: selectedRule || undefined,
-        dueDateFrom: dueDateFrom || undefined,
-        dueDateTo: dueDateTo || undefined,
+        // Without due dates the date range filters on expiry instead (above)
+        dueDateFrom: (FEATURES.recordAssignment && dueDateFrom) || undefined,
+        dueDateTo: (FEATURES.recordAssignment && dueDateTo) || undefined,
       });
 
       setRecords(data.records);
@@ -364,14 +414,22 @@ export const ComplianceRecordListPage: React.FC = () => {
         return <Badge variant="danger" size="sm">EXPIRED</Badge>;
       case 'rejected':
         return <Badge variant="danger" size="sm">REJECTED</Badge>;
+      case 'in_progress':
+        return <Badge variant="info" size="sm">APPLIED</Badge>;
+      case 'not_applicable':
+        return <Badge variant="default" size="sm">NOT APPLICABLE</Badge>;
       case 'pending':
       default:
-        return <Badge variant="warning" size="sm">PENDING</Badge>;
+        return (
+          <Badge variant="warning" size="sm">
+            {FEATURES.recordApprovalWorkflow ? 'PENDING' : 'TO BE APPLIED'}
+          </Badge>
+        );
     }
   };
 
   // Table Columns
-  const columns: Column<ComplianceRecordItem>[] = [
+  const allColumns: Column<ComplianceRecordItem>[] = [
     {
       key: 'recordNumber',
       header: 'Record',
@@ -414,6 +472,28 @@ export const ComplianceRecordListPage: React.FC = () => {
       key: 'status',
       header: 'Status',
       cell: (row) => <span className="whitespace-nowrap">{renderStatusBadge(row.status)}</span>,
+    },
+    {
+      key: 'expiry',
+      header: 'Expiry',
+      cell: (row) => {
+        const days = row.expiryDate ? daysFromToday(row.expiryDate) : null;
+        const tracked = ['approved', 'expiring_soon', 'expired'].includes(row.status);
+        return (
+          <div className="text-xs flex items-center gap-2 whitespace-nowrap">
+            <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+              <Clock size={12} className="text-slate-500 dark:text-slate-400" />
+              {row.expiryDate ? new Date(row.expiryDate).toLocaleDateString() : '—'}
+            </span>
+            {tracked && days !== null && days < 0 && (
+              <Badge variant="danger" size="sm">Expired {Math.abs(days)}d ago</Badge>
+            )}
+            {tracked && days !== null && days >= 0 && days <= 30 && (
+              <Badge variant="warning" size="sm">{days === 0 ? 'Expires today' : `Expires in ${days}d`}</Badge>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'dates',
@@ -516,6 +596,10 @@ export const ComplianceRecordListPage: React.FC = () => {
       : []),
   ];
 
+  // Due dates and assignees are switched off: show expiry on its own instead
+  const hiddenColumns = FEATURES.recordAssignment ? ['expiry'] : ['dates', 'assignedUser'];
+  const columns = allColumns.filter((column) => !hiddenColumns.includes(column.key));
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -552,20 +636,22 @@ export const ComplianceRecordListPage: React.FC = () => {
               >
                 Auto-Generate for Unit
               </Button>
-              <Button
-                variant="primary"
-                leftIcon={<Plus size={16} />}
-                onClick={() => setIsCreateModalOpen(true)}
-              >
-                New Record
-              </Button>
+              {FEATURES.recordManualCreate && (
+                <Button
+                  variant="primary"
+                  leftIcon={<Plus size={16} />}
+                  onClick={() => setIsCreateModalOpen(true)}
+                >
+                  New Record
+                </Button>
+              )}
             </>
           )}
         </div>
       </div>
 
       {/* Summary cards — click to filter */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className={`grid grid-cols-2 sm:grid-cols-3 ${METRIC_CARDS.length > 6 ? 'xl:grid-cols-7' : 'xl:grid-cols-6'} gap-3`}>
         {METRIC_CARDS.map((card) => {
           const isActive = card.key === activeCard;
           return (
@@ -611,16 +697,17 @@ export const ComplianceRecordListPage: React.FC = () => {
               className={SELECT_CLASS}
             >
               <option value="">All Statuses</option>
-              {selectedStatus.includes(',') && <option value={selectedStatus}>Multiple statuses</option>}
-              <option value="pending">Pending</option>
-              <option value="submitted">Submitted</option>
-              <option value="under_review">Under Review</option>
-              <option value="correction">Needs Correction</option>
-              <option value="resubmitted">Resubmitted</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="expiring_soon">Expiring Soon</option>
-              <option value="expired">Expired</option>
+              {/* A status set from a dashboard link that is not one of the options */}
+              {selectedStatus && !STATUS_OPTIONS.some((option) => option.value === selectedStatus) && (
+                <option value={selectedStatus}>
+                  {selectedStatus.includes(',') ? 'Multiple statuses' : selectedStatus.replace(/_/g, ' ')}
+                </option>
+              )}
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -683,11 +770,13 @@ export const ComplianceRecordListPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Due between</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              {FEATURES.recordAssignment ? 'Due between' : 'Expires between'}
+            </label>
             <div className="flex items-center gap-1.5">
               <input
                 type="date"
-                aria-label="Due date from"
+                aria-label={FEATURES.recordAssignment ? 'Due date from' : 'Expiry date from'}
                 value={dueDateFrom}
                 max={dueDateTo || undefined}
                 onChange={(e) => {
@@ -699,7 +788,7 @@ export const ComplianceRecordListPage: React.FC = () => {
               <span className="text-xs text-slate-400">to</span>
               <input
                 type="date"
-                aria-label="Due date to"
+                aria-label={FEATURES.recordAssignment ? 'Due date to' : 'Expiry date to'}
                 value={dueDateTo}
                 min={dueDateFrom || undefined}
                 onChange={(e) => {

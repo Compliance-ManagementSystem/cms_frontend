@@ -251,7 +251,7 @@ export const Dashboard: React.FC = () => {
     {
       label: 'Pending Action',
       value: kpis.pending,
-      hint: 'Not yet approved',
+      hint: 'Applied or still to be applied',
       color: 'text-sky-600 dark:text-sky-400',
       to: recordsLink({ status: PENDING_STATUSES }),
     },

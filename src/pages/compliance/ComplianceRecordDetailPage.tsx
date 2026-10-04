@@ -24,6 +24,7 @@ import {
   ArrowRight,
   Check,
   Lock,
+  Pencil,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -44,6 +45,20 @@ import {
 } from '@/services/complianceRecordService';
 import { adminService, MasterDataItem } from '@/services/adminService';
 import { ROUTES } from '@/constants/routes';
+import { FEATURES } from '@/constants/features';
+
+// The statuses the Location Master sheet uses, in the order work progresses
+const SIMPLE_STATUS_OPTIONS: Array<{ value: ComplianceRecordStatus; label: string }> = [
+  { value: 'pending', label: 'To be applied' },
+  { value: 'in_progress', label: 'Applied' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'not_applicable', label: 'Not applicable' },
+  { value: 'expired', label: 'Expired' },
+];
+
+const FIELD_CLASS =
+  'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500';
+const LABEL_CLASS = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5';
 
 const formatFileSize = (bytes: number): string =>
   bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(bytes / 1024, 0.1).toFixed(1)} KB`;
@@ -55,6 +70,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const { can } = useAuth();
   const canUpload = can('document', 'upload');
   const canVerify = can('document', 'update');
+  const canUpdateStatus = can('compliance_record', 'update');
 
   const [record, setRecord] = useState<ComplianceRecordItem | null>(null);
   const [docTypes, setDocTypes] = useState<MasterDataItem[]>([]);
@@ -69,6 +85,17 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const [workflowComments, setWorkflowComments] = useState('');
   const [workflowCommentsError, setWorkflowCommentsError] = useState('');
   const [isExecutingWorkflow, setIsExecutingWorkflow] = useState(false);
+
+  // Direct status & licence details
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [statusForm, setStatusForm] = useState({
+    status: 'pending' as ComplianceRecordStatus,
+    licenceNumber: '',
+    issueDate: '',
+    expiryDate: '',
+    comments: '',
+  });
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
 
   // Upload Document Modal
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -174,6 +201,46 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       toast.error(err.response?.data?.message || err.message || 'Workflow transition failed');
     } finally {
       setIsExecutingWorkflow(false);
+    }
+  };
+
+  const handleOpenStatusModal = () => {
+    if (!record) return;
+    setStatusForm({
+      status: record.status,
+      licenceNumber: record.licenceNumber || '',
+      issueDate: record.issueDate ? record.issueDate.split('T')[0] : '',
+      expiryDate: record.expiryDate ? record.expiryDate.split('T')[0] : '',
+      comments: '',
+    });
+    setIsStatusModalOpen(true);
+  };
+
+  const handleSaveStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!record) return;
+
+    if (statusForm.issueDate && statusForm.expiryDate && statusForm.expiryDate < statusForm.issueDate) {
+      toast.error('The expiry date cannot be before the issue date');
+      return;
+    }
+
+    setIsSavingStatus(true);
+    try {
+      const res = await complianceRecordService.updateRecordStatus(record._id, {
+        status: statusForm.status,
+        licenceNumber: statusForm.licenceNumber.trim(),
+        issueDate: statusForm.issueDate || null,
+        expiryDate: statusForm.expiryDate || null,
+        comments: statusForm.comments.trim() || undefined,
+      });
+      toast.success(res.message || 'Record updated');
+      setIsStatusModalOpen(false);
+      await Promise.all([fetchRecord(true), fetchWorkflow()]);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || 'Could not update the record');
+    } finally {
+      setIsSavingStatus(false);
     }
   };
 
@@ -339,9 +406,17 @@ export const ComplianceRecordDetailPage: React.FC = () => {
         return <Badge variant="danger" size="md">EXPIRED</Badge>;
       case 'rejected':
         return <Badge variant="danger" size="md">REJECTED</Badge>;
+      case 'in_progress':
+        return <Badge variant="info" size="md">APPLIED</Badge>;
+      case 'not_applicable':
+        return <Badge variant="default" size="md">NOT APPLICABLE</Badge>;
       case 'pending':
       default:
-        return <Badge variant="warning" size="md">PENDING ACTION</Badge>;
+        return (
+          <Badge variant="warning" size="md">
+            {FEATURES.recordApprovalWorkflow ? 'PENDING ACTION' : 'TO BE APPLIED'}
+          </Badge>
+        );
     }
   };
 
@@ -414,6 +489,14 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1">
               <span className="font-mono text-indigo-600 dark:text-indigo-300 font-semibold">{record.recordNumber}</span>
               <span>•</span>
+              {record.licenceNumber && (
+                <>
+                  <span className="text-slate-600 dark:text-slate-300">
+                    Licence no. <span className="font-mono font-semibold">{record.licenceNumber}</span>
+                  </span>
+                  <span>•</span>
+                </>
+              )}
               <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
                 <Building2 size={13} className="text-indigo-600 dark:text-indigo-400" />
                 {record.entity?.name}
@@ -429,7 +512,14 @@ export const ComplianceRecordDetailPage: React.FC = () => {
 
         {/* Dynamic Workflow Actions & Upload */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Rules can ask for several approvals; show how far this record is */}
+          {canUpdateStatus && (
+            <Button variant="outline" leftIcon={<Pencil size={15} />} onClick={handleOpenStatusModal}>
+              Update Status
+            </Button>
+          )}
+          {FEATURES.recordApprovalWorkflow && (
+            <>
+            {/* Rules can ask for several approvals; show how far this record is */}
           {workflowData?.approvalProgress &&
             workflowData.approvalProgress.required > 1 &&
             ['submitted', 'resubmitted', 'under_review'].includes(workflowData.currentStatus) && (
@@ -531,6 +621,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
               Statutory Sign-Off Complete (Approved)
             </div>
           ) : null}
+            </>
+          )}
 
           {/* Upload Document */}
           {canUpload && (
@@ -545,7 +637,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {blockedReasons.length > 0 && (
+      {FEATURES.recordApprovalWorkflow && blockedReasons.length > 0 && (
         <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-600/40 rounded-lg flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
           <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div className="space-y-0.5">
@@ -557,7 +649,9 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       )}
 
       {/* ── Workflow Stepper ───────────────────────────────────────────────── */}
-      <Card className="p-5 bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+      {FEATURES.recordApprovalWorkflow && (
+        <>
+        <Card className="p-5 bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           <ol className="flex items-center flex-1 min-w-0">
             {WORKFLOW_STEPS.map((label, idx) => {
@@ -639,6 +733,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
           </div>
         )}
       </Card>
+        </>
+      )}
 
       {/* Tabs Bar */}
       <div className="border-b border-slate-200 dark:border-slate-800 flex gap-2">
@@ -664,7 +760,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
           <FileText size={16} />
           Documents ({record.documents?.length || 0})
         </button>
-        <button
+{FEATURES.recordApprovalWorkflow && (
+                <button
           onClick={() => setActiveTab('history')}
           className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
             activeTab === 'history'
@@ -675,6 +772,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
           <ShieldCheck size={16} />
           Approval Trail & History ({workflowData?.approvals?.length || record.approvals?.length || 0})
         </button>
+        )}
       </div>
 
       {/* Tab 1: Overview */}
@@ -682,6 +780,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
         <div className="space-y-6">
           {/* Key Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {FEATURES.recordAssignment && (
             <Card className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
               <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                 <Clock size={14} />
@@ -706,7 +805,9 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   : `Due ${formatRelativeDays(record.dueDate)}`}
               </div>
             </Card>
+            )}
 
+            {FEATURES.recordApprovalWorkflow && (
             <Card className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
               <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                 <Upload size={14} />
@@ -723,6 +824,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                 {record.submissionDate ? formatRelativeDays(record.submissionDate) : 'Awaiting submission'}
               </div>
             </Card>
+            )}
 
             <Card className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
               <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
@@ -737,7 +839,11 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                 {record.approvalDate ? new Date(record.approvalDate).toLocaleDateString() : 'Not yet'}
               </div>
               <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                {record.approvalDate ? formatRelativeDays(record.approvalDate) : 'Awaiting sign-off'}
+                {record.approvalDate
+                  ? formatRelativeDays(record.approvalDate)
+                  : FEATURES.recordApprovalWorkflow
+                  ? 'Awaiting sign-off'
+                  : 'Not approved yet'}
               </div>
             </Card>
 
@@ -759,11 +865,16 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                 }`}
               >
                 {!record.expiryDate
-                  ? 'Set on approval'
+                  ? 'Not entered yet'
                   : expiryDays! < 0
                   ? `Expired ${formatRelativeDays(record.expiryDate)}`
                   : `Expires ${formatRelativeDays(record.expiryDate)}`}
               </div>
+              {record.issueDate && (
+                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                  Issued {new Date(record.issueDate).toLocaleDateString()}
+                </div>
+              )}
             </Card>
           </div>
 
@@ -896,16 +1007,18 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
                 <User size={18} className="text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Assigned Stakeholder & Unit</h3>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{FEATURES.recordAssignment ? 'Assigned Stakeholder & Unit' : 'Company & Unit'}</h3>
               </div>
 
               <div className="space-y-3 text-xs">
-                <div>
+{FEATURES.recordAssignment && (
+                                <div>
                   <span className="text-slate-500 dark:text-slate-400 block">Assigned Officer:</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">
                     {record.assignedUser?.fullName || record.assignedUser?.email || 'Unassigned'}
                   </span>
                 </div>
+                )}
 
                 <div>
                   <span className="text-slate-500 dark:text-slate-400 block">Parent Entity:</span>
@@ -920,7 +1033,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     {record.location?.name} ({record.location?.locationCode})
                   </span>
                   <p className="text-slate-500 dark:text-slate-400 mt-0.5">
-                    {record.location?.address?.city}, {record.location?.address?.state}
+                    {[record.location?.address?.city, record.location?.address?.state].filter(Boolean).join(', ')}
                   </p>
                 </div>
 
@@ -995,13 +1108,14 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50">
                               v{doc.currentVersion || doc.version || 1}
                             </span>
-                            {doc.verificationStatus === 'verified' ? (
-                              <Badge variant="success" size="sm">VERIFIED</Badge>
-                            ) : doc.verificationStatus === 'rejected' ? (
-                              <Badge variant="danger" size="sm">REJECTED</Badge>
-                            ) : (
-                              <Badge variant="warning" size="sm">PENDING VERIFICATION</Badge>
-                            )}
+                            {FEATURES.documentVerification &&
+                              (doc.verificationStatus === 'verified' ? (
+                                <Badge variant="success" size="sm">VERIFIED</Badge>
+                              ) : doc.verificationStatus === 'rejected' ? (
+                                <Badge variant="danger" size="sm">REJECTED</Badge>
+                              ) : (
+                                <Badge variant="warning" size="sm">PENDING VERIFICATION</Badge>
+                              ))}
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2 mt-1">
                             <span className="truncate max-w-[220px]" title={doc.fileName}>{doc.fileName}</span>
@@ -1041,7 +1155,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                             New Version
                           </Button>
                         )}
-                        {canVerify && (
+                        {FEATURES.documentVerification && canVerify && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -1113,7 +1227,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       )}
 
       {/* Tab 4: Approval Trail & History */}
-      {activeTab === 'history' && (
+      {FEATURES.recordApprovalWorkflow && activeTab === 'history' && (
         <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
             <div>
@@ -1462,6 +1576,107 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             className="w-full h-full border-0"
           />
         </div>
+      </Modal>
+
+      {/* ── Status & Licence Details Modal ───────────────────────────────────── */}
+      <Modal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+        title="Update Status"
+        description="Set where this licence stands and record the details from the certificate."
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" disabled={isSavingStatus} onClick={() => setIsStatusModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" isLoading={isSavingStatus} onClick={handleSaveStatus}>
+              Save
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveStatus} className="space-y-4">
+          <div>
+            <label className={LABEL_CLASS} htmlFor="record-status">
+              Status
+            </label>
+            <select
+              id="record-status"
+              value={statusForm.status}
+              onChange={(e) => setStatusForm((prev) => ({ ...prev, status: e.target.value as ComplianceRecordStatus }))}
+              className={FIELD_CLASS}
+            >
+              {/* Keep a status from the approval route selectable until it is changed */}
+              {!SIMPLE_STATUS_OPTIONS.some((option) => option.value === record.status) && (
+                <option value={record.status}>{record.status.replace(/_/g, ' ')}</option>
+              )}
+              {SIMPLE_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Input
+            label="Licence / Registration Number"
+            value={statusForm.licenceNumber}
+            onChange={(e) => setStatusForm((prev) => ({ ...prev, licenceNumber: e.target.value }))}
+            placeholder="As printed on the certificate"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={LABEL_CLASS} htmlFor="record-issue-date">
+                Issue Date
+              </label>
+              <input
+                id="record-issue-date"
+                type="date"
+                value={statusForm.issueDate}
+                onChange={(e) => setStatusForm((prev) => ({ ...prev, issueDate: e.target.value }))}
+                className={FIELD_CLASS}
+              />
+            </div>
+            <div>
+              <label className={LABEL_CLASS} htmlFor="record-expiry-date">
+                Expiry Date
+              </label>
+              <input
+                id="record-expiry-date"
+                type="date"
+                value={statusForm.expiryDate}
+                onChange={(e) => setStatusForm((prev) => ({ ...prev, expiryDate: e.target.value }))}
+                className={FIELD_CLASS}
+              />
+            </div>
+          </div>
+          {statusForm.status === 'approved' && record.status !== 'approved' && !statusForm.expiryDate && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              No expiry date entered
+              {record.rule?.renewalCycle
+                ? `: it will be set to ${record.rule.renewalCycle} days from today. Enter the date on the certificate if it differs.`
+                : ', so no renewal reminder will be raised.'}
+            </p>
+          )}
+
+          <div>
+            <label className={LABEL_CLASS} htmlFor="record-status-remarks">
+              Remarks
+            </label>
+            <textarea
+              id="record-status-remarks"
+              rows={3}
+              value={statusForm.comments}
+              onChange={(e) => setStatusForm((prev) => ({ ...prev, comments: e.target.value }))}
+              placeholder={
+                statusForm.status === 'not_applicable' ? 'Why this licence does not apply to the unit' : 'Optional'
+              }
+              className={FIELD_CLASS}
+            />
+          </div>
+        </form>
       </Modal>
 
       {/* ── Workflow Action Confirmation Modal ───────────────────────────────── */}
