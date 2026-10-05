@@ -152,6 +152,15 @@ export interface OperationsDashboardData {
   unitTypes: Array<{ code: string; label: string; units: number }>;
   areaTypes: Array<{ areaType: string; units: number }>;
   openingsTrend: Array<{ month: string; opened: number; total: number }>;
+  /** Share of each licence approved in each state; a missing cell means it applies nowhere there */
+  licenceGrid: {
+    licences: Array<{ ruleId: string; code: string; name: string }>;
+    rows: Array<{ state: string; cells: Record<string, { approved: number; total: number }> }>;
+  };
+  byCompany: Array<{ entityId: string; code: string; name: string; units: number } & LicenceCounts>;
+  openingsByYear: Array<{ year: string; opened: number }>;
+  /** Licence status of open and planned units, grouped by the year the unit opened */
+  byOpeningYear: Array<{ year: string; units: number } & LicenceCounts>;
   expiring: {
     withExpiryDate: number;
     next30: number;

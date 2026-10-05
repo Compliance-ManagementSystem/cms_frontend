@@ -34,6 +34,7 @@ import {
   OperationsDashboardData,
   OperationsFilters,
   LicenceBucket,
+  LicenceCounts,
   UnitBucket,
   StateComplianceItem,
 } from '@/services/dashboardService';
@@ -42,7 +43,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
 import { daysFromToday } from '@/utils/dates';
 import IndiaMap, { resolveStateId } from '@/components/charts/IndiaMap';
-import { useChartTheme } from '@/components/charts/chartTheme';
+import { SCORE_BANDS, scoreBandIndex, useChartTheme } from '@/components/charts/chartTheme';
 
 const REFRESH_MS = 60_000;
 
@@ -60,6 +61,23 @@ const LICENCE_STATUS_PARAM: Record<LicenceBucket, string> = {
   applied: 'in_progress',
   toBeApplied: 'pending',
   expired: 'expired',
+};
+
+// Column headings for the state × licence grid, as the Location Master sheet abbreviates them
+const LICENCE_SHORT_NAMES: Record<string, string> = {
+  'FIRE-NOC': 'Fire NOC',
+  'OCCUPANCY-CERT': 'Occupancy',
+  'CE-CERT-CCPL': 'CE',
+  'BMW-PC-CCPL': 'BMW PC',
+  'DRUG-LICENCE-CPPL': 'Drug Lic.',
+  'TRADE-LICENCE-CCPL': 'Trade CCPL',
+  'TRADE-LICENCE-CPPL': 'Trade CPPL',
+  'SHOP-ESTAB-CCPL': 'S&E CCPL',
+  'SHOP-ESTAB-CPPL': 'S&E CPPL',
+  'GP-NOC': 'GP NOC',
+  'FSSAI-CPPL': 'FSSAI',
+  'GST-APOB-CCPL': 'GST CCPL',
+  'GST-APOB-CPPL': 'GST CPPL',
 };
 
 const UNIT_ORDER: UnitBucket[] = ['open', 'toBeOpened', 'closed'];
@@ -252,6 +270,126 @@ const BarList: React.FC<{
         </li>
       ))}
     </ul>
+  );
+};
+
+/** One 100% bar per row, split by licence status, with the approved share at the end */
+const ShareRows: React.FC<{
+  rows: Array<{ key: string; label: string; hint: string; counts: LicenceCounts }>;
+  buckets: LicenceBucket[];
+}> = ({ rows, buckets }) => {
+  const chart = useChartTheme();
+  return (
+    <ul className="mt-3 space-y-3">
+      {rows.map((row) => (
+        <li key={row.key}>
+          <div className="flex items-baseline justify-between gap-3 text-xs">
+            <span className="font-semibold text-slate-900 dark:text-slate-100">
+              {row.label}
+              <span className="font-normal text-slate-500 dark:text-slate-400"> · {row.hint}</span>
+            </span>
+            <span className="font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+              {row.counts.approvedPct ?? 0}%<span className="font-normal text-slate-500 dark:text-slate-400"> approved</span>
+            </span>
+          </div>
+          {/* The gap between segments shows the card surface, not a border */}
+          <div className="mt-1.5 h-3 flex gap-[2px] rounded overflow-hidden">
+            {buckets
+              .filter((bucket) => row.counts[bucket] > 0)
+              .map((bucket) => (
+                <span
+                  key={bucket}
+                  title={`${LICENCE_LABELS[bucket]}: ${row.counts[bucket]} of ${row.counts.total}`}
+                  style={{ flexGrow: row.counts[bucket], flexBasis: 0, minWidth: 3, backgroundColor: chart.licence[bucket] }}
+                />
+              ))}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+/** States down the side, licences across the top, each cell the share approved */
+const LicenceGrid: React.FC<{
+  grid: OperationsDashboardData['licenceGrid'];
+  onOpen: (ruleId: string) => void;
+}> = ({ grid, onOpen }) => {
+  const chart = useChartTheme();
+  // Dark ink on the two pale bands, white on the two deep ones, in either theme
+  const inkOn = (band: number) => ((chart.dark ? band >= 2 : band <= 1) ? '#0f172a' : '#ffffff');
+
+  return (
+    <>
+      <div className="overflow-x-auto mt-3">
+        <table className="w-full border-separate border-spacing-[2px] text-[11px]">
+          <thead>
+            <tr>
+              <th className="text-left font-medium text-slate-500 dark:text-slate-400 pr-2">State</th>
+              {grid.licences.map((licence) => (
+                <th
+                  key={licence.ruleId}
+                  title={licence.name}
+                  className="font-medium text-slate-500 dark:text-slate-400 px-0.5 pb-1 align-bottom leading-tight min-w-[44px]"
+                >
+                  {LICENCE_SHORT_NAMES[licence.code] || licence.code}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {grid.rows.map((row) => (
+              <tr key={row.state}>
+                <th className="text-left font-medium text-slate-700 dark:text-slate-300 pr-2 whitespace-nowrap">{row.state}</th>
+                {grid.licences.map((licence) => {
+                  const cell = row.cells[licence.ruleId];
+                  if (!cell) {
+                    return (
+                      <td
+                        key={licence.ruleId}
+                        title={`${row.state} · ${licence.name}: not applicable`}
+                        className="h-8 text-center rounded-sm text-slate-400 dark:text-slate-500"
+                        style={{ backgroundColor: chart.noData }}
+                      >
+                        –
+                      </td>
+                    );
+                  }
+                  const share = pct(cell.approved, cell.total);
+                  const band = scoreBandIndex(share);
+                  return (
+                    <td key={licence.ruleId} className="p-0">
+                      <button
+                        type="button"
+                        onClick={() => onOpen(licence.ruleId)}
+                        title={`${row.state} · ${licence.name}: ${cell.approved} of ${cell.total} approved`}
+                        className="w-full h-8 rounded-sm font-semibold hover:ring-2 hover:ring-slate-400 dark:hover:ring-slate-300"
+                        style={{ backgroundColor: chart.scoreBands[band], color: inkOn(band) }}
+                      >
+                        {share}%
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[11px] text-slate-600 dark:text-slate-400">
+        <span className="font-medium">Approved:</span>
+        {SCORE_BANDS.map((band, index) => (
+          <span key={band.label} className="inline-flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: chart.scoreBands[index] }} />
+            {band.label}
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: chart.noData }} />
+          Not applicable
+        </span>
+      </div>
+    </>
   );
 };
 
@@ -892,7 +1030,100 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Row 5: where to start, and what changed */}
+          {/* Row 5: which licence is stuck where, and how the companies compare */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel
+              title="Licences Approved: State by Licence"
+              subtitle="Share approved for each licence in each state. Click a cell to open that licence's records."
+              className="lg:col-span-8"
+            >
+              {data.licenceGrid.rows.length === 0 ? (
+                <EmptyState>No licence records in this view.</EmptyState>
+              ) : (
+                <LicenceGrid
+                  grid={data.licenceGrid}
+                  onOpen={(ruleId) => navigate(withQuery(ROUTES.COMPLIANCE_RECORDS, { rule: ruleId, entity: filters.entity }))}
+                />
+              )}
+            </Panel>
+
+            <Panel title="Company Comparison" subtitle="Units operated and licence status" className="lg:col-span-4">
+              {data.byCompany.length === 0 ? (
+                <EmptyState>No companies in this view.</EmptyState>
+              ) : (
+                <>
+                  <Legend items={licenceLegend} />
+                  <ShareRows
+                    buckets={shownLicenceBuckets}
+                    rows={data.byCompany.map((company) => ({
+                      key: company.entityId,
+                      label: company.code,
+                      hint: `${company.units} ${company.units === 1 ? 'unit' : 'units'} · ${company.total} licences`,
+                      counts: company,
+                    }))}
+                  />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
+                    A unit shared by two companies is counted for both.
+                  </p>
+                </>
+              )}
+            </Panel>
+          </div>
+
+          {/* Row 6: growth by year, and whether newer units are behind */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel title="Units Opened per Year" subtitle="By opening date, closed units included" className="lg:col-span-5">
+              {data.openingsByYear.length === 0 ? (
+                <EmptyState>No opening dates entered for this view.</EmptyState>
+              ) : (
+                <div className="h-64 mt-3">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data.openingsByYear} margin={{ top: 20, right: 8, left: -18, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
+                      <XAxis dataKey="year" tick={axisTick} tickLine={false} axisLine={false} />
+                      <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
+                      <Bar
+                        dataKey="opened"
+                        name="Units opened"
+                        fill={chart.series}
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={24}
+                        isAnimationActive={false}
+                      >
+                        <LabelList dataKey="opened" position="top" fill={chart.axis} fontSize={11} fontWeight={600} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </Panel>
+
+            <Panel
+              title="Licence Progress by Opening Year"
+              subtitle="Open and planned units, grouped by the year they opened"
+              className="lg:col-span-7"
+            >
+              {data.byOpeningYear.length === 0 ? (
+                <EmptyState>No licence records in this view.</EmptyState>
+              ) : (
+                <>
+                  <Legend items={licenceLegend} />
+                  <ShareRows
+                    buckets={shownLicenceBuckets}
+                    rows={data.byOpeningYear.map((row) => ({
+                      key: row.year,
+                      label: row.year === 'No date' ? 'No opening date' : `Opened ${row.year}`,
+                      hint: `${row.units} ${row.units === 1 ? 'unit' : 'units'} · ${row.total} licences`,
+                      counts: row,
+                    }))}
+                  />
+                </>
+              )}
+            </Panel>
+          </div>
+
+          {/* Row 7: where to start, and what changed */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <Panel
               title="Needs Attention"
