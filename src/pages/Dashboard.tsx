@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   PieChart,
   Pie,
   Cell,
@@ -11,887 +13,955 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import {
   LayoutDashboard,
   RefreshCw,
+  Building2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Settings2,
+  ShieldCheck,
   ChevronRight,
-  Globe2,
-  AlertTriangle,
-  ArrowUpRight,
+  type LucideIcon,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Badge from '@/components/ui/Badge';
-import Table, { Column } from '@/components/ui/Table';
 import {
   dashboardService,
-  DashboardData,
-  DashboardFilters,
-  DashboardRating,
-  FilterOptions,
-  HealthCounts,
-  LocationComplianceItem,
+  OperationsDashboardData,
+  OperationsFilters,
+  LicenceBucket,
+  UnitBucket,
+  StateComplianceItem,
 } from '@/services/dashboardService';
 import { socketService } from '@/services/socketService';
-import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
-import { formatRelativeDays } from '@/utils/dates';
+import { daysFromToday } from '@/utils/dates';
 import IndiaMap, { resolveStateId } from '@/components/charts/IndiaMap';
-import { BUCKET_ORDER, BUCKET_LABELS, useChartTheme } from '@/components/charts/chartTheme';
+import { useChartTheme } from '@/components/charts/chartTheme';
 
-// Record statuses behind the dashboard's "Pending Action" bucket
-const PENDING_STATUSES = 'pending,submitted,resubmitted,under_review,correction,rejected,in_progress';
+const REFRESH_MS = 60_000;
 
-const RATING_META: Record<DashboardRating, { label: string; variant: 'success' | 'warning' | 'pending' | 'danger' }> = {
-  green: { label: 'On track', variant: 'success' },
-  yellow: { label: 'Renewals due', variant: 'warning' },
-  orange: { label: 'Action pending', variant: 'pending' },
-  red: { label: 'At risk', variant: 'danger' },
+// Stacking order is fixed everywhere the statuses sit side by side
+const LICENCE_ORDER: LicenceBucket[] = ['approved', 'applied', 'toBeApplied', 'expired'];
+const LICENCE_LABELS: Record<LicenceBucket, string> = {
+  approved: 'Approved',
+  applied: 'Applied',
+  toBeApplied: 'To be applied',
+  expired: 'Expired',
+};
+// The matching filter on the Compliance Records list
+const LICENCE_STATUS_PARAM: Record<LicenceBucket, string> = {
+  approved: 'approved,expiring_soon',
+  applied: 'in_progress',
+  toBeApplied: 'pending',
+  expired: 'expired',
 };
 
+const UNIT_ORDER: UnitBucket[] = ['open', 'toBeOpened', 'closed'];
+const UNIT_LABELS: Record<UnitBucket, string> = { open: 'Open', toBeOpened: 'To be opened', closed: 'Closed' };
+
 const SELECT_CLASS =
-  'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
-const LABEL_CLASS = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1';
+  'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
 
-// Full class names so Tailwind can see them
-const scoreStyle = (percentage: number) =>
-  percentage >= 80
-    ? { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
-    : percentage >= 60
-    ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
-    : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
+const pct = (part: number, whole: number): number => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 
-// Legend text stays in neutral ink; the swatch beside it carries the colour
-const legendLabel = (value: string) => <span className="text-slate-600 dark:text-slate-300">{value}</span>;
+const withQuery = (path: string, params: Record<string, string | undefined>): string => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => value && query.set(key, value));
+  const text = query.toString();
+  return text ? `${path}?${text}` : path;
+};
 
-const ChartTooltip = ({ active, payload, label }: any) => {
+const ChartTooltip = ({ active, payload, label, unit }: any) => {
   if (!active || !payload?.length) return null;
+  const rows = payload.filter((entry: any) => entry.value !== undefined && entry.value !== null);
+  const total = rows.reduce((sum: number, entry: any) => sum + (Number(entry.value) || 0), 0);
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
-      <p className="font-semibold text-slate-800 dark:text-slate-200">{payload[0]?.payload?.name || label}</p>
-      {payload.map((entry: any) => (
+      <p className="font-semibold text-slate-800 dark:text-slate-200">{payload[0]?.payload?.fullName || label}</p>
+      {rows.map((entry: any) => (
         <p key={entry.dataKey} className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.payload?.fill }} />
           <span className="text-slate-500 dark:text-slate-400">{entry.name}:</span>
-          <span className="font-semibold text-slate-900 dark:text-slate-100">{entry.value}</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100">
+            {unit ? Math.round(entry.value) : entry.value}
+            {unit || ''}
+          </span>
         </p>
       ))}
+      {rows.length > 1 && !unit && (
+        <p className="pt-1 border-t border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+          Total: <span className="font-semibold text-slate-900 dark:text-slate-100">{total}</span>
+        </p>
+      )}
     </div>
+  );
+};
+
+const TrendTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  const point = payload[0].payload as { month: string; opened: number; total: number };
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
+      <p className="font-semibold text-slate-800 dark:text-slate-200">{point.month}</p>
+      <p className="text-slate-500 dark:text-slate-400">
+        Opened so far: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.total}</span>
+      </p>
+      <p className="text-slate-500 dark:text-slate-400">
+        Opened that month: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.opened}</span>
+      </p>
+    </div>
+  );
+};
+
+/** Swatch + label row above a multi-series chart */
+const Legend: React.FC<{ items: Array<{ label: string; color: string }> }> = ({ items }) => (
+  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-slate-600 dark:text-slate-400">
+    {items.map((item) => (
+      <span key={item.label} className="inline-flex items-center gap-1.5">
+        <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+        {item.label}
+      </span>
+    ))}
+  </div>
+);
+
+const Panel: React.FC<{
+  title: string;
+  subtitle?: string;
+  className?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ title, subtitle, className = '', action, children }) => (
+  <Card padding="md" className={className}>
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+        {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+    {children}
+  </Card>
+);
+
+const EmptyState: React.FC<{ children: React.ReactNode; height?: string }> = ({ children, height = 'h-56' }) => (
+  <div className={`${height} flex items-center justify-center text-center text-sm text-slate-500 dark:text-slate-400 px-4`}>
+    {children}
+  </div>
+);
+
+interface RingSlice {
+  key: string;
+  label: string;
+  value: number;
+  color: string;
+  to?: string;
+}
+
+/** Ring with the total in the middle and a legend that carries every value */
+const StatusRing: React.FC<{ slices: RingSlice[]; total: number; centreLabel: string }> = ({
+  slices,
+  total,
+  centreLabel,
+}) => {
+  const chart = useChartTheme();
+  const navigate = useNavigate();
+  const visible = slices.filter((slice) => slice.value > 0);
+
+  return (
+    <>
+      <div className="h-48 relative flex items-center justify-center mt-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={visible}
+              dataKey="value"
+              nameKey="label"
+              innerRadius={56}
+              outerRadius={84}
+              startAngle={90}
+              endAngle={-270}
+              stroke={chart.surface}
+              strokeWidth={2}
+              isAnimationActive={false}
+              cursor="pointer"
+              onClick={(slice: any) => slice.to && navigate(slice.to)}
+            >
+              {visible.map((slice) => (
+                <Cell key={slice.key} fill={slice.color} />
+              ))}
+            </Pie>
+            <Tooltip content={<ChartTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute text-center pointer-events-none">
+          <span className="block text-2xl font-bold text-slate-900 dark:text-slate-100">{total.toLocaleString()}</span>
+          <span className="block text-[11px] text-slate-500 dark:text-slate-400">{centreLabel}</span>
+        </div>
+      </div>
+
+      <ul className="mt-2 space-y-0.5">
+        {slices.map((slice) => (
+          <li key={slice.key}>
+            <button
+              type="button"
+              disabled={!slice.to}
+              onClick={() => slice.to && navigate(slice.to)}
+              className="w-full flex items-center justify-between gap-3 px-1 py-1 rounded text-xs enabled:hover:bg-slate-50 dark:enabled:hover:bg-slate-800/50"
+            >
+              <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: slice.color }} />
+                {slice.label}
+              </span>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                {slice.value.toLocaleString()}
+                <span className="font-normal text-slate-500 dark:text-slate-400"> ({pct(slice.value, total)}%)</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+};
+
+/** One labelled horizontal bar per row; used where there is a single measure */
+const BarList: React.FC<{
+  rows: Array<{ key: string; label: string; hint?: string; value: number }>;
+  color: string;
+}> = ({ rows, color }) => {
+  const max = Math.max(...rows.map((row) => row.value), 1);
+  return (
+    <ul className="mt-3 space-y-2">
+      {rows.map((row) => (
+        <li key={row.key} className="grid grid-cols-[minmax(0,9rem)_1fr_2rem] items-center gap-2 text-xs">
+          <span className="truncate text-slate-700 dark:text-slate-300" title={row.hint ? `${row.label} (${row.hint})` : row.label}>
+            {row.label}
+            {row.hint && <span className="text-slate-400 dark:text-slate-500"> · {row.hint}</span>}
+          </span>
+          <span className="h-3 rounded-r bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <span className="block h-full rounded-r" style={{ width: `${(row.value / max) * 100}%`, backgroundColor: color }} />
+          </span>
+          <span className="text-right font-semibold text-slate-900 dark:text-slate-100">{row.value}</span>
+        </li>
+      ))}
+    </ul>
   );
 };
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const toast = useToast();
   const chart = useChartTheme();
+  const { can } = useAuth();
 
-  const [filters, setFilters] = useState<DashboardFilters>({});
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    states: [],
-    entities: [],
-    locations: [],
-    categories: [],
-  });
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [filters, setFilters] = useState<OperationsFilters>({});
+  const [data, setData] = useState<OperationsDashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const requestId = useRef(0);
 
-  useEffect(() => {
-    dashboardService
-      .getFilterOptions()
-      .then(setFilterOptions)
-      .catch(() => {});
-  }, []);
-
-  const fetchDashboard = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      setData(await dashboardService.getDashboardStats(filters));
-      setLoadError(null);
-    } catch (err: any) {
-      const message = err.message || 'Failed to load dashboard';
-      setLoadError(message);
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filters, toast]);
-
-  // Load on filter change and whenever a record or task changes elsewhere
-  useEffect(() => {
-    fetchDashboard();
-    const unsubRecord = socketService.on('compliance:status_changed', fetchDashboard);
-    const unsubTask = socketService.on('task:assigned', fetchDashboard);
-    return () => {
-      unsubRecord();
-      unsubTask();
-    };
-  }, [fetchDashboard]);
-
-  // Location options follow the selected state and entity
-  const availableLocations = useMemo(
-    () =>
-      filterOptions.locations.filter(
-        (loc) =>
-          (!filters.entity || loc.entityId === filters.entity) &&
-          (!filters.state || loc.state?.toLowerCase() === filters.state.toLowerCase())
-      ),
-    [filterOptions.locations, filters.entity, filters.state]
+  // `silent` refreshes keep the current figures on screen while new ones load
+  const fetchOverview = useCallback(
+    async (silent = false) => {
+      const id = ++requestId.current;
+      if (!silent) setIsLoading(true);
+      try {
+        const next = await dashboardService.getOverview(filters);
+        if (id !== requestId.current) return;
+        setData(next);
+        setLoadError(null);
+      } catch (err: any) {
+        if (id !== requestId.current) return;
+        if (!silent) setLoadError(err.response?.data?.message || err.message || 'Failed to load the dashboard');
+      } finally {
+        if (id === requestId.current) setIsLoading(false);
+      }
+    },
+    [filters]
   );
 
-  const hasFilters = !!(filters.state || filters.entity || filters.location || filters.category);
-
-  // Links into the records list carry the dashboard's entity / location selection
-  const recordsLink = (params: Record<string, string> = {}) => {
-    const query = new URLSearchParams(params);
-    if (filters.entity) query.set('entity', filters.entity);
-    if (filters.location) query.set('location', filters.location);
-    const qs = query.toString();
-    return qs ? `${ROUTES.COMPLIANCE_RECORDS}?${qs}` : ROUTES.COMPLIANCE_RECORDS;
-  };
+  // Load on filter change, when a record changes elsewhere, and once a minute
+  useEffect(() => {
+    fetchOverview();
+    const refresh = () => fetchOverview(true);
+    const unsubscribe = socketService.on('compliance:status_changed', refresh);
+    const timer = window.setInterval(refresh, REFRESH_MS);
+    return () => {
+      unsubscribe();
+      window.clearInterval(timer);
+    };
+  }, [fetchOverview]);
 
   if (!data) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-center">
-        {loadError ? (
-          <>
-            <AlertTriangle size={28} className="text-rose-500" />
-            <p className="text-sm text-slate-700 dark:text-slate-300">{loadError}</p>
-            <Button variant="outline" leftIcon={<RefreshCw size={15} />} onClick={fetchDashboard}>
-              Try again
-            </Button>
-          </>
-        ) : (
-          <>
-            <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">Loading dashboard...</p>
-          </>
-        )}
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Operations Dashboard</h1>
+        <Card padding="lg">
+          <EmptyState>
+            {loadError ? (
+              <span>
+                {loadError}
+                <br />
+                <Button variant="outline" size="sm" className="mt-3" onClick={() => fetchOverview()}>
+                  Try again
+                </Button>
+              </span>
+            ) : (
+              'Loading the dashboard…'
+            )}
+          </EmptyState>
+        </Card>
       </div>
     );
   }
 
-  const { kpis, charts, level, alerts } = data;
-  const score = kpis.compliancePercentage;
-  const rating = data.overallRating ? RATING_META[data.overallRating] : null;
+  const { units, licences, byState, byLicence, expiring } = data;
+  const scopeParams = { entity: filters.entity, state: filters.state };
+  const recordsLink = (bucket: LicenceBucket, extra: Record<string, string | undefined> = {}) =>
+    withQuery(ROUTES.COMPLIANCE_RECORDS, { status: LICENCE_STATUS_PARAM[bucket], entity: filters.entity, ...extra });
+  const unitsLink = (status?: string) => withQuery(ROUTES.LOCATIONS, { ...scopeParams, status });
 
-  // One level of breakdown below the current view; clicking a bar drills into it
-  const breakdown =
-    level === 'state'
-      ? {
-          title: 'Compliance by Entity',
-          xKey: 'code',
-          rows: charts.entityWiseCompliance,
-          onSelect: (row: any) => setFilters((prev) => ({ ...prev, entity: row.entityId, location: undefined })),
-        }
-      : level === 'entity'
-      ? {
-          title: 'Compliance by Location',
-          xKey: 'code',
-          rows: charts.locationWiseCompliance,
-          onSelect: (row: any) => setFilters((prev) => ({ ...prev, location: row.locationId })),
-        }
-      : null;
+  const licenceLegend = LICENCE_ORDER.filter((bucket) => bucket !== 'expired' || licences.expired > 0).map((bucket) => ({
+    label: LICENCE_LABELS[bucket],
+    color: chart.licence[bucket],
+  }));
+  const shownLicenceBuckets = LICENCE_ORDER.filter((bucket) => bucket !== 'expired' || licences.expired > 0);
 
-  const selectState = (state: string) =>
-    setFilters((prev) => ({ ...prev, state, location: undefined }));
+  // ── Top cards ────────────────────────────────────────────────────────────────
+  const openUnits = units.open;
+  const cards: Array<{
+    key: string;
+    label: string;
+    value: number;
+    share?: number;
+    hint: string;
+    icon: LucideIcon;
+    tone: string;
+    to?: string;
+  }> = [
+    {
+      key: 'total',
+      label: 'Total Units',
+      value: units.total,
+      hint: `Across ${byState.length} ${byState.length === 1 ? 'state' : 'states'}`,
+      icon: Building2,
+      tone: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
+      to: unitsLink(),
+    },
+    {
+      key: 'open',
+      label: 'Open',
+      value: units.open,
+      share: pct(units.open, units.total),
+      hint: 'Operating now',
+      icon: CheckCircle2,
+      tone: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+      to: unitsLink('active'),
+    },
+    {
+      key: 'closed',
+      label: 'Closed',
+      value: units.closed,
+      share: pct(units.closed, units.total),
+      hint: 'Not operating',
+      icon: XCircle,
+      tone: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+      to: unitsLink('inactive'),
+    },
+    {
+      key: 'toBeOpened',
+      label: 'To Be Opened',
+      value: units.toBeOpened,
+      share: pct(units.toBeOpened, units.total),
+      hint: 'Planned units',
+      icon: Clock,
+      tone: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+    },
+    {
+      key: 'underProcess',
+      label: 'Under Process',
+      value: units.underProcess,
+      share: pct(units.underProcess, openUnits),
+      hint: 'Licences pending',
+      icon: Settings2,
+      tone: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300',
+      to: withQuery(ROUTES.COMPLIANCE_RECORDS, { status: 'in_progress,pending', entity: filters.entity }),
+    },
+    {
+      key: 'fullyApproved',
+      label: 'Fully Approved',
+      value: units.fullyApproved,
+      share: pct(units.fullyApproved, openUnits),
+      hint: 'All licences approved',
+      icon: ShieldCheck,
+      tone: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300',
+    },
+  ];
 
-  // Weakest states first, beside the map
-  const statesByScore = [...charts.stateWiseCompliance].sort((a, b) => a.percentage - b.percentage);
-  const unmappedStates = charts.stateWiseCompliance.filter((s) => !resolveStateId(s.state));
+  // ── Chart data ───────────────────────────────────────────────────────────────
+  const mapData: StateComplianceItem[] = byState
+    .filter((row) => row.licences.total > 0)
+    .map((row) => ({
+      state: row.state,
+      total: row.licences.total,
+      compliant: row.licences.approved,
+      expiringSoon: 0,
+      pending: row.licences.applied + row.licences.toBeApplied,
+      expired: row.licences.expired,
+      percentage: row.licences.approvedPct ?? 0,
+    }));
+  const unmappedStates = byState.filter((row) => !resolveStateId(row.state)).map((row) => row.state);
 
-  // Where each health bucket leads in the records list
-  const bucketLink = {
-    compliant: recordsLink({ status: 'approved' }),
-    pending: recordsLink({ status: PENDING_STATUSES }),
-    expiringSoon: recordsLink({ expiringWithin: '30' }),
-    expired: recordsLink({ status: 'expired' }),
-  };
-  const statusSlices = BUCKET_ORDER.map((bucket) => ({
-    bucket,
-    name: BUCKET_LABELS[bucket],
-    value: kpis[bucket],
+  const stateUnitRows = byState.map((row) => ({ name: row.state, fullName: row.state, ...row.units }));
+  const stateLicenceRows = byState
+    .filter((row) => row.licences.total > 0)
+    .map((row) => ({ name: row.state, fullName: row.state, ...row.licences }));
+  const stateShareRows = byState
+    .filter((row) => row.licences.total > 0)
+    .map((row) => {
+      const total = row.licences.total;
+      // Unrounded, so every row adds up to exactly 100
+      const shares = Object.fromEntries(LICENCE_ORDER.map((bucket) => [bucket, (row.licences[bucket] / total) * 100]));
+      return { name: row.state, fullName: `${row.state} (${total} licences)`, ...shares } as Record<string, any>;
+    })
+    .sort((a, b) => b.approved - a.approved);
+  const licenceRows = byLicence.map((row) => ({
+    ...row,
+    fullName: row.name,
+    name: row.name.length > 34 ? `${row.name.slice(0, 33)}…` : row.name,
   }));
 
-  // Stacked health bars, always in the validated colour order with a surface gap between segments
-  const healthBars = (maxBarSize: number, horizontal = false) =>
-    BUCKET_ORDER.map((bucket, index) => (
-      <Bar
-        key={bucket}
-        isAnimationActive={false}
-        dataKey={bucket}
-        name={BUCKET_LABELS[bucket]}
-        stackId="health"
-        fill={chart.bucket[bucket]}
-        stroke={chart.surface}
-        strokeWidth={2}
-        maxBarSize={maxBarSize}
-        radius={index === BUCKET_ORDER.length - 1 ? (horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]) : undefined}
-      />
-    ));
+  const trend = data.openingsTrend;
+  const trendTickGap = Math.max(1, Math.ceil(trend.length / 6));
 
-  const kpiCards: Array<{ label: string; value: number; hint: string; color: string; to: string }> = [
-    {
-      label: 'Expired',
-      value: kpis.expired,
-      hint: 'Validity has lapsed',
-      color: 'text-rose-600 dark:text-rose-400',
-      to: recordsLink({ status: 'expired' }),
-    },
-    {
-      label: 'Expiring in 30 Days',
-      value: kpis.expiringSoon,
-      hint: 'Valid, renewal due',
-      color: 'text-amber-600 dark:text-amber-400',
-      to: recordsLink({ expiringWithin: '30' }),
-    },
-    {
-      label: 'Pending Action',
-      value: kpis.pending,
-      hint: 'Applied or still to be applied',
-      color: 'text-sky-600 dark:text-sky-400',
-      to: recordsLink({ status: PENDING_STATUSES }),
-    },
-    {
-      label: 'Overdue Tasks',
-      value: kpis.overdueTasks,
-      hint: 'Past their due date',
-      color: 'text-rose-600 dark:text-rose-400',
-      to: ROUTES.TASKS_OVERDUE,
-    },
-    {
-      label: 'Active Tasks',
-      value: kpis.openTasks,
-      hint: 'Open or in progress',
-      color: 'text-sky-600 dark:text-sky-400',
-      to: ROUTES.TASKS,
-    },
-  ];
+  const unitSlices: RingSlice[] = UNIT_ORDER.map((bucket) => ({
+    key: bucket,
+    label: UNIT_LABELS[bucket],
+    value: units[bucket],
+    color: chart.unit[bucket],
+    to: bucket === 'open' ? unitsLink('active') : bucket === 'closed' ? unitsLink('inactive') : undefined,
+  }));
+  const licenceSlices: RingSlice[] = shownLicenceBuckets.map((bucket) => ({
+    key: bucket,
+    label: LICENCE_LABELS[bucket],
+    value: licences[bucket],
+    color: chart.licence[bucket],
+    to: recordsLink(bucket),
+  }));
 
-  const breakdownText = (counts: HealthCounts) =>
-    [
-      [counts.compliant, 'compliant'],
-      [counts.expiringSoon, 'expiring'],
-      [counts.pending, 'pending'],
-      [counts.expired, 'expired'],
-    ]
-      .filter(([n]) => (n as number) > 0)
-      .map(([n, label]) => `${n} ${label}`)
-      .join(' · ') || '—';
-
-  const locationColumns: Column<LocationComplianceItem>[] = [
-    {
-      key: 'name',
-      header: 'Location',
-      cell: (loc) => (
-        <div>
-          <div className="font-semibold text-slate-900 dark:text-slate-100">{loc.name}</div>
-          <div className="text-xs font-mono text-slate-500 dark:text-slate-400">{loc.code}</div>
-        </div>
-      ),
-    },
-    { key: 'entityName', header: 'Entity', cell: (loc) => <span className="text-xs">{loc.entityName}</span> },
-    { key: 'state', header: 'State', cell: (loc) => <span className="text-xs">{loc.state}</span> },
-    { key: 'total', header: 'Records', cell: (loc) => <span className="font-semibold">{loc.total}</span> },
-    {
-      key: 'percentage',
-      header: 'Score',
-      cell: (loc) => (
-        <div className="flex items-center gap-2">
-          <div className="w-16 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
-            <div
-              className={`h-full rounded-full ${scoreStyle(loc.percentage).bar}`}
-              style={{ width: `${loc.percentage}%` }}
-            />
-          </div>
-          <span className="text-xs font-semibold">{loc.percentage}%</span>
-        </div>
-      ),
-    },
-    {
-      key: 'breakdown',
-      header: 'Breakdown',
-      cell: (loc) => (
-        <span className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">{breakdownText(loc)}</span>
-      ),
-    },
-    {
-      key: 'actions',
-      header: '',
-      align: 'right',
-      cell: (loc) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          rightIcon={<ArrowUpRight size={13} />}
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`${ROUTES.COMPLIANCE_RECORDS}?location=${loc.locationId}`);
-          }}
-        >
-          Records
-        </Button>
-      ),
-    },
-  ];
+  const axisTick = { fill: chart.axis, fontSize: 11 };
+  const selectState = (state: string) => setFilters((prev) => ({ ...prev, state }));
+  const selectedEntity = data.filterOptions.entities.find((entity) => entity._id === filters.entity);
+  const viewLabel = [selectedEntity?.code, filters.state].filter(Boolean).join(' · ') || 'All India';
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6 pb-8">
+      {/* Header and filters */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-            <LayoutDashboard size={20} />
+          <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-sm">
+            <LayoutDashboard size={22} />
           </div>
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                Compliance Dashboard
-              </h1>
-              {rating && <Badge variant={rating.variant} size="md">{rating.label}</Badge>}
-            </div>
-
-            {/* Breadcrumb — each level returns to that view */}
-            <nav aria-label="Dashboard level" className="flex items-center flex-wrap gap-1.5 text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-              <button
-                type="button"
-                onClick={() => setFilters((prev) => ({ category: prev.category }))}
-                className={`inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 ${
-                  level === 'national' ? 'font-semibold text-slate-900 dark:text-slate-100' : ''
-                }`}
-              >
-                <Globe2 size={13} />
-                All locations
-              </button>
-              {data.selectedState && (
-                <>
-                  <ChevronRight size={12} className="text-slate-400" />
-                  <button
-                    type="button"
-                    onClick={() => setFilters((prev) => ({ category: prev.category, state: prev.state }))}
-                    className={`hover:text-indigo-600 dark:hover:text-indigo-400 ${
-                      level === 'state' ? 'font-semibold text-slate-900 dark:text-slate-100' : ''
-                    }`}
-                  >
-                    {data.selectedState}
-                  </button>
-                </>
-              )}
-              {data.selectedEntity && (
-                <>
-                  <ChevronRight size={12} className="text-slate-400" />
-                  <button
-                    type="button"
-                    onClick={() => setFilters((prev) => ({ ...prev, location: undefined }))}
-                    className={`hover:text-indigo-600 dark:hover:text-indigo-400 ${
-                      level === 'entity' ? 'font-semibold text-slate-900 dark:text-slate-100' : ''
-                    }`}
-                  >
-                    {data.selectedEntity.name}
-                  </button>
-                </>
-              )}
-              {data.selectedLocation && (
-                <>
-                  <ChevronRight size={12} className="text-slate-400" />
-                  <span className="font-semibold text-slate-900 dark:text-slate-100">{data.selectedLocation.name}</span>
-                </>
-              )}
-            </nav>
-          </div>
-        </div>
-
-        <Button variant="outline" leftIcon={<RefreshCw size={15} />} onClick={fetchDashboard} isLoading={isLoading}>
-          Refresh
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <Card padding="md">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-44">
-            <label className={LABEL_CLASS}>State</label>
-            <select
-              value={filters.state || ''}
-              onChange={(e) => setFilters({ ...filters, state: e.target.value || undefined, location: undefined })}
-              className={SELECT_CLASS}
-            >
-              <option value="">All States</option>
-              {filterOptions.states.map((state) => (
-                <option key={state} value={state}>
-                  {state}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex-1 min-w-[180px]">
-            <label className={LABEL_CLASS}>Entity</label>
-            <select
-              value={filters.entity || ''}
-              onChange={(e) => setFilters({ ...filters, entity: e.target.value || undefined, location: undefined })}
-              className={SELECT_CLASS}
-            >
-              <option value="">All Entities</option>
-              {filterOptions.entities.map((entity) => (
-                <option key={entity._id} value={entity._id}>
-                  {entity.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex-1 min-w-[180px]">
-            <label className={LABEL_CLASS}>Location</label>
-            <select
-              value={filters.location || ''}
-              onChange={(e) => setFilters({ ...filters, location: e.target.value || undefined })}
-              className={SELECT_CLASS}
-            >
-              <option value="">All Locations</option>
-              {availableLocations.map((loc) => (
-                <option key={loc._id} value={loc._id}>
-                  {loc.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="w-48">
-            <label className={LABEL_CLASS}>Category</label>
-            <select
-              value={filters.category || ''}
-              onChange={(e) => setFilters({ ...filters, category: e.target.value || undefined })}
-              className={SELECT_CLASS}
-            >
-              <option value="">All Categories</option>
-              {filterOptions.categories.map((category) => (
-                <option key={category._id} value={category._id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {hasFilters && (
-            <Button variant="ghost" onClick={() => setFilters({})} className="text-xs">
-              Reset
-            </Button>
-          )}
-        </div>
-      </Card>
-
-      {/* Key numbers — each opens the matching list */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(recordsLink())}
-          className="text-left p-4 rounded-xl border bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm dark:shadow-none transition-colors"
-        >
-          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Compliance Score</div>
-          {score === null ? (
-            <>
-              <div className="text-2xl font-bold text-slate-400 dark:text-slate-600 mt-1">—</div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">No records in this view</div>
-            </>
-          ) : (
-            <>
-              <div className={`text-2xl font-bold mt-1 ${scoreStyle(score).text}`}>
-                {score}%
-              </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
-                <div className={`h-full rounded-full ${scoreStyle(score).bar}`} style={{ width: `${score}%` }} />
-              </div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">
-                {kpis.compliant + kpis.expiringSoon} of {kpis.total} records valid
-              </div>
-            </>
-          )}
-        </button>
-
-        {kpiCards.map((card) => (
-          <button
-            key={card.label}
-            type="button"
-            onClick={() => navigate(card.to)}
-            className="text-left p-4 rounded-xl border bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm dark:shadow-none transition-colors"
-          >
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{card.label}</div>
-            <div className={`text-2xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}>
-              {card.value}
-            </div>
-            <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{card.hint}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Needs attention */}
-      {alerts.length > 0 && (
-        <Card padding="md">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={16} className="text-rose-600 dark:text-rose-400" />
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Needs Attention</h2>
-            <span className="text-xs text-slate-500 dark:text-slate-400">({alerts.length})</span>
-          </div>
-
-          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-            {alerts.map((alert) => (
-              <li key={alert.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="flex items-start gap-3 min-w-0">
-                  <Badge variant={alert.severity === 'critical' ? 'danger' : 'warning'} size="sm">
-                    {alert.type === 'expired_compliance' ? 'Expired' : alert.type === 'overdue_task' ? 'Overdue task' : 'Critical task'}
-                  </Badge>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate" title={alert.title}>
-                      {alert.title}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {alert.locationName} · {alert.entityName} · {formatRelativeDays(alert.date)}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() =>
-                    navigate(
-                      alert.recordId
-                        ? `${ROUTES.COMPLIANCE_RECORDS}/${alert.recordId}`
-                        : `${ROUTES.TASKS}?task=${alert.taskId}`
-                    )
-                  }
-                >
-                  {alert.recordId ? 'Open record' : 'Open task'}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {/* Row 1: where (map or next-level breakdown) + overall status mix */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {level === 'national' ? (
-          <Card padding="md" className="lg:col-span-2">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Compliance by State</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Share of records currently valid. Select a state to drill down.
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Operations Dashboard</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Units and licence status · {viewLabel} · updated{' '}
+              {new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-3">
-              <div className="md:col-span-3">
-                <IndiaMap data={charts.stateWiseCompliance} onSelect={selectState} />
-              </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Filter by state"
+            value={filters.state || ''}
+            onChange={(e) => setFilters((prev) => ({ ...prev, state: e.target.value || undefined }))}
+            className={SELECT_CLASS}
+          >
+            <option value="">All India</option>
+            {data.filterOptions.states.map((state) => (
+              <option key={state} value={state}>
+                {state}
+              </option>
+            ))}
+          </select>
+          {data.filterOptions.entities.length > 1 && (
+            <select
+              aria-label="Filter by company"
+              value={filters.entity || ''}
+              onChange={(e) => setFilters((prev) => ({ ...prev, entity: e.target.value || undefined }))}
+              className={SELECT_CLASS}
+            >
+              <option value="">All companies</option>
+              {data.filterOptions.entities.map((entity) => (
+                <option key={entity._id} value={entity._id}>
+                  {entity.code}
+                </option>
+              ))}
+            </select>
+          )}
+          <Button variant="outline" leftIcon={<RefreshCw size={15} />} isLoading={isLoading} onClick={() => fetchOverview()}>
+            Refresh
+          </Button>
+        </div>
+      </div>
 
-              <div className="md:col-span-2">
-                {statesByScore.length === 0 ? (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No compliance records yet.</p>
-                ) : (
-                  <ul className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[340px] overflow-y-auto">
-                    {statesByScore.map((state) => (
-                      <li key={state.state}>
-                        <button
-                          type="button"
-                          onClick={() => selectState(state.state)}
-                          className="w-full flex items-center justify-between gap-3 py-2 px-1 text-left rounded hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                        >
-                          <span className="min-w-0">
-                            <span className="block text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                              {state.state}
-                            </span>
-                            <span className="block text-xs text-slate-500 dark:text-slate-400">
-                              {state.total} {state.total === 1 ? 'record' : 'records'}
-                            </span>
-                          </span>
-                          <span className={`text-sm font-semibold ${scoreStyle(state.percentage).text}`}>
-                            {state.percentage}%
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {unmappedStates.length > 0 && (
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
-                    Not shown on the map (state name not recognised): {unmappedStates.map((s) => s.state).join(', ')}
-                  </p>
-                )}
-              </div>
-            </div>
-          </Card>
-        ) : breakdown ? (
-          <Card padding="md" className="lg:col-span-2">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{breakdown.title}</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Select a bar to drill down</p>
+      {/* Top cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <button
+              key={card.key}
+              type="button"
+              disabled={!card.to}
+              onClick={() => card.to && navigate(card.to)}
+              className="text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none transition-colors enabled:hover:border-slate-300 dark:enabled:hover:border-slate-600 flex items-center gap-3"
+            >
+              <span className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center ${card.tone}`}>
+                <Icon size={20} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">{card.label}</span>
+                <span className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white">{card.value.toLocaleString()}</span>
+                  {card.share !== undefined && (
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">{card.share}%</span>
+                  )}
+                </span>
+                <span className="block text-[11px] leading-tight text-slate-500 dark:text-slate-400">{card.hint}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-            <div className="h-72 mt-3">
-              {breakdown.rows.length > 0 ? (
+      {units.total === 0 ? (
+        <Card padding="lg">
+          <EmptyState>No units match this view.</EmptyState>
+        </Card>
+      ) : (
+        <>
+          {/* Row 1: where the units are */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel
+              title="India Map: Licences Approved"
+              subtitle="Share of applicable licences approved. Click a state to filter."
+              className="lg:col-span-4"
+            >
+              <IndiaMap
+                data={mapData}
+                onSelect={selectState}
+                measure={{ legend: 'Licences approved:', valid: 'approved', unit: 'licences' }}
+              />
+              {unmappedStates.length > 0 && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Not on the map: {unmappedStates.join(', ')}
+                </p>
+              )}
+            </Panel>
+
+            <Panel title="Units by State" subtitle="Open, to be opened and closed" className="lg:col-span-5">
+              <Legend items={UNIT_ORDER.map((bucket) => ({ label: UNIT_LABELS[bucket], color: chart.unit[bucket] }))} />
+              <div className="h-72 mt-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={breakdown.rows}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    onClick={(e: any) => {
-                      const row = e?.activePayload?.[0]?.payload;
-                      if (row) breakdown.onSelect(row);
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} vertical={false} />
-                    <XAxis dataKey={breakdown.xKey} stroke={chart.axis} fontSize={11} />
-                    <YAxis stroke={chart.axis} fontSize={11} allowDecimals={false} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} formatter={legendLabel} />
-                    {healthBars(72)}
+                  <BarChart data={stateUnitRows} margin={{ top: 18, right: 8, left: -18, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
+                    <XAxis dataKey="name" tick={axisTick} tickLine={false} axisLine={false} interval={0} angle={-30} textAnchor="end" height={64} />
+                    <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
+                    {UNIT_ORDER.map((bucket, index) => (
+                      <Bar
+                        key={bucket}
+                        dataKey={bucket}
+                        name={UNIT_LABELS[bucket]}
+                        stackId="units"
+                        fill={chart.unit[bucket]}
+                        stroke={chart.surface}
+                        strokeWidth={2}
+                        maxBarSize={24}
+                        isAnimationActive={false}
+                        cursor="pointer"
+                        onClick={(row: any) => selectState(row.fullName)}
+                      >
+                        {index === UNIT_ORDER.length - 1 && (
+                          <LabelList dataKey="total" position="top" fill={chart.axis} fontSize={11} fontWeight={600} />
+                        )}
+                      </Bar>
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+            </Panel>
+
+            <Panel title="Overall Unit Status" subtitle="Every unit in this view" className="lg:col-span-3">
+              <StatusRing slices={unitSlices} total={units.total} centreLabel="Units" />
+            </Panel>
+          </div>
+
+          {/* Row 2: growth and licence status */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel title="Units Opened Over Time" subtitle="Running total, by opening date" className="lg:col-span-4">
+              {trend.length < 2 ? (
+                <EmptyState height="h-72">No opening dates entered for this view.</EmptyState>
               ) : (
-                <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-                  No compliance records in this view.
+                <div className="h-72 mt-3">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trend} margin={{ top: 18, right: 28, left: -18, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
+                      <XAxis dataKey="month" tick={axisTick} tickLine={false} axisLine={false} interval={trendTickGap - 1} />
+                      <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <Tooltip content={<TrendTooltip />} />
+                      <Line
+                        type="monotone"
+                        dataKey="total"
+                        name="Units opened so far"
+                        stroke={chart.series}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 5, stroke: chart.surface, strokeWidth: 2 }}
+                        isAnimationActive={false}
+                      >
+                        {/* Label the latest point only */}
+                        <LabelList
+                          dataKey="total"
+                          content={({ x, y, value, index }: any) =>
+                            index === trend.length - 1 ? (
+                              <text x={x} y={y - 8} textAnchor="middle" fill={chart.axis} fontSize={11} fontWeight={600}>
+                                {value}
+                              </text>
+                            ) : null
+                          }
+                        />
+                      </Line>
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               )}
+            </Panel>
+
+            <Panel title="Licence Status by State" subtitle="Applicable licences at open and planned units" className="lg:col-span-5">
+              {stateLicenceRows.length === 0 ? (
+                <EmptyState height="h-72">No licence records in this view.</EmptyState>
+              ) : (
+                <>
+                  <Legend items={licenceLegend} />
+                  <div className="h-72 mt-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stateLicenceRows} margin={{ top: 18, right: 8, left: -10, bottom: 0 }}>
+                        <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
+                        <XAxis dataKey="name" tick={axisTick} tickLine={false} axisLine={false} interval={0} angle={-30} textAnchor="end" height={64} />
+                        <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
+                        <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
+                        {shownLicenceBuckets.map((bucket, index) => (
+                          <Bar
+                            key={bucket}
+                            dataKey={bucket}
+                            name={LICENCE_LABELS[bucket]}
+                            stackId="licences"
+                            fill={chart.licence[bucket]}
+                            stroke={chart.surface}
+                            strokeWidth={2}
+                            maxBarSize={24}
+                            isAnimationActive={false}
+                            cursor="pointer"
+                            onClick={(row: any) => selectState(row.fullName)}
+                          >
+                            {index === shownLicenceBuckets.length - 1 && (
+                              <LabelList dataKey="total" position="top" fill={chart.axis} fontSize={11} fontWeight={600} />
+                            )}
+                          </Bar>
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
+              )}
+            </Panel>
+
+            <Panel title="Licence Completion" subtitle="All applicable licences in this view" className="lg:col-span-3">
+              {licences.total === 0 ? (
+                <EmptyState>No licence records in this view.</EmptyState>
+              ) : (
+                <>
+                  <StatusRing slices={licenceSlices} total={licences.total} centreLabel="Licences" />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                    {licences.notApplicable.toLocaleString()} more are marked not applicable and are left out.
+                  </p>
+                </>
+              )}
+            </Panel>
+          </div>
+
+          {/* Row 3: districts, state comparison, expiries */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel title="Top 10 Districts by Unit Count" subtitle="Open and planned units" className="lg:col-span-4">
+              {data.topDistricts.length === 0 ? (
+                <EmptyState>No districts entered for this view.</EmptyState>
+              ) : (
+                <BarList
+                  color={chart.series}
+                  rows={data.topDistricts.map((row) => ({
+                    key: `${row.district}|${row.state}`,
+                    label: row.district,
+                    hint: filters.state ? undefined : row.state,
+                    value: row.units,
+                  }))}
+                />
+              )}
+            </Panel>
+
+            <Panel title="Licence Status by State (Percentage)" subtitle="Highest share approved first" className="lg:col-span-5">
+              {stateShareRows.length === 0 ? (
+                <EmptyState>No licence records in this view.</EmptyState>
+              ) : (
+                <>
+                  <Legend items={licenceLegend} />
+                  <div className="mt-2" style={{ height: Math.max(120, stateShareRows.length * 30 + 30) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stateShareRows} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+                        <XAxis
+                          type="number"
+                          domain={[0, 100]}
+                          ticks={[0, 25, 50, 75, 100]}
+                          allowDataOverflow
+                          tick={axisTick}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) => `${v}%`}
+                        />
+                        <YAxis type="category" dataKey="name" width={104} tick={axisTick} tickLine={false} axisLine={false} interval={0} />
+                        <Tooltip content={<ChartTooltip unit="%" />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
+                        {shownLicenceBuckets.map((bucket) => (
+                          <Bar
+                            key={bucket}
+                            dataKey={bucket}
+                            name={LICENCE_LABELS[bucket]}
+                            stackId="share"
+                            fill={chart.licence[bucket]}
+                            stroke={chart.surface}
+                            strokeWidth={2}
+                            maxBarSize={18}
+                            isAnimationActive={false}
+                          >
+                            {bucket === 'approved' && (
+                              <LabelList
+                                dataKey="approved"
+                                position="insideLeft"
+                                fill="#ffffff"
+                                fontSize={11}
+                                fontWeight={700}
+                                formatter={(value: number) => (value >= 14 ? `${Math.round(value)}%` : '')}
+                              />
+                            )}
+                          </Bar>
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
+              )}
+            </Panel>
+
+            <Panel
+              title="Licences Expiring Soon"
+              subtitle="Approved licences reaching their expiry date"
+              className="lg:col-span-3"
+            >
+              {expiring.withExpiryDate === 0 ? (
+                <EmptyState>
+                  No expiry dates entered yet. Add them with Update Status on a record and they will appear here.
+                </EmptyState>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    {[
+                      { label: '30 days', value: expiring.next30, days: '30' },
+                      { label: '60 days', value: expiring.next60, days: '60' },
+                      { label: '90 days', value: expiring.next90, days: '90' },
+                    ].map((window) => (
+                      <button
+                        key={window.days}
+                        type="button"
+                        onClick={() =>
+                          navigate(withQuery(ROUTES.COMPLIANCE_RECORDS, { expiringWithin: window.days, entity: filters.entity }))
+                        }
+                        className="text-left p-2 rounded-lg border border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600"
+                      >
+                        <span className="block text-xl font-bold text-slate-900 dark:text-white">{window.value}</span>
+                        <span className="block text-[11px] text-slate-500 dark:text-slate-400">within {window.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {expiring.items.length === 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">Nothing expires in the next 90 days.</p>
+                  ) : (
+                    <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+                      {expiring.items.map((item) => {
+                        const days = daysFromToday(item.expiryDate);
+                        return (
+                          <li key={item.recordId}>
+                            <button
+                              type="button"
+                              onClick={() => navigate(ROUTES.COMPLIANCE_RECORD_DETAILS.replace(':id', item.recordId))}
+                              className="w-full text-left py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded"
+                            >
+                              <span className="block font-medium text-slate-800 dark:text-slate-200 truncate">{item.licence}</span>
+                              <span className="block text-slate-500 dark:text-slate-400 truncate">
+                                {item.unit} · {days <= 0 ? 'expires today' : `in ${days} ${days === 1 ? 'day' : 'days'}`}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
+                    {expiring.withExpiryDate.toLocaleString()} of {licences.approved.toLocaleString()} approved licences have an
+                    expiry date entered.
+                  </p>
+                </>
+              )}
+            </Panel>
+          </div>
+
+          {/* Row 4: licence types and unit make-up */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel
+              title="Licence Status by Type"
+              subtitle="Each licence across the units it applies to. Click a bar to open those records."
+              className="lg:col-span-8"
+            >
+              {licenceRows.length === 0 ? (
+                <EmptyState>No licence records in this view.</EmptyState>
+              ) : (
+                <>
+                  <Legend items={licenceLegend} />
+                  <div className="mt-2" style={{ height: Math.max(140, licenceRows.length * 30 + 30) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={licenceRows} layout="vertical" margin={{ top: 0, right: 36, left: 0, bottom: 0 }}>
+                        <CartesianGrid horizontal={false} stroke={chart.grid} strokeOpacity={0.25} />
+                        <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
+                        <YAxis type="category" dataKey="name" width={226} tick={axisTick} tickLine={false} axisLine={false} interval={0} />
+                        <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
+                        {shownLicenceBuckets.map((bucket, index) => (
+                          <Bar
+                            key={bucket}
+                            dataKey={bucket}
+                            name={LICENCE_LABELS[bucket]}
+                            stackId="types"
+                            fill={chart.licence[bucket]}
+                            stroke={chart.surface}
+                            strokeWidth={2}
+                            maxBarSize={18}
+                            isAnimationActive={false}
+                            cursor="pointer"
+                            onClick={(row: any) => navigate(recordsLink(bucket, { rule: row.ruleId }))}
+                          >
+                            {index === shownLicenceBuckets.length - 1 && (
+                              <LabelList dataKey="total" position="right" fill={chart.axis} fontSize={11} fontWeight={600} />
+                            )}
+                          </Bar>
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
+              )}
+            </Panel>
+
+            <div className="lg:col-span-4 space-y-6">
+              <Panel title="Unit Types" subtitle="Open and planned units">
+                <BarList
+                  color={chart.series}
+                  rows={data.unitTypes.map((row) => ({ key: row.code, label: row.label, value: row.units }))}
+                />
+              </Panel>
+              <Panel title="Area Types" subtitle="The local body each unit falls under">
+                <BarList
+                  color={chart.series}
+                  rows={data.areaTypes.map((row) => ({ key: row.areaType, label: row.areaType, value: row.units }))}
+                />
+              </Panel>
             </div>
-          </Card>
-        ) : null}
+          </div>
 
-        <Card padding="md" className={level === 'location' ? 'lg:col-span-3' : ''}>
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Status Mix</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">All records by current health</p>
+          {/* Row 5: where to start, and what changed */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel
+              title="Needs Attention"
+              subtitle="Open units with the most licences still to settle"
+              className={data.recentActivity.length > 0 ? 'lg:col-span-6' : 'lg:col-span-12'}
+            >
+              {data.attention.length === 0 ? (
+                <EmptyState height="h-32">Every open unit has all its licences approved.</EmptyState>
+              ) : (
+                <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+                  {data.attention.map((unit) => (
+                    <li key={unit.locationId}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(ROUTES.LOCATION_DETAILS.replace(':id', unit.locationId))}
+                        className="w-full flex items-center justify-between gap-3 py-2 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded"
+                      >
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-slate-900 dark:text-slate-100 truncate">{unit.name}</span>
+                          <span className="block text-slate-500 dark:text-slate-400 truncate">
+                            {unit.code} · {unit.state}
+                          </span>
+                        </span>
+                        <span className="shrink-0 inline-flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                          <span>
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">{unit.open}</span> of {unit.total}{' '}
+                            pending
+                          </span>
+                          <ChevronRight size={14} className="text-slate-400" />
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
 
-          {kpis.total === 0 ? (
-            <div className="h-56 flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-              No compliance records in this view.
-            </div>
-          ) : (
-            <>
-              <div className="h-52 relative flex items-center justify-center mt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusSlices}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={58}
-                      outerRadius={88}
-                      startAngle={90}
-                      endAngle={-270}
-                      stroke={chart.surface}
-                      strokeWidth={2}
-                      isAnimationActive={false}
-                      cursor="pointer"
-                      onClick={(slice: any) => navigate(bucketLink[slice.bucket as keyof typeof bucketLink])}
-                    >
-                      {statusSlices.map((slice) => (
-                        <Cell key={slice.bucket} fill={chart.bucket[slice.bucket]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute text-center pointer-events-none">
-                  <span className="block text-2xl font-bold text-slate-900 dark:text-slate-100">{score}%</span>
-                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">valid</span>
-                </div>
-              </div>
-
-              <ul className="mt-3 space-y-1">
-                {statusSlices.map((slice) => (
-                  <li key={slice.bucket}>
+            {data.recentActivity.length > 0 && (
+              <Panel
+                title="Recent Activity"
+                subtitle="Latest changes made in the app"
+                className="lg:col-span-6"
+                action={
+                  can('audit_log', 'read') ? (
                     <button
                       type="button"
-                      onClick={() => navigate(bucketLink[slice.bucket])}
-                      className="w-full flex items-center justify-between gap-3 px-1 py-1 rounded text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      onClick={() => navigate(ROUTES.AUDIT_LOGS)}
+                      className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
                     >
-                      <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                        <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: chart.bucket[slice.bucket] }} />
-                        {slice.name}
-                      </span>
-                      <span className="font-semibold text-slate-900 dark:text-slate-100">
-                        {slice.value}
-                        <span className="font-normal text-slate-500 dark:text-slate-400">
-                          {' '}
-                          ({Math.round((slice.value / kpis.total) * 100)}%)
-                        </span>
-                      </span>
+                      View all
                     </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </Card>
-      </div>
-
-      {/* Row 2: what kind of obligation + when validity ends */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card padding="md">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Compliance by Category</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Records in each regulatory area by health</p>
-
-          <div className="mt-3" style={{ height: Math.max(220, charts.categoryWiseCompliance.length * 44 + 70) }}>
-            {charts.categoryWiseCompliance.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={charts.categoryWiseCompliance}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} horizontal={false} />
-                  <XAxis type="number" stroke={chart.axis} fontSize={11} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" stroke={chart.axis} fontSize={11} width={150} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} formatter={legendLabel} />
-                  {healthBars(26, true)}
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-                No compliance records in this view.
-              </div>
+                  ) : undefined
+                }
+              >
+                <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+                  {data.recentActivity.map((entry) => (
+                    <li key={entry.id} className="py-2 text-xs">
+                      <span className="block text-slate-800 dark:text-slate-200">{entry.description}</span>
+                      <span className="block text-slate-500 dark:text-slate-400 mt-0.5">
+                        {entry.by} ·{' '}
+                        {new Date(entry.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
             )}
           </div>
-        </Card>
-
-        <Card padding="md">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Upcoming Expiries</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Valid records by the month their validity ends, next 12 months
-          </p>
-
-          <div className="h-64 mt-3">
-            {charts.upcomingExpiries.some((m) => m.expiring > 0) ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={charts.upcomingExpiries} margin={{ top: 18, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} vertical={false} />
-                  <XAxis dataKey="month" stroke={chart.axis} fontSize={10} interval={0} />
-                  <YAxis stroke={chart.axis} fontSize={11} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
-                  <Bar
-                    isAnimationActive={false}
-                    dataKey="expiring"
-                    name="Expiring"
-                    fill={chart.bucket.expiringSoon}
-                    maxBarSize={32}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList
-                      dataKey="expiring"
-                      position="top"
-                      fontSize={11}
-                      fill={chart.axis}
-                      formatter={(value: number) => (value > 0 ? value : '')}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400 text-center px-4">
-                Nothing expires in the next 12 months.
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* Row 3: who is carrying the task load + how stale the backlog is */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card padding="md" className="lg:col-span-2">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Task Workload by Assignee</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Active tasks per person, busiest first</p>
-
-          <div className="mt-3" style={{ height: Math.max(200, charts.taskWorkload.length * 40 + 70) }}>
-            {charts.taskWorkload.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={charts.taskWorkload} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} horizontal={false} />
-                  <XAxis type="number" stroke={chart.axis} fontSize={11} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" stroke={chart.axis} fontSize={11} width={130} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} formatter={legendLabel} />
-                  <Bar
-                    isAnimationActive={false}
-                    dataKey="onTime"
-                    name="On time"
-                    stackId="load"
-                    fill={chart.series}
-                    stroke={chart.surface}
-                    strokeWidth={2}
-                    maxBarSize={24}
-                  />
-                  <Bar
-                    isAnimationActive={false}
-                    dataKey="overdue"
-                    name="Overdue"
-                    stackId="load"
-                    fill={chart.critical}
-                    stroke={chart.surface}
-                    strokeWidth={2}
-                    maxBarSize={24}
-                    radius={[0, 4, 4, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-                No active tasks in this view.
-              </div>
-            )}
-          </div>
-        </Card>
-
-        <Card padding="md">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Overdue Task Age</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">How long overdue tasks have been waiting</p>
-
-          <div className="h-56 mt-3">
-            {kpis.overdueTasks > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={charts.overdueAgeing} margin={{ top: 18, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} vertical={false} />
-                  <XAxis dataKey="bucket" stroke={chart.axis} fontSize={11} />
-                  <YAxis stroke={chart.axis} fontSize={11} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, opacity: 0.1 }} />
-                  <Bar
-                    isAnimationActive={false}
-                    dataKey="tasks"
-                    name="Overdue tasks"
-                    fill={chart.critical}
-                    maxBarSize={48}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="tasks" position="top" fontSize={11} fill={chart.axis} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-                No overdue tasks.
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* Locations */}
-      {level !== 'location' && (
-        <div className="space-y-3">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Locations</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Select a location to view its dashboard
-            </p>
-          </div>
-          <Table<LocationComplianceItem>
-            columns={locationColumns}
-            data={charts.locationWiseCompliance}
-            keyExtractor={(loc) => loc.locationId}
-            onRowClick={(loc) => setFilters((prev) => ({ ...prev, location: loc.locationId }))}
-            emptyMessage="No locations with compliance records in this view."
-          />
-        </div>
+        </>
       )}
     </div>
   );

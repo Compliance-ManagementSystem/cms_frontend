@@ -76,8 +76,9 @@ export const LocationListPage: React.FC = () => {
   // ?entity= lets other pages link to one entity's locations
   const [selectedEntity, setSelectedEntity] = useState(searchParams.get('entity') || '');
   const [selectedType, setSelectedType] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedState, setSelectedState] = useState('');
+  // ?status= and ?state= let the dashboard link to a filtered list
+  const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
+  const [selectedState, setSelectedState] = useState(searchParams.get('state') || '');
 
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
   const [metrics, setMetrics] = useState({ total: 0, active: 0, inactive: 0, attention: 0 });

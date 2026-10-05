@@ -39,9 +39,13 @@ export const resolveStateId = (state: string): string | undefined => {
 interface IndiaMapProps {
   data: StateComplianceItem[];
   onSelect: (state: string) => void;
+  /** What the percentage measures and what is counted; defaults describe compliance records */
+  measure?: { legend: string; valid: string; unit: string; breakdown?: boolean };
 }
 
-const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect }) => {
+const DEFAULT_MEASURE = { legend: 'Records valid:', valid: 'valid', unit: 'records', breakdown: true };
+
+const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect, measure = DEFAULT_MEASURE }) => {
   const chart = useChartTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -86,7 +90,7 @@ const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect }) => {
                 ? {
                     role: 'button',
                     tabIndex: 0,
-                    'aria-label': `${loc.name}: ${item.percentage}% valid, ${item.total} records. Open state view.`,
+                    'aria-label': `${loc.name}: ${item.percentage}% ${measure.valid}, ${item.total} ${measure.unit}. Open state view.`,
                     onClick: () => onSelect(item.state),
                     onKeyDown: (e: React.KeyboardEvent) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -114,22 +118,29 @@ const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect }) => {
           {hoveredData ? (
             <>
               <p className="text-slate-700 dark:text-slate-300 mt-0.5">
-                {hoveredData.percentage}% valid · {hoveredData.total} records
+                {hoveredData.percentage}% {measure.valid} · {hoveredData.total} {measure.unit}
               </p>
-              <p className="text-slate-500 dark:text-slate-400">
-                {hoveredData.compliant} compliant · {hoveredData.expiringSoon} expiring · {hoveredData.pending} pending ·{' '}
-                {hoveredData.expired} expired
-              </p>
+              {measure.breakdown ? (
+                <p className="text-slate-500 dark:text-slate-400">
+                  {hoveredData.compliant} compliant · {hoveredData.expiringSoon} expiring · {hoveredData.pending} pending ·{' '}
+                  {hoveredData.expired} expired
+                </p>
+              ) : (
+                <p className="text-slate-500 dark:text-slate-400">
+                  {hoveredData.compliant} approved · {hoveredData.pending} pending
+                  {hoveredData.expired > 0 ? ` · ${hoveredData.expired} expired` : ''}
+                </p>
+              )}
             </>
           ) : (
-            <p className="text-slate-500 dark:text-slate-400 mt-0.5">No records</p>
+            <p className="text-slate-500 dark:text-slate-400 mt-0.5">No {measure.unit}</p>
           )}
         </div>
       )}
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-slate-600 dark:text-slate-400">
-        <span className="font-medium">Records valid:</span>
+        <span className="font-medium">{measure.legend}</span>
         {SCORE_BANDS.map((band, index) => (
           <span key={band.label} className="inline-flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: chart.scoreBands[index] }} />
@@ -138,7 +149,7 @@ const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect }) => {
         ))}
         <span className="inline-flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: chart.noData }} />
-          No records
+          No {measure.unit}
         </span>
       </div>
     </div>

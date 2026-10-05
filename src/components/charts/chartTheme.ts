@@ -44,6 +44,22 @@ export const useChartTheme = () => {
       expiringSoon: dark ? '#c98500' : '#eda100',
       expired: '#d03b3b',
     } as Record<HealthBucket, string>,
+    /**
+     * Licence status, in stacking order: approved, applied, to be applied, expired.
+     * The same four validated hues as the health buckets.
+     */
+    licence: {
+      approved: '#0ca30c',
+      applied: dark ? '#3987e5' : '#2a78d6',
+      toBeApplied: dark ? '#c98500' : '#eda100',
+      expired: '#d03b3b',
+    },
+    /** Unit status: open, to be opened, closed */
+    unit: {
+      open: '#0ca30c',
+      toBeOpened: dark ? '#3987e5' : '#2a78d6',
+      closed: '#d03b3b',
+    },
     /** Single-series bars */
     series: dark ? '#3987e5' : '#2a78d6',
     critical: '#d03b3b',

@@ -119,7 +119,56 @@ export interface FilterOptions {
   categories: Array<{ _id: string; name: string; code: string }>;
 }
 
+// ── Operations dashboard (units and licence status) ───────────────────────────
+
+export type LicenceBucket = 'approved' | 'applied' | 'toBeApplied' | 'expired';
+export type UnitBucket = 'open' | 'toBeOpened' | 'closed';
+
+export type LicenceCounts = Record<LicenceBucket, number> & {
+  /** Applicable licences: the four buckets added together */
+  total: number;
+  /** Share of applicable licences that are approved; null when there are none */
+  approvedPct: number | null;
+};
+
+export type UnitCounts = Record<UnitBucket, number> & { total: number };
+
+export interface OperationsFilters {
+  state?: string;
+  entity?: string;
+}
+
+export interface OperationsDashboardData {
+  generatedAt: string;
+  filterOptions: {
+    states: string[];
+    entities: Array<{ _id: string; name: string; code: string }>;
+  };
+  units: UnitCounts & { underProcess: number; fullyApproved: number };
+  licences: LicenceCounts & { notApplicable: number };
+  byState: Array<{ state: string; units: UnitCounts; licences: LicenceCounts }>;
+  byLicence: Array<{ ruleId: string; code: string; name: string } & LicenceCounts>;
+  topDistricts: Array<{ district: string; state: string; units: number }>;
+  unitTypes: Array<{ code: string; label: string; units: number }>;
+  areaTypes: Array<{ areaType: string; units: number }>;
+  openingsTrend: Array<{ month: string; opened: number; total: number }>;
+  expiring: {
+    withExpiryDate: number;
+    next30: number;
+    next60: number;
+    next90: number;
+    items: Array<{ recordId: string; licence: string; unit: string; state: string; expiryDate: string }>;
+  };
+  attention: Array<{ locationId: string; name: string; code: string; state: string; open: number; total: number }>;
+  recentActivity: Array<{ id: string; at: string; action: string; description: string; by: string }>;
+}
+
 export const dashboardService = {
+  async getOverview(filters?: OperationsFilters): Promise<OperationsDashboardData> {
+    const res = await axiosInstance.get('/dashboard/overview', { params: filters });
+    return res.data.data;
+  },
+
   async getDashboardStats(filters?: DashboardFilters): Promise<DashboardData> {
     const res = await axiosInstance.get('/dashboard/stats', { params: filters });
     return res.data.data;
