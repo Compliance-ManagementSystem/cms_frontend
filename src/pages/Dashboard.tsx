@@ -405,6 +405,8 @@ export const Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const requestId = useRef(0);
+  // Company the loaded map data belongs to; null until the first load
+  const mapEntity = useRef<string | null>(null);
 
   // `silent` refreshes keep the current figures on screen while new ones load
   const fetchOverview = useCallback(
@@ -412,13 +414,27 @@ export const Dashboard: React.FC = () => {
       const id = ++requestId.current;
       if (!silent) setIsLoading(true);
       try {
-        const [next, allStates] = await Promise.all([
-          dashboardService.getOverview(filters),
-          filters.state ? dashboardService.getOverview({ entity: filters.entity }) : null,
-        ]);
+        const next = await dashboardService.getOverview(filters);
         if (id !== requestId.current) return;
         setData(next);
-        setMapStates((allStates ?? next).byState);
+
+        // The map data depends on the company only, so picking a state reuses what is
+        // already loaded. It is fetched again, without holding up the page, when the
+        // company changed or on a background refresh.
+        const mapKey = filters.entity || '';
+        if (!filters.state) {
+          setMapStates(next.byState);
+          mapEntity.current = mapKey;
+        } else if (silent || mapEntity.current !== mapKey) {
+          dashboardService
+            .getOverview({ entity: filters.entity })
+            .then((allStates) => {
+              if (id !== requestId.current) return;
+              setMapStates(allStates.byState);
+              mapEntity.current = mapKey;
+            })
+            .catch(() => undefined);
+        }
         setLoadError(null);
       } catch (err: any) {
         if (id !== requestId.current) return;
