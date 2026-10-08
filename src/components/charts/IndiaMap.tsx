@@ -39,13 +39,15 @@ export const resolveStateId = (state: string): string | undefined => {
 interface IndiaMapProps {
   data: StateComplianceItem[];
   onSelect: (state: string) => void;
+  /** The state the view is filtered to, outlined on the map */
+  selected?: string;
   /** What the percentage measures and what is counted; defaults describe compliance records */
   measure?: { legend: string; valid: string; unit: string; breakdown?: boolean };
 }
 
 const DEFAULT_MEASURE = { legend: 'Records valid:', valid: 'valid', unit: 'records', breakdown: true };
 
-const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect, measure = DEFAULT_MEASURE }) => {
+const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect, selected, measure = DEFAULT_MEASURE }) => {
   const chart = useChartTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -59,6 +61,7 @@ const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect, measure = DEFAULT_M
     return byId;
   }, [data]);
 
+  const selectedId = selected ? resolveStateId(selected) : undefined;
   const hovered = hover ? map.locations.find((loc) => loc.id === hover.id) : null;
   const hoveredData = hover ? dataById.get(hover.id) : undefined;
 
@@ -77,10 +80,11 @@ const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect, measure = DEFAULT_M
       >
         {map.locations.map((loc) => {
           const item = dataById.get(loc.id);
-          const isHovered = hover?.id === loc.id;
+          const isHovered = hover?.id === loc.id || selectedId === loc.id;
           return (
             <path
               key={loc.id}
+              opacity={selectedId && selectedId !== loc.id ? 0.45 : 1}
               d={loc.path}
               fill={item ? chart.scoreBands[scoreBandIndex(item.percentage)] : chart.noData}
               stroke={isHovered ? chart.mapHoverStroke : chart.mapStroke}

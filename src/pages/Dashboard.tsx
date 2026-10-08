@@ -400,6 +400,8 @@ export const Dashboard: React.FC = () => {
 
   const [filters, setFilters] = useState<OperationsFilters>({});
   const [data, setData] = useState<OperationsDashboardData | null>(null);
+  // The map always shows every state, so another one can be picked while a state filter is on
+  const [mapStates, setMapStates] = useState<OperationsDashboardData['byState']>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const requestId = useRef(0);
@@ -410,9 +412,13 @@ export const Dashboard: React.FC = () => {
       const id = ++requestId.current;
       if (!silent) setIsLoading(true);
       try {
-        const next = await dashboardService.getOverview(filters);
+        const [next, allStates] = await Promise.all([
+          dashboardService.getOverview(filters),
+          filters.state ? dashboardService.getOverview({ entity: filters.entity }) : null,
+        ]);
         if (id !== requestId.current) return;
         setData(next);
+        setMapStates((allStates ?? next).byState);
         setLoadError(null);
       } catch (err: any) {
         if (id !== requestId.current) return;
@@ -463,7 +469,7 @@ export const Dashboard: React.FC = () => {
   const scopeParams = { entity: filters.entity, state: filters.state };
   const recordsLink = (bucket: LicenceBucket, extra: Record<string, string | undefined> = {}) =>
     withQuery(ROUTES.COMPLIANCE_RECORDS, { status: LICENCE_STATUS_PARAM[bucket], entity: filters.entity, ...extra });
-  const unitsLink = (status?: string) => withQuery(ROUTES.LOCATIONS, { ...scopeParams, status });
+  const unitsLink = (status?: string, opening?: string) => withQuery(ROUTES.LOCATIONS, { ...scopeParams, status, opening });
 
   const licenceLegend = LICENCE_ORDER.filter((bucket) => bucket !== 'expired' || licences.expired > 0).map((bucket) => ({
     label: LICENCE_LABELS[bucket],
@@ -500,7 +506,7 @@ export const Dashboard: React.FC = () => {
       hint: 'Operating now',
       icon: CheckCircle2,
       tone: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-      to: unitsLink('active'),
+      to: unitsLink('active', 'opened'),
     },
     {
       key: 'closed',
@@ -520,6 +526,7 @@ export const Dashboard: React.FC = () => {
       hint: 'Planned units',
       icon: Clock,
       tone: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+      to: unitsLink('active', 'upcoming'),
     },
     {
       key: 'underProcess',
@@ -543,7 +550,7 @@ export const Dashboard: React.FC = () => {
   ];
 
   // ── Chart data ───────────────────────────────────────────────────────────────
-  const mapData: StateComplianceItem[] = byState
+  const mapData: StateComplianceItem[] = mapStates
     .filter((row) => row.licences.total > 0)
     .map((row) => ({
       state: row.state,
@@ -554,7 +561,7 @@ export const Dashboard: React.FC = () => {
       expired: row.licences.expired,
       percentage: row.licences.approvedPct ?? 0,
     }));
-  const unmappedStates = byState.filter((row) => !resolveStateId(row.state)).map((row) => row.state);
+  const unmappedStates = mapStates.filter((row) => !resolveStateId(row.state)).map((row) => row.state);
 
   const stateUnitRows = byState.map((row) => ({ name: row.state, fullName: row.state, ...row.units }));
   const stateLicenceRows = byState
@@ -583,7 +590,7 @@ export const Dashboard: React.FC = () => {
     label: UNIT_LABELS[bucket],
     value: units[bucket],
     color: chart.unit[bucket],
-    to: bucket === 'open' ? unitsLink('active') : bucket === 'closed' ? unitsLink('inactive') : undefined,
+    to: bucket === 'open' ? unitsLink('active', 'opened') : bucket === 'closed' ? unitsLink('inactive') : unitsLink('active', 'upcoming'),
   }));
   const licenceSlices: RingSlice[] = shownLicenceBuckets.map((bucket) => ({
     key: bucket,
@@ -696,6 +703,7 @@ export const Dashboard: React.FC = () => {
               <IndiaMap
                 data={mapData}
                 onSelect={selectState}
+                selected={filters.state}
                 measure={{ legend: 'Licences approved:', valid: 'approved', unit: 'licences' }}
               />
               {unmappedStates.length > 0 && (

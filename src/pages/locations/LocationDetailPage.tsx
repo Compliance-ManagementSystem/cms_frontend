@@ -370,7 +370,11 @@ export const LocationDetailPage: React.FC = () => {
                 <div>
                   <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Opening Date</dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">
-                    {location.openingDate ? new Date(location.openingDate).toLocaleDateString() : '—'}
+                    {location.openingDate
+                      ? new Date(location.openingDate).toLocaleDateString()
+                      : location.isUpcoming
+                        ? 'To be opened'
+                        : '—'}
                   </dd>
                 </div>
                 {location.closingDate && (

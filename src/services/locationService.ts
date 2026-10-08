@@ -88,6 +88,8 @@ export interface LocationItem {
     };
   } | null;
   openingDate?: string;
+  /** Planned unit with no opening date fixed yet */
+  isUpcoming?: boolean;
   closingDate?: string;
   areaType?: AreaType;
   operatingModel?: OperatingModel;
@@ -178,6 +180,8 @@ export interface LocationQueryParams {
   status?: string;
   /** Only locations with at least one expired compliance record */
   attention?: 'true';
+  /** Units already opened, or planned ones (marked TBO or opening in the future) */
+  opening?: 'opened' | 'upcoming';
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
@@ -194,6 +198,7 @@ export interface CreateLocationPayload {
   contactPhone?: string;
   manager?: string | null;
   openingDate?: string | null;
+  isUpcoming?: boolean;
   closingDate?: string | null;
   areaType?: AreaType | null;
   operatingModel?: OperatingModel | null;

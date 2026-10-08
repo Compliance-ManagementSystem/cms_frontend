@@ -79,6 +79,7 @@ export const LocationListPage: React.FC = () => {
   // ?status= and ?state= let the dashboard link to a filtered list
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   const [selectedState, setSelectedState] = useState(searchParams.get('state') || '');
+  const [selectedOpening, setSelectedOpening] = useState(searchParams.get('opening') || '');
 
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
   const [metrics, setMetrics] = useState({ total: 0, active: 0, inactive: 0, attention: 0 });
@@ -118,8 +119,9 @@ export const LocationListPage: React.FC = () => {
       state: selectedState || undefined,
       status: activeCard === 'active' ? 'active' : activeCard === 'inactive' ? 'inactive' : selectedStatus || undefined,
       attention: activeCard === 'attention' ? ('true' as const) : undefined,
+      opening: (selectedOpening || undefined) as 'opened' | 'upcoming' | undefined,
     }),
-    [debouncedSearch, selectedEntity, selectedType, selectedState, selectedStatus, activeCard]
+    [debouncedSearch, selectedEntity, selectedType, selectedState, selectedStatus, selectedOpening, activeCard]
   );
 
   const fetchLocations = useCallback(async () => {
@@ -168,6 +170,7 @@ export const LocationListPage: React.FC = () => {
     setSelectedType('');
     setSelectedStatus('');
     setSelectedState('');
+    setSelectedOpening('');
     resetPage();
   };
 
@@ -177,7 +180,8 @@ export const LocationListPage: React.FC = () => {
     selectedEntity ||
     selectedType ||
     selectedStatus ||
-    selectedState
+    selectedState ||
+    selectedOpening
   );
 
   // Export every page of the current filter as CSV
@@ -556,6 +560,22 @@ export const LocationListPage: React.FC = () => {
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
               <option value="archived">Archived</option>
+            </select>
+          </div>
+
+          <div className="w-36">
+            <label className={LABEL_CLASS}>Opening</label>
+            <select
+              value={selectedOpening}
+              onChange={(e) => {
+                setSelectedOpening(e.target.value);
+                resetPage();
+              }}
+              className={SELECT_CLASS}
+            >
+              <option value="">All</option>
+              <option value="opened">Opened</option>
+              <option value="upcoming">To be opened</option>
             </select>
           </div>
 

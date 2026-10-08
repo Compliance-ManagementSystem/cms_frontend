@@ -35,7 +35,7 @@ interface TableProps<T> {
 // ── Skeleton row ────────────────────────────────────────────────────────────────
 
 const SkeletonRow: React.FC<{ cols: number }> = ({ cols }) => (
-  <tr className="border-b border-slate-800">
+  <tr className="border-b border-slate-100 dark:border-slate-800">
     {Array.from({ length: cols }).map((_, i) => (
       <td key={i} className="px-4 py-3">
         <div className="skeleton h-4 rounded" />

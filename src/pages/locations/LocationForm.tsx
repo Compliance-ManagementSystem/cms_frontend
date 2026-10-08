@@ -40,6 +40,7 @@ interface FormState {
   manager: string;
   parentLocation: string;
   openingDate: string;
+  isUpcoming: boolean;
   closingDate: string;
   areaType: AreaType | '';
   operatingModel: OperatingModel | '';
@@ -83,6 +84,7 @@ const toFormState = (loc?: LocationItem, defaultEntityId = ''): FormState => ({
   manager: loc?.manager?._id || '',
   parentLocation: loc?.parentLocation?._id || '',
   openingDate: dateInput(loc?.openingDate),
+  isUpcoming: !!loc?.isUpcoming && !loc?.openingDate,
   closingDate: dateInput(loc?.closingDate),
   areaType: loc?.areaType || '',
   operatingModel: loc?.operatingModel || '',
@@ -259,6 +261,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
       manager: form.manager || null,
       parentLocation: form.parentLocation || null,
       openingDate: form.openingDate || null,
+      isUpcoming: form.isUpcoming && !form.openingDate,
       closingDate: form.closingDate || null,
       areaType: form.areaType || null,
       operatingModel: form.operatingModel || null,
@@ -454,6 +457,17 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
               onChange={(e) => setField('openingDate', e.target.value)}
               className={FIELD_CLASS}
             />
+            {/* A planned unit: a future date, or this mark when the date is not fixed */}
+            <label className="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+              <input
+                type="checkbox"
+                checked={form.isUpcoming && !form.openingDate}
+                disabled={!!form.openingDate}
+                onChange={(e) => setField('isUpcoming', e.target.checked)}
+                className="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+              />
+              To be opened (date not fixed yet)
+            </label>
           </div>
 
           <div>
