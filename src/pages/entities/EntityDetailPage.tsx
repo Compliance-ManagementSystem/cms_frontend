@@ -96,9 +96,11 @@ export const EntityDetailPage: React.FC = () => {
       ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
       : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
 
+  const locationCount = data.locationCount ?? locations.length;
+
   const tabs: { key: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'overview', label: 'Overview', icon: <Building2 size={16} /> },
-    { key: 'locations', label: 'Locations', icon: <MapPin size={16} />, count: locations.length },
+    { key: 'locations', label: 'Locations', icon: <MapPin size={16} />, count: locationCount },
     {
       key: 'compliance',
       label: 'Compliance Summary',
@@ -485,6 +487,19 @@ export const EntityDetailPage: React.FC = () => {
               <div className="text-sm text-indigo-900 dark:text-indigo-200">
                 <span className="font-semibold block mb-0.5">Associated Locations & Units</span>
                 Physical operational units, clinics, and offices belonging to <strong>{entity.name}</strong>.
+                {locationCount > locations.length && (
+                  <>
+                    {' '}
+                    Showing the latest {locations.length} of {locationCount}.{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/locations?entity=${entity._id}`)}
+                      className="font-semibold underline hover:no-underline"
+                    >
+                      View all
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             <Button

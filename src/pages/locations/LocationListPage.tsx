@@ -28,6 +28,13 @@ import { ROUTES } from '@/constants/routes';
 // Summary cards double as quick filters
 type CardKey = 'active' | 'inactive' | 'attention';
 
+/** Codes of the other companies at a shared unit, e.g. "CPPL" */
+const coEntityCodes = (loc: LocationItem): string =>
+  (loc.coEntities || [])
+    .map((co) => co.entity?.code)
+    .filter(Boolean)
+    .join(', ');
+
 const SELECT_CLASS =
   'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
 const LABEL_CLASS = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1';
@@ -213,7 +220,7 @@ export const LocationListPage: React.FC = () => {
         [
           loc.name || '',
           loc.locationCode || loc.code || '',
-          loc.entity?.name || '',
+          [loc.entity?.name, coEntityCodes(loc)].filter(Boolean).join(' + '),
           loc.locationType?.label || loc.locationType?.code || '',
           loc.address?.city || '',
           loc.address?.state || '',
@@ -296,6 +303,12 @@ export const LocationListPage: React.FC = () => {
           >
             <Building2 size={13} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
             <span className="truncate max-w-[130px]">{row.entity.name}</span>
+            {/* Other companies operating at a shared unit */}
+            {coEntityCodes(row) && (
+              <span className="font-normal text-slate-500 dark:text-slate-400 whitespace-nowrap" title={`Shared with ${coEntityCodes(row)}`}>
+                + {coEntityCodes(row)}
+              </span>
+            )}
           </button>
         ) : (
           <span className="text-xs text-rose-600 dark:text-rose-400">Entity missing</span>

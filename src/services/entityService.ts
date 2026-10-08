@@ -87,6 +87,8 @@ export interface EntityDetailData {
     status: string;
     createdAt: string;
   }>;
+  /** Every location of the entity; `locations` holds only the latest 50 */
+  locationCount?: number;
   complianceStats: {
     total: number;
     approved: number;

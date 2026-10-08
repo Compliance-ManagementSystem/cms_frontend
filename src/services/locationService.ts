@@ -216,6 +216,15 @@ export type UpdateLocationPayload = Partial<CreateLocationPayload>;
 
 // ── Service Methods ───────────────────────────────────────────────────────────
 
+/** True when the entity owns the unit or is one of the other companies operating there */
+export const operatesAt = (location: LocationItem, entityId: string): boolean => {
+  const owner = location.entity as unknown as string | { _id: string } | null | undefined;
+  return (
+    (typeof owner === 'string' ? owner : owner?._id) === entityId ||
+    (location.coEntities || []).some((co) => co.entity?._id === entityId)
+  );
+};
+
 export const locationService = {
   getLocations: async (params?: LocationQueryParams) => {
     const res = await axiosInstance.get<{
@@ -235,6 +244,17 @@ export const locationService = {
       };
     }>('/locations', { params });
     return res.data.data;
+  },
+
+  /** Every matching location, for dropdowns. The list endpoint returns at most 100 a page. */
+  getAllLocations: async (params?: Omit<LocationQueryParams, 'page' | 'limit'>) => {
+    const first = await locationService.getLocations({ ...params, page: 1, limit: 100 });
+    const rest = await Promise.all(
+      Array.from({ length: Math.max(0, first.pagination.totalPages - 1) }, (_, i) =>
+        locationService.getLocations({ ...params, page: i + 2, limit: 100 })
+      )
+    );
+    return { locations: [first, ...rest].flatMap((page) => page.locations) };
   },
 
   getLocationById: async (id: string) => {

@@ -30,7 +30,7 @@ import {
 } from '@/services/complianceRecordService';
 import { complianceRuleService, ComplianceRuleItem } from '@/services/complianceRuleService';
 import { entityService, EntityItem } from '@/services/entityService';
-import { locationService, LocationItem } from '@/services/locationService';
+import { locationService, LocationItem, operatesAt } from '@/services/locationService';
 import { adminService, UserItem } from '@/services/adminService';
 import { FEATURES } from '@/constants/features';
 
@@ -188,7 +188,7 @@ export const ComplianceRecordListPage: React.FC = () => {
   useEffect(() => {
     Promise.all([
       entityService.getEntities({ limit: 100 }).catch(() => ({ entities: [] })),
-      locationService.getLocations({ limit: 100 }).catch(() => ({ locations: [] })),
+      locationService.getAllLocations({ sortBy: 'name', sortOrder: 'asc' }).catch(() => ({ locations: [] })),
       complianceRuleService.getRules({ limit: 100, status: 'active' }).catch(() => ({ rules: [] })),
       adminService.getUsers({ limit: 100 }).catch(() => ({ users: [] })),
     ])
@@ -200,10 +200,7 @@ export const ComplianceRecordListPage: React.FC = () => {
 
         if (entRes.entities?.length > 0 && !createForm.entity) {
           const firstEnt = entRes.entities[0]._id;
-          const locsForFirst = (locRes.locations || []).filter((l: any) => {
-            const eId = typeof l.entity === 'string' ? l.entity : l.entity?._id;
-            return eId === firstEnt;
-          });
+          const locsForFirst = (locRes.locations || []).filter((l) => operatesAt(l, firstEnt));
           setCreateForm((prev) => ({
             ...prev,
             entity: firstEnt,
@@ -313,7 +310,7 @@ export const ComplianceRecordListPage: React.FC = () => {
 
   // Location options follow the selected entity
   const filterLocations = selectedEntity
-    ? locations.filter((l) => refId(l.entity as any) === selectedEntity)
+    ? locations.filter((l) => operatesAt(l, selectedEntity))
     : locations;
 
   const hasActiveFilters = !!(
@@ -878,10 +875,7 @@ export const ComplianceRecordListPage: React.FC = () => {
               value={createForm.entity}
               onChange={(e) => {
                 const ent = e.target.value;
-                const locs = locations.filter((l) => {
-                  const eId = typeof l.entity === 'string' ? l.entity : l.entity?._id;
-                  return eId === ent;
-                });
+                const locs = locations.filter((l) => operatesAt(l, ent));
                 setCreateForm({
                   ...createForm,
                   entity: ent,
@@ -912,11 +906,7 @@ export const ComplianceRecordListPage: React.FC = () => {
             >
               <option value="">-- Choose Location --</option>
               {locations
-                .filter((l) => {
-                  if (!createForm.entity) return true;
-                  const eId = typeof l.entity === 'string' ? l.entity : l.entity?._id;
-                  return eId === createForm.entity;
-                })
+                .filter((l) => !createForm.entity || operatesAt(l, createForm.entity))
                 .map((l) => (
                   <option key={l._id} value={l._id}>
                     {l.name} ({l.locationCode})

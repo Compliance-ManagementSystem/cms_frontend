@@ -29,7 +29,7 @@ import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
 import { complianceRuleService, ComplianceRuleItem, RuleAuditLog, RuleCoverage, RuleEvaluationResult } from '@/services/complianceRuleService';
 import { entityService, EntityItem } from '@/services/entityService';
-import { locationService, LocationItem } from '@/services/locationService';
+import { locationService, LocationItem, operatesAt } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -127,7 +127,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
   useEffect(() => {
     Promise.all([
       entityService.getEntities({ limit: 100 }).catch(() => ({ entities: [] })),
-      locationService.getLocations({ limit: 100 }).catch(() => ({ locations: [] })),
+      locationService.getAllLocations({ sortBy: 'name', sortOrder: 'asc' }).catch(() => ({ locations: [] })),
     ]).then(([entRes, locRes]) => {
       setEntities(entRes.entities || []);
       setLocations(locRes.locations || []);
@@ -139,10 +139,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
 
   // Filter locations based on selected entity
   const filteredLocations = selectedEntityId
-    ? locations.filter((loc) => {
-        const entId = typeof loc.entity === 'string' ? loc.entity : loc.entity?._id;
-        return entId === selectedEntityId;
-      })
+    ? locations.filter((loc) => operatesAt(loc, selectedEntityId))
     : locations;
 
   // Toggle active/inactive

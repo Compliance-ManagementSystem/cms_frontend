@@ -177,7 +177,10 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
     }
     locationService
       .getLocations({ entity: form.entity, limit: 100 })
-      .then((res) => setSiblingLocations((res.locations || []).filter((l) => l._id !== initial?._id)))
+      // The entity filter also returns units this entity only shares; a parent must be one it owns
+      .then((res) =>
+        setSiblingLocations((res.locations || []).filter((l) => l._id !== initial?._id && l.entity?._id === form.entity))
+      )
       .catch(() => setSiblingLocations([]));
     lookupService
       .getUsers(form.entity)
