@@ -317,7 +317,7 @@ export const AuditLogsPage: React.FC = () => {
                   <th className="py-3 px-4">Action</th>
                   <th className="py-3 px-4">Module / Entity</th>
                   <th className="py-3 px-4">Description</th>
-                  <th className="py-3 px-4">IP Address</th>
+                  {/* <th className="py-3 px-4">IP Address</th> */}
                   <th className="py-3 px-4 text-right">Inspection</th>
                 </tr>
               </thead>
@@ -361,9 +361,9 @@ export const AuditLogsPage: React.FC = () => {
                       <p className="text-slate-800 dark:text-slate-200 line-clamp-2 leading-relaxed">{log.description}</p>
                     </td>
 
-                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                    {/* <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono text-[11px]">
                       {log.ipAddress}
-                    </td>
+                    </td> */}
 
                     <td className="py-3.5 px-4 whitespace-nowrap text-right">
                       <button
@@ -466,7 +466,7 @@ export const AuditLogsPage: React.FC = () => {
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
               {/* Context Pill Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase">Actor</span>
                   <p className="text-xs font-medium text-slate-900 dark:text-slate-200 mt-0.5">{selectedLog.user?.name}</p>
@@ -479,10 +479,10 @@ export const AuditLogsPage: React.FC = () => {
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">ID: {selectedLog.recordId}</p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
+                {/* <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase">IP Address</span>
                   <p className="text-xs font-medium text-slate-900 dark:text-slate-200 mt-0.5 font-mono">{selectedLog.ipAddress}</p>
-                </div>
+                </div> */}
 
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase">Client Agent</span>

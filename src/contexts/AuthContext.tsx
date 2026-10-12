@@ -24,6 +24,30 @@ import type {
 const TOKEN_KEY = 'cms_access_token';
 const REFRESH_TOKEN_KEY = 'cms_refresh_token';
 
+// Shared in-flight refresh. The server rotates the refresh token on every call,
+// so concurrent callers must reuse one request instead of each sending the old token.
+let refreshPromise: Promise<{ accessToken: string; refreshToken?: string }> | null = null;
+
+const refreshSession = () => {
+  if (!refreshPromise) {
+    refreshPromise = axiosInstance
+      .post('/auth/refresh', {
+        refreshToken: localStorage.getItem(REFRESH_TOKEN_KEY),
+      })
+      .then((res) => {
+        const data = res.data?.data;
+        if (!data?.accessToken) {
+          throw new Error('Token refresh failed');
+        }
+        return data;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -91,7 +115,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           if (isMounted && res.data?.data) {
             setUser(res.data.data.user);
             setPermissions(res.data.data.permissions || []);
-            setToken(storedToken);
+            // Re-read: the 401 interceptor may have refreshed the token meanwhile
+            setToken(localStorage.getItem(TOKEN_KEY));
             setIsLoading(false);
             return;
           }
@@ -103,12 +128,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       // If accessToken failed or missing, try refreshToken
       if (storedRefreshToken) {
         try {
-          const refreshRes = await axiosInstance.post('/auth/refresh', {
-            refreshToken: storedRefreshToken,
-          });
+          const { accessToken, refreshToken: newRefresh } = await refreshSession();
 
-          if (isMounted && refreshRes.data?.data) {
-            const { accessToken, refreshToken: newRefresh } = refreshRes.data.data;
+          if (isMounted) {
             setAuthTokens(accessToken, newRefresh);
 
             // Fetch profile with fresh access token
@@ -152,6 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (
           error.response?.status === 401 &&
+          originalRequest &&
           !originalRequest._retry &&
           !originalRequest.url?.includes('/auth/login') &&
           !originalRequest.url?.includes('/auth/refresh')
@@ -161,25 +184,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
           if (storedRefreshToken) {
             try {
-              const res = await axiosInstance.post('/auth/refresh', {
-                refreshToken: storedRefreshToken,
-              });
-
-              if (res.data?.data?.accessToken) {
-                const newAccessToken = res.data.data.accessToken;
-                const newRefreshToken = res.data.data.refreshToken;
-                setAuthTokens(newAccessToken, newRefreshToken);
-
-                originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
-                return axiosInstance(originalRequest);
-              }
+              const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+                await refreshSession();
+              setAuthTokens(newAccessToken, newRefreshToken);
             } catch {
               // Refresh failed — purge auth state
               setUser(null);
               setPermissions([]);
               setAuthTokens(null, null);
               window.location.href = '/login';
+              return Promise.reject(error);
             }
+
+            // Retry outside the try so a failure of the retried request itself
+            // is not mistaken for a failed refresh
+            originalRequest.headers['Authorization'] =
+              `Bearer ${localStorage.getItem(TOKEN_KEY)}`;
+            return axiosInstance(originalRequest);
           }
         }
 

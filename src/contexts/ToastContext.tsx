@@ -42,7 +42,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
     <ToastContext.Provider value={{ success, error, info, warning, dismiss }}>
       {children}
       <Toaster
-        position="top-right"
+        position="top-center"
         gutter={8}
         toastOptions={{
           duration: 4000,

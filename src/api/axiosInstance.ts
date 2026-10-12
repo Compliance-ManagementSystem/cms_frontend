@@ -22,16 +22,15 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Keep the original axios error (response, config) so later interceptors
+    // such as the 401 token refresh can still inspect it; only swap the message.
     if (error.response) {
       // Server responded with error status
-      const message =
+      error.message =
         error.response.data?.message || 'An unexpected error occurred';
-      return Promise.reject(new Error(message));
     } else if (error.request) {
       // No response received
-      return Promise.reject(
-        new Error('Network error – please check your connection')
-      );
+      error.message = 'Network error – please check your connection';
     }
     return Promise.reject(error);
   }
