@@ -257,7 +257,6 @@ export const EntityListPage: React.FC = () => {
             </div>
             <div className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-0.5 whitespace-nowrap">
               {row.entityCode || row.code}
-              {row.parentEntity && <span className="font-sans"> · part of {row.parentEntity.name}</span>}
             </div>
           </div>
         </div>
@@ -579,8 +578,8 @@ export const EntityListPage: React.FC = () => {
           <AlertTriangle size={18} className="flex-shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
           <p>
             Delete <strong>{entityToDelete?.name}</strong> ({entityToDelete?.entityCode || entityToDelete?.code})? This
-            cannot be undone. An entity that still has locations, users, compliance records, tasks, documents,
-            licences or subsidiaries cannot be deleted; set it to inactive instead.
+            cannot be undone. An entity that still has locations, users, compliance records, tasks, documents or
+            licences cannot be deleted; set it to inactive instead.
           </p>
         </div>
       </Modal>

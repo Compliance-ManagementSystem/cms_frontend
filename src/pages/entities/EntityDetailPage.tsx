@@ -178,14 +178,6 @@ export const EntityDetailPage: React.FC = () => {
                   {entity.entityCode || entity.code}
                 </span>
                 {entity.industry && <span className="text-slate-700 dark:text-slate-300">{entity.industry.label}</span>}
-                {entity.parentEntity && (
-                  <span
-                    className="text-indigo-600 dark:text-indigo-300 hover:underline cursor-pointer font-medium"
-                    onClick={() => navigate(`/entities/${entity.parentEntity?._id}`)}
-                  >
-                    Part of {entity.parentEntity.name}
-                  </span>
-                )}
                 {entity.address?.city && (
                   <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
                     <MapPin size={13} className="text-slate-400 dark:text-slate-500" />
@@ -320,18 +312,6 @@ export const EntityDetailPage: React.FC = () => {
                       </Badge>
                     ) : (
                       <span className="text-slate-400 dark:text-slate-500 italic">General / Unspecified</span>
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Parent Entity</dt>
-                  <dd className="mt-1 text-slate-900 dark:text-slate-200">
-                    {entity.parentEntity ? (
-                      <span className="font-medium text-indigo-600 dark:text-indigo-400">
-                        {entity.parentEntity.name} ({entity.parentEntity.code})
-                      </span>
-                    ) : (
-                      <span className="text-slate-500 dark:text-slate-400">Top-Level Entity (Independent)</span>
                     )}
                   </dd>
                 </div>

@@ -7,11 +7,6 @@ import {
   Calendar,
   Building2,
   MapPin,
-  X,
-  Zap,
-  Play,
-  Check,
-  RotateCcw,
   Link2,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
@@ -83,11 +78,10 @@ export const TaskListPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
-  const { can, hasRole } = useAuth();
+  const { can } = useAuth();
   const canCreate = can('task', 'create');
   const canUpdate = can('task', 'update');
   const canDelete = can('task', 'delete');
-  const canRunAutomation = hasRole(['super_admin', 'admin']);
 
   // The open task lives in the URL (?task=<id>) so notifications can link straight to it
   const [searchParams, setSearchParams] = useSearchParams();
@@ -139,8 +133,6 @@ export const TaskListPage: React.FC = () => {
   const [users, setUsers] = useState<TaskAssigneeOption[]>([]);
 
   // Automation
-  const [isAutomating, setIsAutomating] = useState(false);
-  const [automationNotice, setAutomationNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (onOverduePath) setActiveCard('overdue');
@@ -252,34 +244,6 @@ export const TaskListPage: React.FC = () => {
 
   const hasActiveFilters = !!(search || activeCard || statusFilter || priorityFilter || locationFilter || entityFilter);
 
-  const handleStatusChange = async (task: TaskItem, newStatus: TaskStatus) => {
-    try {
-      await taskService.updateTaskStatus(task._id, newStatus);
-      toast.success(`"${task.title}" marked ${STATUS_META[newStatus].label.toLowerCase()}`);
-      refreshAll();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update task status');
-    }
-  };
-
-  const handleTriggerAutomation = async () => {
-    setIsAutomating(true);
-    setAutomationNotice(null);
-    try {
-      const res = await taskService.triggerAutomation();
-      setAutomationNotice(
-        `Scan complete: ${res.recordsScanned} records checked, ${res.tasksCreated} tasks created, ` +
-          `${res.tasksClosed} resolved tasks closed, ${res.notificationsSent} notifications sent` +
-          (res.recordsFailed ? `, ${res.recordsFailed} records failed.` : '.')
-      );
-      refreshAll();
-    } catch (err: any) {
-      setAutomationNotice(err.message || 'Failed to execute automated compliance check.');
-    } finally {
-      setIsAutomating(false);
-    }
-  };
-
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim() || !formData.entity || !formData.assignedTo || !formData.dueDate) {
@@ -306,17 +270,6 @@ export const TaskListPage: React.FC = () => {
     } finally {
       setIsCreating(false);
     }
-  };
-
-  // The one next step for a task; anything else is done from the detail view
-  const nextAction = (task: TaskItem): { label: string; status: TaskStatus; icon: React.ReactNode } => {
-    if (task.status === 'completed' || task.status === 'cancelled') {
-      return { label: 'Reopen', status: 'open', icon: <RotateCcw size={13} /> };
-    }
-    if (task.status === 'open' || task.status === 'overdue') {
-      return { label: 'Start', status: 'in_progress', icon: <Play size={13} /> };
-    }
-    return { label: 'Complete', status: 'completed', icon: <Check size={13} /> };
   };
 
   const columns: Column<TaskItem>[] = [
@@ -428,31 +381,6 @@ export const TaskListPage: React.FC = () => {
         </span>
       ),
     },
-    ...(canUpdate
-      ? [
-          {
-            key: 'actions',
-            header: '',
-            align: 'right' as const,
-            cell: (task: TaskItem) => {
-              const action = nextAction(task);
-              return (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  leftIcon={action.icon}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleStatusChange(task, action.status);
-                  }}
-                >
-                  {action.label}
-                </Button>
-              );
-            },
-          },
-        ]
-      : []),
   ];
 
   return (
@@ -472,17 +400,6 @@ export const TaskListPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {canRunAutomation && (
-            <Button
-              variant="outline"
-              leftIcon={<Zap size={15} className="text-amber-500 dark:text-amber-400" />}
-              onClick={handleTriggerAutomation}
-              isLoading={isAutomating}
-              title="Scan compliance records and open or close automated tasks"
-            >
-              Run Scheduled Checks
-            </Button>
-          )}
           {canCreate && (
             <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => setCreateModalOpen(true)}>
               Create Task
@@ -490,23 +407,6 @@ export const TaskListPage: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* Automation Notice */}
-      {automationNotice && (
-        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-500/30 text-indigo-800 dark:text-indigo-200 text-xs">
-          <div className="flex items-center gap-2.5">
-            <Zap size={16} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-            <span>{automationNotice}</span>
-          </div>
-          <button
-            onClick={() => setAutomationNotice(null)}
-            aria-label="Dismiss"
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
 
       {/* Summary cards — click to filter */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

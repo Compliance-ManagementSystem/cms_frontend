@@ -60,11 +60,6 @@ export interface EntityItem {
     code: string;
     label: string;
   } | null;
-  parentEntity?: {
-    _id: string;
-    name: string;
-    code: string;
-  } | null;
   description?: string;
   status: 'active' | 'inactive' | 'archived';
   locationCount?: number;
@@ -171,7 +166,6 @@ export interface CreateEntityPayload {
   contactPhone: string;
   contactPerson?: string;
   industry?: string | null;
-  parentEntity?: string | null;
   description?: string;
   status?: 'active' | 'inactive' | 'archived';
 }

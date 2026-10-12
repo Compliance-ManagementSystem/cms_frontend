@@ -4,7 +4,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
-import { entityService, CreateEntityPayload, EntityItem } from '@/services/entityService';
+import { CreateEntityPayload, EntityItem } from '@/services/entityService';
 import type { MasterDataItem } from '@/services/adminService';
 import { lookupService, LookupUser } from '@/services/lookupService';
 
@@ -30,7 +30,6 @@ interface FormState {
   entityType: string;
   owner: string;
   industry: string;
-  parentEntity: string;
   registrationNumber: string;
   gstin: string;
   pan: string;
@@ -67,7 +66,6 @@ const toFormState = (ent?: EntityItem): FormState => ({
   entityType: ent?.entityType?._id || '',
   owner: ent?.owner?._id || '',
   industry: ent?.industry?._id || '',
-  parentEntity: ent?.parentEntity?._id || '',
   registrationNumber: ent?.registrationNumber || '',
   gstin: ent?.gstin || '',
   pan: ent?.pan || '',
@@ -95,7 +93,6 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
   const [form, setForm] = useState<FormState>(() => toFormState(initial));
   const [entityTypes, setEntityTypes] = useState<MasterDataItem[]>([]);
   const [industries, setIndustries] = useState<MasterDataItem[]>([]);
-  const [parentEntities, setParentEntities] = useState<EntityItem[]>([]);
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
   const [users, setUsers] = useState<LookupUser[]>([]);
@@ -110,16 +107,14 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
       lookupService.getMasterData({ category: 'state' }).catch(() => noItems),
       lookupService.getMasterData({ category: 'district' }).catch(() => noItems),
       lookupService.getUsers().catch(() => ({ users: [] as LookupUser[] })),
-      entityService.getEntities({ limit: 100 }).catch(() => ({ entities: [] as EntityItem[] })),
-    ]).then(([typesRes, industriesRes, statesRes, districtsRes, usersRes, entitiesRes]) => {
+    ]).then(([typesRes, industriesRes, statesRes, districtsRes, usersRes]) => {
       setEntityTypes(active(typesRes.items));
       setIndustries(active(industriesRes.items));
       setStates(active(statesRes.items));
       setDistricts(active(districtsRes.items));
       setUsers(usersRes.users || []);
-      setParentEntities((entitiesRes.entities || []).filter((e) => e._id !== initial?._id));
     });
-  }, [initial?._id]);
+  }, []);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -159,7 +154,6 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
       entityType: form.entityType,
       owner: form.owner || null,
       industry: form.industry || null,
-      parentEntity: form.parentEntity || null,
       registrationNumber: form.registrationNumber.trim() || undefined,
       gstin: form.gstin.trim().toUpperCase() || undefined,
       pan: form.pan.trim().toUpperCase() || undefined,
@@ -195,7 +189,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
         <Card padding="lg">
           <Card.Header
             title="Entity Details"
-            description="Legal name, type and where it sits in the group"
+            description="Legal name, type, industry and owner"
             icon={<Briefcase size={18} className="text-indigo-600 dark:text-indigo-400" />}
           />
 
@@ -281,26 +275,6 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                 {users.map((user) => (
                   <option key={user._id} value={user._id}>
                     {user.firstName} {user.lastName} ({user.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className={LABEL_CLASS} htmlFor="entity-parent">
-                Parent Entity
-              </label>
-              <select
-                id="entity-parent"
-                name="parentEntity"
-                value={form.parentEntity}
-                onChange={(e) => setField('parentEntity', e.target.value)}
-                className={FIELD_CLASS}
-              >
-                <option value="">None (top-level entity)</option>
-                {parentEntities.map((parent) => (
-                  <option key={parent._id} value={parent._id}>
-                    {parent.name} ({parent.entityCode || parent.code})
                   </option>
                 ))}
               </select>

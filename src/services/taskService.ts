@@ -191,16 +191,4 @@ export const taskService = {
     });
     return res.data.data;
   },
-
-  async triggerAutomation(): Promise<{
-    recordsScanned: number;
-    tasksCreated: number;
-    tasksClosed: number;
-    notificationsSent: number;
-    recordsFailed: number;
-    summary: Record<string, number>;
-  }> {
-    const res = await axiosInstance.post('/automation/run-checks');
-    return res.data.data;
-  },
 };
