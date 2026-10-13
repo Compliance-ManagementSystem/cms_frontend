@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Save, Mail, Phone, User, Briefcase, Plus, Trash2, FileText } from 'lucide-react';
+import { MapPin, Save, Briefcase, Plus, Trash2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
 import {
-  locationService,
   CreateLocationPayload,
   LocationItem,
-  LocationAgreement,
   AreaType,
   OperatingModel,
   AREA_TYPE_LABELS,
@@ -17,7 +15,6 @@ import {
 import { entityService, EntityItem } from '@/services/entityService';
 import type { MasterDataItem } from '@/services/adminService';
 import { lookupService, LookupUser } from '@/services/lookupService';
-import { FEATURES } from '@/constants/features';
 
 /** The form element's id, so a button outside the form can submit it */
 export const LOCATION_FORM_ID = 'location-form';
@@ -38,19 +35,12 @@ interface FormState {
   entity: string;
   locationType: string;
   manager: string;
-  parentLocation: string;
   openingDate: string;
   isUpcoming: boolean;
   closingDate: string;
   areaType: AreaType | '';
   operatingModel: OperatingModel | '';
   description: string;
-  area: string;
-  areaUnit: 'sqft' | 'sqm';
-  operatingHours: string;
-  contactPerson: string;
-  contactEmail: string;
-  contactPhone: string;
   status: 'active' | 'inactive' | 'archived';
   address: {
     line1: string;
@@ -82,19 +72,12 @@ const toFormState = (loc?: LocationItem, defaultEntityId = ''): FormState => ({
   // Location types are submitted by their Master Data code
   locationType: loc?.locationType?.code || '',
   manager: loc?.manager?._id || '',
-  parentLocation: loc?.parentLocation?._id || '',
   openingDate: dateInput(loc?.openingDate),
   isUpcoming: !!loc?.isUpcoming && !loc?.openingDate,
   closingDate: dateInput(loc?.closingDate),
   areaType: loc?.areaType || '',
   operatingModel: loc?.operatingModel || '',
   description: loc?.description || '',
-  area: loc?.area ? String(loc.area) : '',
-  areaUnit: loc?.areaUnit || 'sqft',
-  operatingHours: loc?.operatingHours || '',
-  contactPerson: loc?.contactPerson || '',
-  contactEmail: loc?.contactEmail || '',
-  contactPhone: loc?.contactPhone || '',
   status: loc?.status || 'active',
   address: {
     line1: loc?.address?.line1 || '',
@@ -107,18 +90,6 @@ const toFormState = (loc?: LocationItem, defaultEntityId = ''): FormState => ({
   },
 });
 
-const toAgreementRows = (loc?: LocationItem): LocationAgreement[] =>
-  (loc?.agreements || []).map((agr) => ({
-    _id: agr._id,
-    agreementType: agr.agreementType || 'lease',
-    agreementNumber: agr.agreementNumber || '',
-    startDate: dateInput(agr.startDate),
-    endDate: dateInput(agr.endDate),
-    renewalDate: dateInput(agr.renewalDate),
-    parties: agr.parties || [],
-    notes: agr.notes || '',
-  }));
-
 interface CoEntityRow {
   entity: string;
   openingDate: string;
@@ -129,15 +100,11 @@ const toCoEntityRows = (loc?: LocationItem): CoEntityRow[] =>
     .filter((co) => co.entity)
     .map((co) => ({ entity: co.entity!._id, openingDate: dateInput(co.openingDate) }));
 
-const isBlankAgreement = (agr: LocationAgreement) =>
-  !agr.agreementNumber.trim() && !agr.startDate && !agr.endDate && !agr.notes?.trim() && !(agr.parties || []).length;
-
 const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, isSubmitting, onSubmit, onCancel }) => {
   const toast = useToast();
   const isEditing = !!initial;
 
   const [form, setForm] = useState<FormState>(() => toFormState(initial, defaultEntityId));
-  const [agreements, setAgreements] = useState<LocationAgreement[]>(() => toAgreementRows(initial));
   const [coEntities, setCoEntities] = useState<CoEntityRow[]>(() => toCoEntityRows(initial));
 
   const [entities, setEntities] = useState<EntityItem[]>([]);
@@ -145,7 +112,6 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
   const [users, setUsers] = useState<LookupUser[]>([]);
-  const [siblingLocations, setSiblingLocations] = useState<LocationItem[]>([]);
 
   // Reference data
   useEffect(() => {
@@ -168,25 +134,17 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
     });
   }, [initial]);
 
-  // Managers and possible parents belong to the selected entity
+  // Managers belong to the selected entity
   useEffect(() => {
     if (!form.entity) {
-      setSiblingLocations([]);
       setUsers([]);
       return;
     }
-    locationService
-      .getLocations({ entity: form.entity, limit: 100 })
-      // The entity filter also returns units this entity only shares; a parent must be one it owns
-      .then((res) =>
-        setSiblingLocations((res.locations || []).filter((l) => l._id !== initial?._id && l.entity?._id === form.entity))
-      )
-      .catch(() => setSiblingLocations([]));
     lookupService
       .getUsers(form.entity)
       .then((res) => setUsers(res.users || []))
       .catch(() => setUsers([]));
-  }, [form.entity, initial?._id]);
+  }, [form.entity]);
 
   const setField = <K extends keyof FormState>(field: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -195,8 +153,8 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
     setForm((prev) => ({ ...prev, address: { ...prev.address, [field]: value } }));
 
   const handleEntityChange = (entity: string) =>
-    // A manager or parent from the previous entity no longer applies
-    setForm((prev) => ({ ...prev, entity, manager: '', parentLocation: '' }));
+    // A manager from the previous entity no longer applies
+    setForm((prev) => ({ ...prev, entity, manager: '' }));
 
   const handleStateChange = (state: string) =>
     setForm((prev) => ({ ...prev, address: { ...prev.address, state, district: '' } }));
@@ -208,9 +166,6 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
 
   const updateCoEntity = (index: number, patch: Partial<CoEntityRow>) =>
     setCoEntities((prev) => prev.map((co, i) => (i === index ? { ...co, ...patch } : co)));
-
-  const updateAgreement = (index: number, patch: Partial<LocationAgreement>) =>
-    setAgreements((prev) => prev.map((agr, i) => (i === index ? { ...agr, ...patch } : agr)));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,25 +199,12 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
       return;
     }
 
-    // Untouched agreement rows are dropped; partly filled ones must be completed
-    const filledAgreements = agreements.filter((agr) => !isBlankAgreement(agr));
-    const incomplete = filledAgreements.findIndex((agr) => !agr.agreementNumber.trim() || !agr.startDate || !agr.endDate);
-    if (incomplete !== -1) {
-      toast.error(`Agreement ${agreements.indexOf(filledAgreements[incomplete]) + 1} needs a number, start date and end date`);
-      return;
-    }
-    if (filledAgreements.some((agr) => agr.endDate < agr.startDate)) {
-      toast.error('An agreement cannot end before it starts');
-      return;
-    }
-
     onSubmit({
       name: form.name.trim(),
       code: form.code.trim() || undefined,
       entity: form.entity,
       locationType: form.locationType,
       manager: form.manager || null,
-      parentLocation: form.parentLocation || null,
       openingDate: form.openingDate || null,
       isUpcoming: form.isUpcoming && !form.openingDate,
       closingDate: form.closingDate || null,
@@ -270,12 +212,6 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
       operatingModel: form.operatingModel || null,
       coEntities: chosenCoEntities.map((co) => ({ entity: co.entity, openingDate: co.openingDate || null })),
       description: form.description.trim(),
-      area: form.area ? Number(form.area) : null,
-      areaUnit: form.areaUnit,
-      operatingHours: form.operatingHours.trim(),
-      contactPerson: form.contactPerson.trim(),
-      contactEmail: form.contactEmail.trim(),
-      contactPhone: form.contactPhone.trim(),
       status: form.status,
       address: {
         line1: form.address.line1.trim(),
@@ -286,15 +222,6 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
         pincode: form.address.pincode.trim(),
         country: form.address.country.trim() || 'India',
       },
-      agreements: filledAgreements.map((agr) => ({
-        agreementType: agr.agreementType,
-        agreementNumber: agr.agreementNumber.trim(),
-        startDate: agr.startDate,
-        endDate: agr.endDate,
-        renewalDate: agr.renewalDate || undefined,
-        parties: agr.parties || [],
-        notes: agr.notes?.trim() || undefined,
-      })),
     });
   };
 
@@ -379,30 +306,6 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
               ))}
             </select>
           </div>
-
-          {FEATURES.locationSiteDetails && (
-          <>
-          <div>
-            <label className={LABEL_CLASS} htmlFor="location-parent">
-              Parent Location
-            </label>
-            <select
-              id="location-parent"
-              value={form.parentLocation}
-              onChange={(e) => setField('parentLocation', e.target.value)}
-              className={FIELD_CLASS}
-            >
-              <option value="">None (top-level site)</option>
-              {siblingLocations.map((loc) => (
-                <option key={loc._id} value={loc._id}>
-                  {loc.name} ({loc.locationCode || loc.code})
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Set this for a wing or sub-unit of another site.</p>
-          </div>
-          </>
-          )}
 
           <div>
             <label className={LABEL_CLASS} htmlFor="location-manager">
@@ -505,42 +408,6 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             </select>
           </div>
 
-          {FEATURES.locationSiteDetails && (
-          <>
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Floor Area"
-              type="number"
-              min={0}
-              value={form.area}
-              onChange={(e) => setField('area', e.target.value)}
-              placeholder="e.g. 5000"
-            />
-            <div>
-              <label className={LABEL_CLASS} htmlFor="location-area-unit">
-                Unit
-              </label>
-              <select
-                id="location-area-unit"
-                value={form.areaUnit}
-                onChange={(e) => setField('areaUnit', e.target.value as FormState['areaUnit'])}
-                className={FIELD_CLASS}
-              >
-                <option value="sqft">Sq. feet</option>
-                <option value="sqm">Sq. metres</option>
-              </select>
-            </div>
-          </div>
-
-          <Input
-            label="Operating Hours"
-            value={form.operatingHours}
-            onChange={(e) => setField('operatingHours', e.target.value)}
-            placeholder="e.g. Mon-Sat: 08:00 - 20:00"
-          />
-          </>
-          )}
-
           <div className="md:col-span-2">
             <span className={LABEL_CLASS}>Other Companies at this Unit</span>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
@@ -618,45 +485,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
         </div>
       </Card>
 
-      {/* Section 2: Contact */}
-      {FEATURES.locationContact && (
-      <>
-      <Card padding="lg">
-        <Card.Header
-          title="Contact"
-          description="Who to reach at this location"
-          icon={<Mail size={18} className="text-emerald-600 dark:text-emerald-400" />}
-        />
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <Input
-            label="Contact Person"
-            value={form.contactPerson}
-            onChange={(e) => setField('contactPerson', e.target.value)}
-            placeholder="e.g. Dr. Rajesh Sharma"
-            leftAddon={<User size={15} className="text-slate-400" />}
-          />
-          <Input
-            label="Contact Email"
-            type="email"
-            value={form.contactEmail}
-            onChange={(e) => setField('contactEmail', e.target.value)}
-            placeholder="e.g. unit@company.com"
-            leftAddon={<Mail size={15} className="text-slate-400" />}
-          />
-          <Input
-            label="Contact Phone"
-            value={form.contactPhone}
-            onChange={(e) => setField('contactPhone', e.target.value)}
-            placeholder="e.g. +91 80 4455 6677"
-            leftAddon={<Phone size={15} className="text-slate-400" />}
-          />
-        </div>
-      </Card>
-      </>
-      )}
-
-      {/* Section 3: Address */}
+      {/* Section 2: Address */}
       <Card padding="lg">
         <Card.Header
           title="Address"
@@ -792,156 +621,6 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
           </div>
         </div>
       </Card>
-
-      {/* Section 4: Agreements */}
-      {FEATURES.locationAgreements && (
-        <>
-        <Card padding="lg">
-        <Card.Header
-          title="Leases & Agreements"
-          description="Lease contracts, MOUs and other agreements for this site"
-          icon={<FileText size={18} className="text-emerald-600 dark:text-emerald-400" />}
-        />
-
-        <div className="space-y-4">
-          {agreements.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
-              No agreements recorded.
-            </p>
-          ) : (
-            agreements.map((agr, index) => (
-              <fieldset
-                key={agr._id || index}
-                className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/40 p-4"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <legend className="text-sm font-semibold text-slate-800 dark:text-slate-200">Agreement {index + 1}</legend>
-                  <button
-                    type="button"
-                    onClick={() => setAgreements((prev) => prev.filter((_, i) => i !== index))}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline"
-                  >
-                    <Trash2 size={13} />
-                    Remove
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className={LABEL_CLASS}>Type</label>
-                    <select
-                      value={agr.agreementType}
-                      onChange={(e) => updateAgreement(index, { agreementType: e.target.value })}
-                      className={FIELD_CLASS}
-                    >
-                      <option value="lease">Lease</option>
-                      <option value="license">Licence</option>
-                      <option value="mou">MOU</option>
-                      <option value="service_agreement">Service agreement</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className={LABEL_CLASS}>
-                      Agreement Number
-                      <RequiredMark />
-                    </label>
-                    <input
-                      value={agr.agreementNumber}
-                      onChange={(e) => updateAgreement(index, { agreementNumber: e.target.value })}
-                      placeholder="e.g. LEASE-2026-001"
-                      className={FIELD_CLASS}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={LABEL_CLASS}>Parties</label>
-                    <input
-                      value={(agr.parties || []).join(', ')}
-                      onChange={(e) =>
-                        updateAgreement(index, {
-                          parties: e.target.value
-                            .split(',')
-                            .map((p) => p.trimStart())
-                            .filter((p, i, all) => p || i === all.length - 1),
-                        })
-                      }
-                      placeholder="Names, separated by commas"
-                      className={FIELD_CLASS}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={LABEL_CLASS}>
-                      Start Date
-                      <RequiredMark />
-                    </label>
-                    <input
-                      type="date"
-                      value={agr.startDate}
-                      onChange={(e) => updateAgreement(index, { startDate: e.target.value })}
-                      className={FIELD_CLASS}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={LABEL_CLASS}>
-                      End Date
-                      <RequiredMark />
-                    </label>
-                    <input
-                      type="date"
-                      value={agr.endDate}
-                      min={agr.startDate || undefined}
-                      onChange={(e) => updateAgreement(index, { endDate: e.target.value })}
-                      className={FIELD_CLASS}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={LABEL_CLASS}>Renewal / Notice Date</label>
-                    <input
-                      type="date"
-                      value={agr.renewalDate || ''}
-                      onChange={(e) => updateAgreement(index, { renewalDate: e.target.value })}
-                      className={FIELD_CLASS}
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2 md:col-span-3">
-                    <label className={LABEL_CLASS}>Notes</label>
-                    <textarea
-                      rows={2}
-                      value={agr.notes || ''}
-                      onChange={(e) => updateAgreement(index, { notes: e.target.value })}
-                      placeholder="Key terms, escalation clauses, renewal conditions"
-                      className={FIELD_CLASS}
-                    />
-                  </div>
-                </div>
-              </fieldset>
-            ))
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            leftIcon={<Plus size={15} />}
-            onClick={() =>
-              setAgreements((prev) => [
-                ...prev,
-                { agreementType: 'lease', agreementNumber: '', startDate: '', endDate: '', renewalDate: '', parties: [], notes: '' },
-              ])
-            }
-          >
-            Add Agreement
-          </Button>
-        </div>
-      </Card>
-        </>
-      )}
 
       {/* Footer Actions */}
       <div className="flex items-center justify-end gap-3">

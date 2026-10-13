@@ -6,19 +6,14 @@ import {
   Edit2,
   Building2,
   FileText,
-  Award,
   ClipboardCheck,
   CheckSquare,
   History,
-  Mail,
-  Phone,
   AlertCircle,
   ExternalLink,
   Plus,
   Eye,
-  Trash2,
   FileCheck2,
-  ArrowUpRight,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -33,13 +28,9 @@ import {
 } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
 import { openDocumentInNewTab } from '@/utils/documentFile';
-import Modal from '@/components/ui/Modal';
-import { licenceService, LicenceItem } from '@/services/licenceService';
 import DocumentUploadModal from '@/components/documents/DocumentUploadModal';
-import LocationLicenceModal from './LocationLicenceModal';
-import { FEATURES } from '@/constants/features';
 
-type TabType = 'overview' | 'compliance' | 'licences' | 'documents' | 'tasks' | 'history';
+type TabType = 'overview' | 'compliance' | 'documents' | 'tasks' | 'history';
 
 export const LocationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -48,18 +39,9 @@ export const LocationDetailPage: React.FC = () => {
   const { can } = useAuth();
   const canUpdate = can('location', 'update');
   const canUploadDocument = can('document', 'upload');
-  const canAddLicence = can('licence', 'create');
-  const canEditLicence = can('licence', 'update');
-  const canDeleteLicence = can('licence', 'delete');
 
   // Dialogs
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [licenceDialog, setLicenceDialog] = useState<{ open: boolean; licence: LicenceItem | null }>({
-    open: false,
-    licence: null,
-  });
-  const [licenceToDelete, setLicenceToDelete] = useState<LicenceItem | null>(null);
-  const [isDeletingLicence, setIsDeletingLicence] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [data, setData] = useState<LocationDetailData | null>(null);
@@ -81,21 +63,6 @@ export const LocationDetailPage: React.FC = () => {
   useEffect(() => {
     fetchLocationDetails();
   }, [fetchLocationDetails]);
-
-  const confirmDeleteLicence = async () => {
-    if (!licenceToDelete) return;
-    setIsDeletingLicence(true);
-    try {
-      await licenceService.deleteLicence(licenceToDelete._id);
-      toast.success(`Licence ${licenceToDelete.licenceNumber} deleted`);
-      setLicenceToDelete(null);
-      fetchLocationDetails();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete licence');
-    } finally {
-      setIsDeletingLicence(false);
-    }
-  };
 
   const handleViewDocument = (documentId: string) => {
     openDocumentInNewTab(documentId).catch((err) =>
@@ -129,19 +96,16 @@ export const LocationDetailPage: React.FC = () => {
     );
   }
 
-  const { location, health, complianceStats, complianceRecords, documents, licences, tasks, auditLogs } = data;
+  const { location, health, complianceStats, complianceRecords, documents, tasks, auditLogs } = data;
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'overview', label: 'Overview', icon: <MapPin size={16} /> },
     { key: 'compliance', label: 'Compliance', icon: <ClipboardCheck size={16} />, count: complianceStats?.total || 0 },
-    ...(FEATURES.locationLicences
-      ? [{ key: 'licences' as TabType, label: 'Licences', icon: <Award size={16} />, count: licences.length }]
-      : []),
     {
       key: 'documents',
       label: 'Documents',
       icon: <FileText size={16} />,
-      count: documents.length + (FEATURES.locationAgreements ? location.agreements?.length || 0 : 0),
+      count: documents.length,
     },
     { key: 'tasks', label: 'Tasks', icon: <CheckSquare size={16} />, count: tasks.length },
     { key: 'history', label: 'History', icon: <History size={16} /> },
@@ -232,11 +196,6 @@ export const LocationDetailPage: React.FC = () => {
                 <Badge variant="info" size="sm">
                   {location.locationType?.label || location.locationType?.code || 'Location'}
                 </Badge>
-                {FEATURES.locationSiteDetails && location.parentLocation && (
-                  <Badge variant="default" size="sm">
-                    Sub-unit of {location.parentLocation.name}
-                  </Badge>
-                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
@@ -406,20 +365,6 @@ export const LocationDetailPage: React.FC = () => {
                     </dd>
                   </div>
                 ))}
-                {FEATURES.locationSiteDetails && (
-                  <>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Floor Area</dt>
-                  <dd className="mt-1 text-slate-900 dark:text-slate-200">
-                    {location.area ? `${location.area.toLocaleString()} ${location.areaUnit || 'sqft'}` : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Operating Hours</dt>
-                  <dd className="mt-1 text-slate-900 dark:text-slate-200">{location.operatingHours || 'Standard Business Hours'}</dd>
-                </div>
-                  </>
-                )}
                 <div className="sm:col-span-2">
                   <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Description</dt>
                   <dd className="mt-1 text-slate-700 dark:text-slate-300 leading-relaxed">
@@ -452,51 +397,6 @@ export const LocationDetailPage: React.FC = () => {
             </Card>
 
             {/* Unit Communication */}
-            {FEATURES.locationContact && (
-              <>
-            <Card padding="lg">
-              <Card.Header
-                title="Unit Communication & Contact"
-                icon={<Mail size={18} className="text-emerald-600 dark:text-emerald-400" />}
-              />
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mt-3">
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Primary Contact Person</dt>
-                  <dd className="mt-1 font-medium text-slate-900 dark:text-slate-200">{location.contactPerson || '—'}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Unit Email</dt>
-                  <dd className="mt-1 text-slate-900 dark:text-slate-200">
-                    {location.contactEmail ? (
-                      <a
-                        href={`mailto:${location.contactEmail}`}
-                        className="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1.5"
-                      >
-                        <Mail size={14} />
-                        {location.contactEmail}
-                      </a>
-                    ) : (
-                      '—'
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Unit Contact Phone</dt>
-                  <dd className="mt-1 text-slate-900 dark:text-slate-200">
-                    {location.contactPhone ? (
-                      <span className="flex items-center gap-1.5">
-                        <Phone size={14} className="text-slate-400 dark:text-slate-500" />
-                        {location.contactPhone}
-                      </span>
-                    ) : (
-                      '—'
-                    )}
-                  </dd>
-                </div>
-              </dl>
-            </Card>
-              </>
-            )}
 
             {/* Governance & Corporate Hierarchy */}
             <Card padding="lg">
@@ -562,29 +462,6 @@ export const LocationDetailPage: React.FC = () => {
                 </div>
 
                 {/* Parent Location / Campus Linkage (if sub-unit) */}
-                {FEATURES.locationSiteDetails && location.parentLocation && (
-                  <div className="p-3.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block">
-                        Parent Site / Main Campus
-                      </span>
-                      <span className="font-semibold text-slate-900 dark:text-slate-100 block">
-                        {location.parentLocation.name}
-                      </span>
-                      <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
-                        {location.parentLocation.code}
-                      </span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/locations/${location.parentLocation?._id}`)}
-                      rightIcon={<ArrowUpRight size={13} />}
-                    >
-                      Open Site
-                    </Button>
-                  </div>
-                )}
               </div>
             </Card>
           </div>
@@ -611,7 +488,7 @@ export const LocationDetailPage: React.FC = () => {
                   <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                     <th className="px-4 py-3 text-left">Record # & Rule</th>
                     <th className="px-4 py-3 text-left">Category</th>
-                    <th className="px-4 py-3 text-left">{FEATURES.recordAssignment ? 'Due / Expiry' : 'Expiry'}</th>
+                    <th className="px-4 py-3 text-left">Expiry</th>
                     <th className="px-4 py-3 text-center">Status</th>
                     <th className="px-4 py-3 text-right">Action</th>
                   </tr>
@@ -642,13 +519,10 @@ export const LocationDetailPage: React.FC = () => {
                           {rec.complianceRule?.category?.label || '—'}
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                          {FEATURES.recordAssignment && (
-                            <div>Due {rec.dueDate ? new Date(rec.dueDate).toLocaleDateString() : '—'}</div>
-                          )}
                           {rec.expiryDate ? (
                             <div>Expires {new Date(rec.expiryDate).toLocaleDateString()}</div>
                           ) : (
-                            !FEATURES.recordAssignment && <div>—</div>
+                            <div>—</div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -665,7 +539,7 @@ export const LocationDetailPage: React.FC = () => {
                             size="sm"
                             dot
                           >
-                            {!FEATURES.recordApprovalWorkflow && rec.status === 'pending'
+                            {rec.status === 'pending'
                               ? 'TO BE APPLIED'
                               : rec.status === 'in_progress'
                               ? 'APPLIED'
@@ -682,131 +556,6 @@ export const LocationDetailPage: React.FC = () => {
                           >
                             <Eye size={15} />
                           </Button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Licences ── */}
-      {FEATURES.locationLicences && activeTab === 'licences' && (
-        <div className="space-y-6">
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Award size={18} className="text-emerald-600 dark:text-emerald-400" />
-                  Statutory Operating Licences & Clearances
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Municipal trade licenses, Clinical Establishment Act permits, Fire NOC, and pollution clearances.
-                </p>
-              </div>
-              {canAddLicence && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setLicenceDialog({ open: true, licence: null })}
-                  leftIcon={<Plus size={15} />}
-                >
-                  Add Licence
-                </Button>
-              )}
-            </div>
-
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                    <th className="px-4 py-3 text-left">Licence Number & Name</th>
-                    <th className="px-4 py-3 text-left">Type</th>
-                    <th className="px-4 py-3 text-left">Issuing Authority</th>
-                    <th className="px-4 py-3 text-left">Expiry Date</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {licences.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
-                        No statutory licences registered for this location yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    licences.map((lic) => (
-                      <tr key={lic._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
-                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-200">{lic.licenceNumber}</td>
-                        <td className="px-4 py-3">
-                          <Badge variant="info" size="sm">
-                            {lic.licenceType?.label || lic.licenceType?.code || 'Licence'}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{lic.issuingAuthority || '—'}</td>
-                        <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                          {lic.expiryDate ? new Date(lic.expiryDate).toLocaleDateString() : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge
-                            variant={
-                              lic.status === 'active'
-                                ? 'success'
-                                : lic.status === 'expired'
-                                ? 'expired'
-                                : lic.status === 'pending_renewal'
-                                ? 'warning'
-                                : 'default'
-                            }
-                            size="sm"
-                            dot
-                          >
-                            {lic.status.replace(/_/g, ' ').toUpperCase()}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {lic.document && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewDocument(lic.document!._id)}
-                                className="text-emerald-600 dark:text-emerald-400 p-1.5"
-                                title="View certificate"
-                                aria-label={`View certificate for ${lic.licenceNumber}`}
-                              >
-                                <ExternalLink size={15} />
-                              </Button>
-                            )}
-                            {canEditLicence && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setLicenceDialog({ open: true, licence: lic })}
-                                className="text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 p-1.5"
-                                title="Edit or renew licence"
-                                aria-label={`Edit licence ${lic.licenceNumber}`}
-                              >
-                                <Edit2 size={15} />
-                              </Button>
-                            )}
-                            {canDeleteLicence && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setLicenceToDelete(lic)}
-                                className="text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-red-400 p-1.5"
-                                title="Delete licence"
-                                aria-label={`Delete licence ${lic.licenceNumber}`}
-                              >
-                                <Trash2 size={15} />
-                              </Button>
-                            )}
-                          </div>
                         </td>
                       </tr>
                     ))
@@ -900,71 +649,6 @@ export const LocationDetailPage: React.FC = () => {
           </div>
 
           {/* Section B: Property Leases & Site Agreements */}
-          {FEATURES.locationAgreements && (
-            <>
-          <div className="space-y-3 pt-2">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Building2 size={18} className="text-emerald-600 dark:text-emerald-400" />
-                Property Leases & Site Agreements
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Tracked lease agreements, MOUs, lessor contacts, and critical renewal milestones.
-              </p>
-            </div>
-
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                    <th className="px-4 py-3 text-left">Agreement # & Type</th>
-                    <th className="px-4 py-3 text-left">Parties Involved</th>
-                    <th className="px-4 py-3 text-left">Period</th>
-                    <th className="px-4 py-3 text-left">Renewal Date</th>
-                    <th className="px-4 py-3 text-right">Notes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {(!location.agreements || location.agreements.length === 0) ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
-                        No property leases or site agreements recorded for this unit.
-                      </td>
-                    </tr>
-                  ) : (
-                    location.agreements.map((agr, idx) => (
-                      <tr key={agr._id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
-                        <td className="px-4 py-3">
-                          <span className="font-semibold text-slate-900 dark:text-slate-200 block">
-                            {agr.agreementNumber}
-                          </span>
-                          <span className="text-xs uppercase font-mono text-emerald-600 dark:text-emerald-400">
-                            {agr.agreementType}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
-                          {agr.parties && agr.parties.length > 0 ? agr.parties.join(', ') : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                          {agr.startDate ? new Date(agr.startDate).toLocaleDateString() : '—'}
-                          {' to '}
-                          {agr.endDate ? new Date(agr.endDate).toLocaleDateString() : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-xs font-medium text-amber-600 dark:text-amber-400">
-                          {agr.renewalDate ? new Date(agr.renewalDate).toLocaleDateString() : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-right text-xs text-slate-500 dark:text-slate-400">
-                          {agr.notes || '—'}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-            </>
-          )}
         </div>
       )}
 
@@ -1122,37 +806,6 @@ export const LocationDetailPage: React.FC = () => {
         locationId={location._id}
         entityId={location.entity?._id || ''}
       />
-
-      <LocationLicenceModal
-        isOpen={licenceDialog.open}
-        onClose={() => setLicenceDialog({ open: false, licence: null })}
-        onSaved={fetchLocationDetails}
-        locationId={location._id}
-        locationState={location.address?.state}
-        licence={licenceDialog.licence}
-      />
-
-      <Modal
-        isOpen={!!licenceToDelete}
-        onClose={() => setLicenceToDelete(null)}
-        title="Delete Licence"
-        size="md"
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setLicenceToDelete(null)} disabled={isDeletingLicence}>
-              Keep Licence
-            </Button>
-            <Button variant="danger" onClick={confirmDeleteLicence} isLoading={isDeletingLicence}>
-              Delete Licence
-            </Button>
-          </div>
-        }
-      >
-        <p className="text-sm text-slate-700 dark:text-slate-300">
-          Delete licence <strong>{licenceToDelete?.licenceNumber}</strong>? Its certificate file is archived, not
-          destroyed.
-        </p>
-      </Modal>
     </div>
   );
 };

@@ -131,8 +131,6 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
     setNotifOpen(false);
     if (notif.actionUrl) {
       navigate(notif.actionUrl);
-    } else {
-      navigate(ROUTES.NOTIFICATIONS);
     }
   };
 
@@ -288,18 +286,6 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
                     </div>
                   ))
                 )}
-              </div>
-
-              <div className="p-2 border-t border-slate-800 bg-slate-950/60 text-center">
-                <button
-                  onClick={() => {
-                    setNotifOpen(false);
-                    navigate(ROUTES.NOTIFICATIONS);
-                  }}
-                  className="w-full py-1.5 text-xs text-center text-indigo-400 hover:text-indigo-300 font-medium rounded-lg hover:bg-slate-800 transition-colors"
-                >
-                  View all notifications →
-                </button>
               </div>
             </div>
           )}

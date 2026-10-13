@@ -11,8 +11,6 @@ import {
   Building2,
   MapPin,
   FileText,
-  User,
-  Zap,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -31,7 +29,6 @@ import {
 import { complianceRuleService, ComplianceRuleItem } from '@/services/complianceRuleService';
 import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem, operatesAt } from '@/services/locationService';
-import { adminService, UserItem } from '@/services/adminService';
 import { FEATURES } from '@/constants/features';
 
 // Summary cards double as quick filters over one or more statuses
@@ -44,7 +41,7 @@ interface MetricCard {
 }
 
 // The five statuses of the Location Master sheet
-const SHEET_METRIC_CARDS: MetricCard[] = [
+const METRIC_CARDS: MetricCard[] = [
   { key: 'total', label: 'Total Records', color: 'text-slate-900 dark:text-white' },
   { key: 'pending', label: 'To Be Applied', color: 'text-amber-600 dark:text-amber-400', statuses: ['pending'] },
   { key: 'applied', label: 'Applied', color: 'text-indigo-600 dark:text-indigo-400', statuses: ['in_progress'] },
@@ -63,56 +60,13 @@ const SHEET_METRIC_CARDS: MetricCard[] = [
   },
 ];
 
-const WORKFLOW_METRIC_CARDS: MetricCard[] = [
-  { key: 'total', label: 'Total Records', color: 'text-slate-900 dark:text-white' },
-  { key: 'pending', label: 'Pending Action', color: 'text-amber-600 dark:text-amber-400', statuses: ['pending'] },
-  {
-    key: 'correction',
-    label: 'Needs Correction',
-    color: 'text-orange-600 dark:text-orange-400',
-    statuses: ['correction', 'rejected'],
-  },
-  {
-    key: 'review',
-    label: 'In Review',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    statuses: ['submitted', 'resubmitted', 'under_review'],
-  },
-  {
-    key: 'approved',
-    label: 'Approved',
-    color: 'text-emerald-600 dark:text-emerald-400',
-    statuses: ['approved', 'expiring_soon'],
-  },
-  { key: 'expired', label: 'Expired', color: 'text-rose-600 dark:text-rose-400', statuses: ['expired'] },
-  { key: 'overdue', label: 'Overdue', color: 'text-rose-600 dark:text-rose-400', overdue: true },
-];
-
-const METRIC_CARDS = FEATURES.recordApprovalWorkflow ? WORKFLOW_METRIC_CARDS : SHEET_METRIC_CARDS;
-
-const SHEET_STATUS_OPTIONS = [
+const STATUS_OPTIONS = [
   { value: 'pending', label: 'To Be Applied' },
   { value: 'in_progress', label: 'Applied' },
   { value: 'approved,expiring_soon', label: 'Approved' },
   { value: 'expired', label: 'Expired' },
   { value: 'not_applicable', label: 'Not Applicable' },
 ];
-
-const WORKFLOW_STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'in_progress', label: 'Applied' },
-  { value: 'not_applicable', label: 'Not Applicable' },
-  { value: 'submitted', label: 'Submitted' },
-  { value: 'under_review', label: 'Under Review' },
-  { value: 'correction', label: 'Needs Correction' },
-  { value: 'resubmitted', label: 'Resubmitted' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'expiring_soon', label: 'Expiring Soon' },
-  { value: 'expired', label: 'Expired' },
-];
-
-const STATUS_OPTIONS = FEATURES.recordApprovalWorkflow ? WORKFLOW_STATUS_OPTIONS : SHEET_STATUS_OPTIONS;
 
 const SELECT_CLASS =
   'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
@@ -134,7 +88,6 @@ export const ComplianceRecordListPage: React.FC = () => {
   const [entities, setEntities] = useState<EntityItem[]>([]);
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [rules, setRules] = useState<ComplianceRuleItem[]>([]);
-  const [users, setUsers] = useState<UserItem[]>([]);
 
   // Filter states
   const [search, setSearch] = useState('');
@@ -168,16 +121,9 @@ export const ComplianceRecordListPage: React.FC = () => {
     entity: '',
     location: '',
     rule: '',
-    assignedUser: '',
-    dueDate: '',
     expiryDate: '',
     comments: '',
   });
-
-  // Generate for Location Modal state
-  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generateLocationId, setGenerateLocationId] = useState('');
 
   // Delete Modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -190,13 +136,11 @@ export const ComplianceRecordListPage: React.FC = () => {
       entityService.getEntities({ limit: 100 }).catch(() => ({ entities: [] })),
       locationService.getAllLocations({ sortBy: 'name', sortOrder: 'asc' }).catch(() => ({ locations: [] })),
       complianceRuleService.getRules({ limit: 100, status: 'active' }).catch(() => ({ rules: [] })),
-      adminService.getUsers({ limit: 100 }).catch(() => ({ users: [] })),
     ])
-      .then(([entRes, locRes, rulesRes, usersRes]) => {
+      .then(([entRes, locRes, rulesRes]) => {
         setEntities(entRes.entities || []);
         setLocations(locRes.locations || []);
         setRules(rulesRes.rules || []);
-        setUsers(usersRes.users || []);
 
         if (entRes.entities?.length > 0 && !createForm.entity) {
           const firstEnt = entRes.entities[0]._id;
@@ -238,17 +182,14 @@ export const ComplianceRecordListPage: React.FC = () => {
           (expiringWithinDays ? 'approved,expiring_soon' : undefined),
         expiryDateFrom: expiringWithinDays
           ? new Date().toISOString()
-          : (!FEATURES.recordAssignment && dueDateFrom) || undefined,
+          : dueDateFrom || undefined,
         expiryDateTo: expiringWithinDays
           ? new Date(Date.now() + expiringWithinDays * 24 * 60 * 60 * 1000).toISOString()
-          : (!FEATURES.recordAssignment && dueDateTo) || undefined,
+          : dueDateTo || undefined,
         overdue: card?.overdue ? 'true' : undefined,
         entity: selectedEntity || undefined,
         location: selectedLocation || undefined,
         rule: selectedRule || undefined,
-        // Without due dates the date range filters on expiry instead (above)
-        dueDateFrom: (FEATURES.recordAssignment && dueDateFrom) || undefined,
-        dueDateTo: (FEATURES.recordAssignment && dueDateTo) || undefined,
       });
 
       setRecords(data.records);
@@ -339,8 +280,6 @@ export const ComplianceRecordListPage: React.FC = () => {
         entity: createForm.entity,
         location: createForm.location,
         rule: createForm.rule,
-        assignedUser: createForm.assignedUser || undefined,
-        dueDate: createForm.dueDate || undefined,
         expiryDate: createForm.expiryDate || undefined,
         comments: createForm.comments || undefined,
       });
@@ -351,27 +290,6 @@ export const ComplianceRecordListPage: React.FC = () => {
       toast.error(err.message || 'Failed to create compliance record');
     } finally {
       setIsCreating(false);
-    }
-  };
-
-  // Generate applicable records for a location
-  const handleGenerateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!generateLocationId) {
-      toast.error('Please select a target operational location');
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const res = await complianceRecordService.generateRecordsForLocation(generateLocationId);
-      toast.success(res.message || 'Generated compliance obligations for location');
-      setIsGenerateModalOpen(false);
-      fetchRecords();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to generate location compliance obligations');
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -419,14 +337,14 @@ export const ComplianceRecordListPage: React.FC = () => {
       default:
         return (
           <Badge variant="warning" size="sm">
-            {FEATURES.recordApprovalWorkflow ? 'PENDING' : 'TO BE APPLIED'}
+            TO BE APPLIED
           </Badge>
         );
     }
   };
 
   // Table Columns
-  const allColumns: Column<ComplianceRecordItem>[] = [
+  const columns: Column<ComplianceRecordItem>[] = [
     {
       key: 'recordNumber',
       header: 'Record',
@@ -493,48 +411,6 @@ export const ComplianceRecordListPage: React.FC = () => {
       },
     },
     {
-      key: 'dates',
-      header: 'Due / Expiry',
-      cell: (row) => {
-        const awaitingUnit = ['pending', 'correction', 'rejected'].includes(row.status);
-        const days = row.dueDate ? daysFromToday(row.dueDate) : null;
-        const isOverdue = awaitingUnit && days !== null && days < 0;
-        const isDueSoon = awaitingUnit && days !== null && days >= 0 && days <= 14;
-
-        return (
-          <div className="text-xs space-y-1 whitespace-nowrap">
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                <Clock size={12} className="text-slate-500 dark:text-slate-400" />
-                {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '—'}
-              </span>
-              {isOverdue && (
-                <Badge variant="danger" size="sm">Overdue {Math.abs(days!)}d</Badge>
-              )}
-              {isDueSoon && (
-                <Badge variant="warning" size="sm">{days === 0 ? 'Due today' : `Due in ${days}d`}</Badge>
-              )}
-            </div>
-            {row.expiryDate && (
-              <div className="text-slate-500 dark:text-slate-400 text-[11px]">
-                Expires {new Date(row.expiryDate).toLocaleDateString()}
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      key: 'assignedUser',
-      header: 'Assignee',
-      cell: (row) => (
-        <div className="text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-          <User size={13} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-          <span>{row.assignedUser?.fullName || row.assignedUser?.email || 'Unassigned'}</span>
-        </div>
-      ),
-    },
-    {
       key: 'documents',
       header: 'Documents',
       cell: (row) => {
@@ -593,9 +469,6 @@ export const ComplianceRecordListPage: React.FC = () => {
       : []),
   ];
 
-  // Due dates and assignees are switched off: show expiry on its own instead
-  const hiddenColumns = FEATURES.recordAssignment ? ['expiry'] : ['dates', 'assignedUser'];
-  const columns = allColumns.filter((column) => !hiddenColumns.includes(column.key));
 
   return (
     <div className="space-y-6">
@@ -626,15 +499,6 @@ export const ComplianceRecordListPage: React.FC = () => {
           </Button>
           {canCreate && (
             <>
-              {FEATURES.recordAutoGenerate && (
-                <Button
-                  variant="outline"
-                  leftIcon={<Zap size={15} className="text-amber-500 dark:text-amber-400" />}
-                  onClick={() => setIsGenerateModalOpen(true)}
-                >
-                  Auto-Generate for Unit
-                </Button>
-              )}
               {FEATURES.recordManualCreate && (
                 <Button
                   variant="primary"
@@ -770,12 +634,12 @@ export const ComplianceRecordListPage: React.FC = () => {
 
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              {FEATURES.recordAssignment ? 'Due between' : 'Expires between'}
+              Expires between
             </label>
             <div className="flex items-center gap-1.5">
               <input
                 type="date"
-                aria-label={FEATURES.recordAssignment ? 'Due date from' : 'Expiry date from'}
+                aria-label="Expiry date from"
                 value={dueDateFrom}
                 max={dueDateTo || undefined}
                 onChange={(e) => {
@@ -787,7 +651,7 @@ export const ComplianceRecordListPage: React.FC = () => {
               <span className="text-xs text-slate-400">to</span>
               <input
                 type="date"
-                aria-label={FEATURES.recordAssignment ? 'Due date to' : 'Expiry date to'}
+                aria-label="Expiry date to"
                 value={dueDateTo}
                 min={dueDateFrom || undefined}
                 onChange={(e) => {
@@ -934,46 +798,14 @@ export const ComplianceRecordListPage: React.FC = () => {
             </select>
           </div>
 
-          <div className={FEATURES.recordAssignment ? 'grid grid-cols-2 gap-3' : ''}>
-            {FEATURES.recordAssignment && (
-              <div>
-                <Input
-                  label="Due Date"
-                  type="date"
-                  value={createForm.dueDate}
-                  onChange={(e) => setCreateForm({ ...createForm, dueDate: e.target.value })}
-                />
-              </div>
-            )}
-            <div>
-              <Input
-                label="Expiry Date"
-                type="date"
-                value={createForm.expiryDate}
-                onChange={(e) => setCreateForm({ ...createForm, expiryDate: e.target.value })}
-              />
-            </div>
+          <div>
+            <Input
+              label="Expiry Date"
+              type="date"
+              value={createForm.expiryDate}
+              onChange={(e) => setCreateForm({ ...createForm, expiryDate: e.target.value })}
+            />
           </div>
-
-{FEATURES.recordAssignment && (
-                    <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-              Assigned Stakeholder
-            </label>
-            <select
-              value={createForm.assignedUser}
-              onChange={(e) => setCreateForm({ ...createForm, assignedUser: e.target.value })}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
-            >
-              <option value="">-- Unassigned --</option>
-              {users.map((u) => (
-                <option key={u._id} value={u._id}>
-                  {u.fullName || `${u.firstName} ${u.lastName}`} ({u.role?.name || u.email})
-                </option>
-              ))}
-            </select>
-          </div>
-          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
@@ -986,55 +818,6 @@ export const ComplianceRecordListPage: React.FC = () => {
               placeholder="Initial statutory tracking instructions..."
               className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none resize-none"
             />
-          </div>
-        </form>
-      </Modal>
-
-      {/* Auto-Generate Obligations Modal */}
-      <Modal
-        isOpen={isGenerateModalOpen}
-        onClose={() => setIsGenerateModalOpen(false)}
-        title="Auto-Generate Compliance Obligations"
-        size="md"
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setIsGenerateModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleGenerateSubmit}
-              isLoading={isGenerating}
-              leftIcon={<Zap size={15} />}
-            >
-              Generate Obligations
-            </Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleGenerateSubmit} className="space-y-4">
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            Select an operational location. The <strong>Rule Evaluation Engine</strong> will analyze the facility's
-            state, location type, and parent entity structure to initialize all statutory compliance tracking records.
-          </p>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-              Target Operational Unit *
-            </label>
-            <select
-              value={generateLocationId}
-              onChange={(e) => setGenerateLocationId(e.target.value)}
-              required
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
-            >
-              <option value="">-- Choose Facility / Location --</option>
-              {locations.map((l) => (
-                <option key={l._id} value={l._id}>
-                  {l.name} ({l.locationCode}) - {l.address?.city || ''} {l.address?.state || ''}
-                </option>
-              ))}
-            </select>
           </div>
         </form>
       </Modal>

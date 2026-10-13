@@ -27,32 +27,18 @@ export const ROUTES = {
   COMPLIANCE_RECORDS: '/compliance/records',
   COMPLIANCE_RECORD_DETAILS: '/compliance/records/:id',
 
-  // Phase 10 – Tasks, Notifications & Automation
+  // Phase 10 – Tasks
   TASKS: '/tasks',
   TASKS_MY: '/tasks/my-tasks',
   TASKS_OVERDUE: '/tasks/overdue',
-  NOTIFICATIONS: '/notifications',
-
-  // Phase 12 – Reports & Exports
-  REPORTS: '/reports',
-  REPORTS_COMPLIANCE: '/reports/compliance',
-  REPORTS_EXPIRY: '/reports/expiry',
-  REPORTS_PENDING: '/reports/pending',
-  REPORTS_OVERDUE: '/reports/overdue',
-  REPORTS_ENTITIES: '/reports/entities',
-  REPORTS_LOCATIONS: '/reports/locations',
-  REPORTS_TASKS: '/reports/tasks',
 
   // Phase 13 – Audit Trail
   AUDIT: '/audit',
   AUDIT_LOGS: '/audit-logs',
 
-  // Phase 4 – Administration & Master Data
+  // Phase 4 – Administration
   ADMIN_USERS: '/admin/users',
   ADMIN_ROLES: '/admin/roles',
-  ADMIN_PERMISSIONS: '/admin/permissions',
-  ADMIN_MASTER_DATA: '/admin/master-data',
-  ADMIN_SETTINGS: '/admin/settings',
 } as const;
 
 export type RouteKey = keyof typeof ROUTES;

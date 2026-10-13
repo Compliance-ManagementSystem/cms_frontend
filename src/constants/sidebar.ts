@@ -92,25 +92,11 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         disabled: false,
         roles: ['super_admin', 'admin', 'entity_admin', 'location_manager', 'compliance_officer', 'viewer'],
       },
-      // {
-      //   label: 'Notifications',
-      //   path: ROUTES.NOTIFICATIONS,
-      //   icon: Bell,
-      //   phase: 10,
-      //   disabled: false,
-      // },
     ],
   },
   {
     title: 'Analytics',
     items: [
-      // {
-      //   label: 'Reports',
-      //   path: ROUTES.REPORTS,
-      //   icon: BarChart3,
-      //   phase: 12,
-      //   disabled: false,
-      // },
       {
         label: 'Audit Trail',
         path: ROUTES.AUDIT_LOGS,
@@ -137,27 +123,6 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       //   label: 'Roles',
       //   path: ROUTES.ADMIN_ROLES,
       //   icon: ShieldCheck,
-      //   phase: 4,
-      //   roles: ['super_admin', 'admin'],
-      // },
-      // {
-      //   label: 'Permissions',
-      //   path: ROUTES.ADMIN_PERMISSIONS,
-      //   icon: KeyRound,
-      //   phase: 4,
-      //   roles: ['super_admin', 'admin'],
-      // },
-      // {
-      //   label: 'Master Data',
-      //   path: ROUTES.ADMIN_MASTER_DATA,
-      //   icon: Database,
-      //   phase: 4,
-      //   roles: ['super_admin', 'admin'],
-      // },
-      // {
-      //   label: 'System Settings',
-      //   path: ROUTES.ADMIN_SETTINGS,
-      //   icon: Sliders,
       //   phase: 4,
       //   roles: ['super_admin', 'admin'],
       // },
