@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart,
   Bar,
   LineChart,
   Line,
-  PieChart,
-  Pie,
-  Cell,
   LabelList,
   XAxis,
   YAxis,
@@ -44,8 +41,16 @@ import { ROUTES } from '@/constants/routes';
 import { daysFromToday } from '@/utils/dates';
 import IndiaMap, { resolveStateId } from '@/components/charts/IndiaMap';
 import { SCORE_BANDS, scoreBandIndex, useChartTheme } from '@/components/charts/chartTheme';
+import { StatusRings, StatusGauge, type StatusSlice } from '@/components/charts/StatusMeters';
+import RankedStackRows from '@/components/charts/RankedStackRows';
+import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 
 const REFRESH_MS = 60_000;
+
+// Chart entrance timings
+const BAR_MS = 600;
+const STACK_STAGGER_MS = 200;
+const LINE_MS = 1400;
 
 // Stacking order is fixed everywhere the statuses sit side by side
 const LICENCE_ORDER: LicenceBucket[] = ['approved', 'applied', 'toBeApplied', 'expired'];
@@ -174,78 +179,54 @@ const EmptyState: React.FC<{ children: React.ReactNode; height?: string }> = ({ 
   </div>
 );
 
-interface RingSlice {
+interface StatCardData {
   key: string;
   label: string;
   value: number;
-  color: string;
+  share?: number;
+  hint: string;
+  icon: LucideIcon;
+  tone: string;
+  /** Fill of the share meter under the figure */
+  bar: string;
   to?: string;
 }
 
-/** Ring with the total in the middle and a legend that carries every value */
-const StatusRing: React.FC<{ slices: RingSlice[]; total: number; centreLabel: string }> = ({
-  slices,
-  total,
-  centreLabel,
-}) => {
-  const chart = useChartTheme();
+/** Top-row figure that counts up, with a meter for its share where it has one */
+const StatCard: React.FC<{ card: StatCardData; animate: boolean; delay: number }> = ({ card, animate, delay }) => {
   const navigate = useNavigate();
-  const visible = slices.filter((slice) => slice.value > 0);
+  const Icon = card.icon;
+  const value = useAnimatedNumber(card.value, animate, delay);
+  const share = useAnimatedNumber(card.share ?? 0, animate, delay);
 
   return (
-    <>
-      <div className="h-48 relative flex items-center justify-center mt-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={visible}
-              dataKey="value"
-              nameKey="label"
-              innerRadius={56}
-              outerRadius={84}
-              startAngle={90}
-              endAngle={-270}
-              stroke={chart.surface}
-              strokeWidth={2}
-              isAnimationActive={false}
-              cursor="pointer"
-              onClick={(slice: any) => slice.to && navigate(slice.to)}
-            >
-              {visible.map((slice) => (
-                <Cell key={slice.key} fill={slice.color} />
-              ))}
-            </Pie>
-            <Tooltip content={<ChartTooltip />} />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="absolute text-center pointer-events-none">
-          <span className="block text-2xl font-bold text-slate-900 dark:text-slate-100">{total.toLocaleString()}</span>
-          <span className="block text-[11px] text-slate-500 dark:text-slate-400">{centreLabel}</span>
-        </div>
-      </div>
-
-      <ul className="mt-2 space-y-0.5">
-        {slices.map((slice) => (
-          <li key={slice.key}>
-            <button
-              type="button"
-              disabled={!slice.to}
-              onClick={() => slice.to && navigate(slice.to)}
-              className="w-full flex items-center justify-between gap-3 px-1 py-1 rounded text-xs enabled:hover:bg-slate-50 dark:enabled:hover:bg-slate-800/50"
-            >
-              <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: slice.color }} />
-                {slice.label}
-              </span>
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                {slice.value.toLocaleString()}
-                <span className="font-normal text-slate-500 dark:text-slate-400"> ({pct(slice.value, total)}%)</span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </>
+    <button
+      type="button"
+      disabled={!card.to}
+      onClick={() => card.to && navigate(card.to)}
+      className="text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none transition enabled:hover:border-slate-300 dark:enabled:hover:border-slate-600 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md motion-reduce:transform-none flex items-center gap-3"
+    >
+      <span className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center ${card.tone}`}>
+        <Icon size={20} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">{card.label}</span>
+        <span className="flex items-baseline gap-2">
+          <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
+            {Math.round(value).toLocaleString()}
+          </span>
+          {card.share !== undefined && (
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums">{Math.round(share)}%</span>
+          )}
+        </span>
+        <span className="block text-[11px] leading-tight text-slate-500 dark:text-slate-400">{card.hint}</span>
+        {card.share !== undefined && (
+          <span className="block mt-1.5 h-1 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <span className={`block h-full rounded-full ${card.bar}`} style={{ width: `${Math.min(share, 100)}%` }} />
+          </span>
+        )}
+      </span>
+    </button>
   );
 };
 
@@ -405,6 +386,10 @@ export const Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const requestId = useRef(0);
+  // Charts animate on a load the user asked for, not on a background refresh
+  const [animate, setAnimate] = useState(true);
+  const [reducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const motion = animate && !reducedMotion;
   // Company the loaded map data belongs to; null until the first load
   const mapEntity = useRef<string | null>(null);
 
@@ -417,6 +402,7 @@ export const Dashboard: React.FC = () => {
         const next = await dashboardService.getOverview(filters);
         if (id !== requestId.current) return;
         setData(next);
+        setAnimate(!silent);
 
         // The map data depends on the company only, so picking a state reuses what is
         // already loaded. It is fetched again, without holding up the page, when the
@@ -458,6 +444,46 @@ export const Dashboard: React.FC = () => {
     };
   }, [fetchOverview]);
 
+  // Recharts replays its animation whenever a chart is handed a new data array,
+  // so these are rebuilt only when a load brings new figures
+  const stateUnitRows = useMemo(
+    () => (data?.byState ?? []).map((row) => ({ key: row.state, label: row.state, values: { ...row.units } })),
+    [data]
+  );
+  const stateLicenceRows = useMemo(
+    () =>
+      (data?.byState ?? [])
+        .filter((row) => row.licences.total > 0)
+        .map((row) => ({
+          key: row.state,
+          label: row.state,
+          values: Object.fromEntries(LICENCE_ORDER.map((bucket) => [bucket, row.licences[bucket]])),
+        })),
+    [data]
+  );
+  const stateShareRows = useMemo(
+    () =>
+      (data?.byState ?? [])
+        .filter((row) => row.licences.total > 0)
+        .map((row) => {
+          const total = row.licences.total;
+          // Unrounded, so every row adds up to exactly 100
+          const shares = Object.fromEntries(LICENCE_ORDER.map((bucket) => [bucket, (row.licences[bucket] / total) * 100]));
+          return { name: row.state, fullName: `${row.state} (${total} licences)`, ...shares } as Record<string, any>;
+        })
+        .sort((a, b) => b.approved - a.approved),
+    [data]
+  );
+  const licenceRows = useMemo(
+    () =>
+      (data?.byLicence ?? []).map((row) => ({
+        ...row,
+        fullName: row.name,
+        name: row.name.length > 34 ? `${row.name.slice(0, 33)}…` : row.name,
+      })),
+    [data]
+  );
+
   if (!data) {
     return (
       <div className="space-y-6">
@@ -481,7 +507,7 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  const { units, licences, byState, byLicence, expiring } = data;
+  const { units, licences, byState, expiring } = data;
   const scopeParams = { entity: filters.entity, state: filters.state };
   const recordsLink = (bucket: LicenceBucket, extra: Record<string, string | undefined> = {}) =>
     withQuery(ROUTES.COMPLIANCE_RECORDS, { status: LICENCE_STATUS_PARAM[bucket], entity: filters.entity, ...extra });
@@ -495,16 +521,7 @@ export const Dashboard: React.FC = () => {
 
   // ── Top cards ────────────────────────────────────────────────────────────────
   const openUnits = units.open;
-  const cards: Array<{
-    key: string;
-    label: string;
-    value: number;
-    share?: number;
-    hint: string;
-    icon: LucideIcon;
-    tone: string;
-    to?: string;
-  }> = [
+  const cards: StatCardData[] = [
     {
       key: 'total',
       label: 'Total Units',
@@ -512,6 +529,7 @@ export const Dashboard: React.FC = () => {
       hint: `Across ${byState.length} ${byState.length === 1 ? 'state' : 'states'}`,
       icon: Building2,
       tone: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
+      bar: 'bg-blue-500',
       to: unitsLink(),
     },
     {
@@ -522,6 +540,7 @@ export const Dashboard: React.FC = () => {
       hint: 'Operating now',
       icon: CheckCircle2,
       tone: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+      bar: 'bg-emerald-500',
       to: unitsLink('active', 'opened'),
     },
     {
@@ -532,6 +551,7 @@ export const Dashboard: React.FC = () => {
       hint: 'Not operating',
       icon: XCircle,
       tone: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+      bar: 'bg-rose-500',
       to: unitsLink('inactive'),
     },
     {
@@ -542,6 +562,7 @@ export const Dashboard: React.FC = () => {
       hint: 'Planned units',
       icon: Clock,
       tone: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+      bar: 'bg-amber-500',
       to: unitsLink('active', 'upcoming'),
     },
     {
@@ -552,6 +573,7 @@ export const Dashboard: React.FC = () => {
       hint: 'Licences pending',
       icon: Settings2,
       tone: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300',
+      bar: 'bg-indigo-500',
       to: withQuery(ROUTES.COMPLIANCE_RECORDS, { status: 'in_progress,pending', entity: filters.entity }),
     },
     {
@@ -562,6 +584,7 @@ export const Dashboard: React.FC = () => {
       hint: 'All licences approved',
       icon: ShieldCheck,
       tone: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300',
+      bar: 'bg-violet-500',
     },
   ];
 
@@ -579,36 +602,17 @@ export const Dashboard: React.FC = () => {
     }));
   const unmappedStates = mapStates.filter((row) => !resolveStateId(row.state)).map((row) => row.state);
 
-  const stateUnitRows = byState.map((row) => ({ name: row.state, fullName: row.state, ...row.units }));
-  const stateLicenceRows = byState
-    .filter((row) => row.licences.total > 0)
-    .map((row) => ({ name: row.state, fullName: row.state, ...row.licences }));
-  const stateShareRows = byState
-    .filter((row) => row.licences.total > 0)
-    .map((row) => {
-      const total = row.licences.total;
-      // Unrounded, so every row adds up to exactly 100
-      const shares = Object.fromEntries(LICENCE_ORDER.map((bucket) => [bucket, (row.licences[bucket] / total) * 100]));
-      return { name: row.state, fullName: `${row.state} (${total} licences)`, ...shares } as Record<string, any>;
-    })
-    .sort((a, b) => b.approved - a.approved);
-  const licenceRows = byLicence.map((row) => ({
-    ...row,
-    fullName: row.name,
-    name: row.name.length > 34 ? `${row.name.slice(0, 33)}…` : row.name,
-  }));
-
   const trend = data.openingsTrend;
   const trendTickGap = Math.max(1, Math.ceil(trend.length / 6));
 
-  const unitSlices: RingSlice[] = UNIT_ORDER.map((bucket) => ({
+  const unitSlices: StatusSlice[] = UNIT_ORDER.map((bucket) => ({
     key: bucket,
     label: UNIT_LABELS[bucket],
     value: units[bucket],
     color: chart.unit[bucket],
     to: bucket === 'open' ? unitsLink('active', 'opened') : bucket === 'closed' ? unitsLink('inactive') : unitsLink('active', 'upcoming'),
   }));
-  const licenceSlices: RingSlice[] = shownLicenceBuckets.map((bucket) => ({
+  const licenceSlices: StatusSlice[] = shownLicenceBuckets.map((bucket) => ({
     key: bucket,
     label: LICENCE_LABELS[bucket],
     value: licences[bucket],
@@ -618,6 +622,9 @@ export const Dashboard: React.FC = () => {
 
   const axisTick = { fill: chart.axis, fontSize: 11 };
   const selectState = (state: string) => setFilters((prev) => ({ ...prev, state }));
+  // A second click on the state already picked clears the filter
+  const toggleState = (state: string) =>
+    setFilters((prev) => ({ ...prev, state: prev.state === state ? undefined : state }));
   const selectedEntity = data.filterOptions.entities.find((entity) => entity._id === filters.entity);
   const viewLabel = [selectedEntity?.code, filters.state].filter(Boolean).join(' · ') || 'All India';
 
@@ -675,32 +682,9 @@ export const Dashboard: React.FC = () => {
 
       {/* Top cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        {cards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <button
-              key={card.key}
-              type="button"
-              disabled={!card.to}
-              onClick={() => card.to && navigate(card.to)}
-              className="text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none transition-colors enabled:hover:border-slate-300 dark:enabled:hover:border-slate-600 flex items-center gap-3"
-            >
-              <span className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center ${card.tone}`}>
-                <Icon size={20} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">{card.label}</span>
-                <span className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-slate-900 dark:text-white">{card.value.toLocaleString()}</span>
-                  {card.share !== undefined && (
-                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">{card.share}%</span>
-                  )}
-                </span>
-                <span className="block text-[11px] leading-tight text-slate-500 dark:text-slate-400">{card.hint}</span>
-              </span>
-            </button>
-          );
-        })}
+        {cards.map((card, index) => (
+          <StatCard key={card.key} card={card} animate={motion} delay={index * 70} />
+        ))}
       </div>
 
       {units.total === 0 ? (
@@ -729,41 +713,22 @@ export const Dashboard: React.FC = () => {
               )}
             </Panel>
 
-            <Panel title="Units by State" subtitle="Open, to be opened and closed" className="lg:col-span-5">
-              <Legend items={UNIT_ORDER.map((bucket) => ({ label: UNIT_LABELS[bucket], color: chart.unit[bucket] }))} />
-              <div className="h-72 mt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stateUnitRows} margin={{ top: 18, right: 8, left: -18, bottom: 0 }}>
-                    <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
-                    <XAxis dataKey="name" tick={axisTick} tickLine={false} axisLine={false} interval={0} angle={-30} textAnchor="end" height={64} />
-                    <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
-                    {UNIT_ORDER.map((bucket, index) => (
-                      <Bar
-                        key={bucket}
-                        dataKey={bucket}
-                        name={UNIT_LABELS[bucket]}
-                        stackId="units"
-                        fill={chart.unit[bucket]}
-                        stroke={chart.surface}
-                        strokeWidth={2}
-                        maxBarSize={24}
-                        isAnimationActive={false}
-                        cursor="pointer"
-                        onClick={(row: any) => selectState(row.fullName)}
-                      >
-                        {index === UNIT_ORDER.length - 1 && (
-                          <LabelList dataKey="total" position="top" fill={chart.axis} fontSize={11} fontWeight={600} />
-                        )}
-                      </Bar>
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+            <Panel
+              title="Units by State"
+              subtitle="Largest first. Click a state to filter, or a status to hide it."
+              className="lg:col-span-5"
+            >
+              <RankedStackRows
+                rows={stateUnitRows}
+                series={UNIT_ORDER.map((bucket) => ({ key: bucket, label: UNIT_LABELS[bucket], color: chart.unit[bucket] }))}
+                animate={motion}
+                selected={filters.state}
+                onSelect={toggleState}
+              />
             </Panel>
 
             <Panel title="Overall Unit Status" subtitle="Every unit in this view" className="lg:col-span-3">
-              <StatusRing slices={unitSlices} total={units.total} centreLabel="Units" />
+              <StatusRings slices={unitSlices} total={units.total} centreLabel="Units" animate={motion} />
             </Panel>
           </div>
 
@@ -788,7 +753,8 @@ export const Dashboard: React.FC = () => {
                         strokeWidth={2}
                         dot={false}
                         activeDot={{ r: 5, stroke: chart.surface, strokeWidth: 2 }}
-                        isAnimationActive={false}
+                        isAnimationActive={motion}
+                        animationDuration={LINE_MS}
                       >
                         {/* Label the latest point only */}
                         <LabelList
@@ -808,42 +774,25 @@ export const Dashboard: React.FC = () => {
               )}
             </Panel>
 
-            <Panel title="Licence Status by State" subtitle="Applicable licences at open and planned units" className="lg:col-span-5">
+            <Panel
+              title="Licence Status by State"
+              subtitle="Applicable licences at open and planned units. Click a state to filter."
+              className="lg:col-span-5"
+            >
               {stateLicenceRows.length === 0 ? (
                 <EmptyState height="h-72">No licence records in this view.</EmptyState>
               ) : (
-                <>
-                  <Legend items={licenceLegend} />
-                  <div className="h-72 mt-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stateLicenceRows} margin={{ top: 18, right: 8, left: -10, bottom: 0 }}>
-                        <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
-                        <XAxis dataKey="name" tick={axisTick} tickLine={false} axisLine={false} interval={0} angle={-30} textAnchor="end" height={64} />
-                        <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
-                        <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
-                        {shownLicenceBuckets.map((bucket, index) => (
-                          <Bar
-                            key={bucket}
-                            dataKey={bucket}
-                            name={LICENCE_LABELS[bucket]}
-                            stackId="licences"
-                            fill={chart.licence[bucket]}
-                            stroke={chart.surface}
-                            strokeWidth={2}
-                            maxBarSize={24}
-                            isAnimationActive={false}
-                            cursor="pointer"
-                            onClick={(row: any) => selectState(row.fullName)}
-                          >
-                            {index === shownLicenceBuckets.length - 1 && (
-                              <LabelList dataKey="total" position="top" fill={chart.axis} fontSize={11} fontWeight={600} />
-                            )}
-                          </Bar>
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </>
+                <RankedStackRows
+                  rows={stateLicenceRows}
+                  series={shownLicenceBuckets.map((bucket) => ({
+                    key: bucket,
+                    label: LICENCE_LABELS[bucket],
+                    color: chart.licence[bucket],
+                  }))}
+                  animate={motion}
+                  selected={filters.state}
+                  onSelect={toggleState}
+                />
               )}
             </Panel>
 
@@ -852,7 +801,7 @@ export const Dashboard: React.FC = () => {
                 <EmptyState>No licence records in this view.</EmptyState>
               ) : (
                 <>
-                  <StatusRing slices={licenceSlices} total={licences.total} centreLabel="Licences" />
+                  <StatusGauge slices={licenceSlices} total={licences.total} headline="approved" animate={motion} />
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
                     {licences.notApplicable.toLocaleString()} more are marked not applicable and are left out.
                   </p>
@@ -900,7 +849,7 @@ export const Dashboard: React.FC = () => {
                         />
                         <YAxis type="category" dataKey="name" width={104} tick={axisTick} tickLine={false} axisLine={false} interval={0} />
                         <Tooltip content={<ChartTooltip unit="%" />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
-                        {shownLicenceBuckets.map((bucket) => (
+                        {shownLicenceBuckets.map((bucket, index) => (
                           <Bar
                             key={bucket}
                             dataKey={bucket}
@@ -910,7 +859,9 @@ export const Dashboard: React.FC = () => {
                             stroke={chart.surface}
                             strokeWidth={2}
                             maxBarSize={18}
-                            isAnimationActive={false}
+                            isAnimationActive={motion}
+                            animationBegin={index * STACK_STAGGER_MS}
+                            animationDuration={BAR_MS}
                           >
                             {bucket === 'approved' && (
                               <LabelList
@@ -1022,7 +973,9 @@ export const Dashboard: React.FC = () => {
                             stroke={chart.surface}
                             strokeWidth={2}
                             maxBarSize={18}
-                            isAnimationActive={false}
+                            isAnimationActive={motion}
+                            animationBegin={index * STACK_STAGGER_MS}
+                            animationDuration={BAR_MS}
                             cursor="pointer"
                             onClick={(row: any) => navigate(recordsLink(bucket, { rule: row.ruleId }))}
                           >
@@ -1113,7 +1066,8 @@ export const Dashboard: React.FC = () => {
                         fill={chart.series}
                         radius={[4, 4, 0, 0]}
                         maxBarSize={24}
-                        isAnimationActive={false}
+                        isAnimationActive={motion}
+                        animationDuration={BAR_MS}
                       >
                         <LabelList dataKey="opened" position="top" fill={chart.axis} fontSize={11} fontWeight={600} />
                       </Bar>

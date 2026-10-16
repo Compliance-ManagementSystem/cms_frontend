@@ -121,7 +121,6 @@ export const ComplianceRecordListPage: React.FC = () => {
     entity: '',
     location: '',
     rule: '',
-    expiryDate: '',
     comments: '',
   });
 
@@ -280,7 +279,6 @@ export const ComplianceRecordListPage: React.FC = () => {
         entity: createForm.entity,
         location: createForm.location,
         rule: createForm.rule,
-        expiryDate: createForm.expiryDate || undefined,
         comments: createForm.comments || undefined,
       });
       toast.success('Compliance tracking record created successfully');
@@ -796,15 +794,6 @@ export const ComplianceRecordListPage: React.FC = () => {
                 </option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <Input
-              label="Expiry Date"
-              type="date"
-              value={createForm.expiryDate}
-              onChange={(e) => setCreateForm({ ...createForm, expiryDate: e.target.value })}
-            />
           </div>
 
           <div>

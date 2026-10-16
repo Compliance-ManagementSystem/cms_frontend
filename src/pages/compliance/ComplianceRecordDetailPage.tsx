@@ -47,9 +47,18 @@ const SIMPLE_STATUS_OPTIONS: Array<{ value: ComplianceRecordStatus; label: strin
   { value: 'expired', label: 'Expired' },
 ];
 
+// Applied is the 'in_progress' status: it takes the authority's acknowledgement, not licence details
+const APPLIED_STATUS: ComplianceRecordStatus = 'in_progress';
+// Tag on the uploaded acknowledgement, so the record knows one is already on file
+const ACKNOWLEDGEMENT_DOC_TYPE = 'ACKNOWLEDGEMENT';
+// Document type (master data code) for the licence uploaded when the status is set to Approved
+const LICENCE_DOC_TYPE = 'LICENCE_CERT';
+
 const FIELD_CLASS =
   'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const LABEL_CLASS = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5';
+const FILE_INPUT_CLASS =
+  'block w-full text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 dark:file:bg-indigo-500/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100';
 
 const formatFileSize = (bytes: number): string =>
   bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(bytes / 1024, 0.1).toFixed(1)} KB`;
@@ -76,10 +85,13 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const [statusForm, setStatusForm] = useState({
     status: 'pending' as ComplianceRecordStatus,
     licenceNumber: '',
+    acknowledgementNumber: '',
     issueDate: '',
     expiryDate: '',
     comments: '',
   });
+  const [acknowledgementFile, setAcknowledgementFile] = useState<File | null>(null);
+  const [licenceFile, setLicenceFile] = useState<File | null>(null);
   const [isSavingStatus, setIsSavingStatus] = useState(false);
 
   // Upload Document Modal
@@ -143,15 +155,20 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       .catch(() => setDocTypes([]));
   }, []);
 
+  const hasAcknowledgementDoc = !!record?.documents?.some((doc) => doc.type === ACKNOWLEDGEMENT_DOC_TYPE);
+
   const handleOpenStatusModal = () => {
     if (!record) return;
     setStatusForm({
       status: record.status,
       licenceNumber: record.licenceNumber || '',
+      acknowledgementNumber: record.acknowledgementNumber || '',
       issueDate: record.issueDate ? record.issueDate.split('T')[0] : '',
       expiryDate: record.expiryDate ? record.expiryDate.split('T')[0] : '',
       comments: '',
     });
+    setAcknowledgementFile(null);
+    setLicenceFile(null);
     setIsStatusModalOpen(true);
   };
 
@@ -159,20 +176,86 @@ export const ComplianceRecordDetailPage: React.FC = () => {
     e.preventDefault();
     if (!record) return;
 
-    if (statusForm.issueDate && statusForm.expiryDate && statusForm.expiryDate < statusForm.issueDate) {
+    const isApplied = statusForm.status === APPLIED_STATUS;
+    const acknowledgementNumber = statusForm.acknowledgementNumber.trim();
+
+    if (isApplied) {
+      if (!acknowledgementNumber) {
+        toast.error('Enter the acknowledgement number');
+        return;
+      }
+      if (!acknowledgementFile && !hasAcknowledgementDoc) {
+        toast.error('Upload the acknowledgement');
+        return;
+      }
+    } else if (statusForm.issueDate && statusForm.expiryDate && statusForm.expiryDate < statusForm.issueDate) {
       toast.error('The expiry date cannot be before the issue date');
       return;
     }
 
     setIsSavingStatus(true);
     try {
-      const res = await complianceRecordService.updateRecordStatus(record._id, {
-        status: statusForm.status,
-        licenceNumber: statusForm.licenceNumber.trim(),
-        issueDate: statusForm.issueDate || null,
-        expiryDate: statusForm.expiryDate || null,
-        comments: statusForm.comments.trim() || undefined,
-      });
+      // Applied only records the acknowledgement; licence number and dates are left as they are
+      const res = await complianceRecordService.updateRecordStatus(
+        record._id,
+        isApplied
+          ? {
+              status: statusForm.status,
+              acknowledgementNumber,
+              comments: statusForm.comments.trim() || undefined,
+            }
+          : {
+              status: statusForm.status,
+              licenceNumber: statusForm.licenceNumber.trim(),
+              issueDate: statusForm.issueDate || null,
+              expiryDate: statusForm.expiryDate || null,
+              comments: statusForm.comments.trim() || undefined,
+            }
+      );
+
+      // The file chosen for the new status is attached to the record once the status is saved
+      const licenceNumber = statusForm.licenceNumber.trim();
+      const statusUpload =
+        isApplied && acknowledgementFile
+          ? {
+              file: acknowledgementFile,
+              label: 'acknowledgement',
+              name: `Acknowledgement - ${acknowledgementNumber}`,
+              type: ACKNOWLEDGEMENT_DOC_TYPE,
+            }
+          : statusForm.status === 'approved' && licenceFile
+          ? {
+              file: licenceFile,
+              label: 'licence',
+              name: licenceNumber ? `Licence - ${licenceNumber}` : 'Licence',
+              type: LICENCE_DOC_TYPE,
+            }
+          : null;
+
+      if (statusUpload) {
+        try {
+          const formData = new FormData();
+          formData.append('file', statusUpload.file);
+          formData.append('name', statusUpload.name);
+          formData.append('entity', record.entity._id);
+          formData.append('location', record.location._id);
+          formData.append('complianceRecord', record._id);
+          formData.append('type', statusUpload.type);
+          const documentTypeId = docTypes.find((dt) => dt.code === statusUpload.type)?._id;
+          if (documentTypeId) formData.append('documentType', documentTypeId);
+          await complianceRecordService.uploadDocument(formData);
+        } catch (err: any) {
+          toast.error(
+            `Status saved, but the ${statusUpload.label} could not be uploaded: ${
+              err.response?.data?.message || err.message || 'unknown error'
+            }`
+          );
+          setIsStatusModalOpen(false);
+          await Promise.all([fetchRecord(true), fetchWorkflow()]);
+          return;
+        }
+      }
+
       toast.success(res.message || 'Record updated');
       setIsStatusModalOpen(false);
       await Promise.all([fetchRecord(true), fetchWorkflow()]);
@@ -375,6 +458,14 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   <span>•</span>
                 </>
               )}
+              {record.acknowledgementNumber && (
+                <>
+                  <span className="text-slate-600 dark:text-slate-300">
+                    Ack. no. <span className="font-mono font-semibold">{record.acknowledgementNumber}</span>
+                  </span>
+                  <span>•</span>
+                </>
+              )}
               <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
                 <Building2 size={13} className="text-indigo-600 dark:text-indigo-400" />
                 {record.entity?.name}
@@ -388,22 +479,11 @@ export const ComplianceRecordDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Dynamic Workflow Actions & Upload */}
+        {/* Acknowledgement and licence are uploaded here; other documents from the Documents tab */}
         <div className="flex flex-wrap items-center gap-2">
           {canUpdateStatus && (
             <Button variant="outline" leftIcon={<Pencil size={15} />} onClick={handleOpenStatusModal}>
               Update Status
-            </Button>
-          )}
-
-          {/* Upload Document */}
-          {canUpload && (
-            <Button
-              variant="outline"
-              leftIcon={<Upload size={15} />}
-              onClick={() => setIsUploadModalOpen(true)}
-            >
-              Upload Evidence
             </Button>
           )}
         </div>
@@ -990,46 +1070,103 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             </select>
           </div>
 
-          <Input
-            label="Licence / Registration Number"
-            value={statusForm.licenceNumber}
-            onChange={(e) => setStatusForm((prev) => ({ ...prev, licenceNumber: e.target.value }))}
-            placeholder="As printed on the certificate"
-          />
+          {statusForm.status === APPLIED_STATUS ? (
+            <>
+              <Input
+                label="Acknowledgement Number"
+                value={statusForm.acknowledgementNumber}
+                onChange={(e) => setStatusForm((prev) => ({ ...prev, acknowledgementNumber: e.target.value }))}
+                placeholder="As printed on the acknowledgement"
+                required
+              />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={LABEL_CLASS} htmlFor="record-issue-date">
-                Issue Date
-              </label>
-              <input
-                id="record-issue-date"
-                type="date"
-                value={statusForm.issueDate}
-                onChange={(e) => setStatusForm((prev) => ({ ...prev, issueDate: e.target.value }))}
-                className={FIELD_CLASS}
+              <div>
+                <label className={LABEL_CLASS} htmlFor="record-acknowledgement-file">
+                  Upload Acknowledgement{!hasAcknowledgementDoc && ' *'}
+                </label>
+                <input
+                  id="record-acknowledgement-file"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => setAcknowledgementFile(e.target.files?.[0] || null)}
+                  className={FILE_INPUT_CLASS}
+                />
+                {acknowledgementFile ? (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {acknowledgementFile.name} ({formatFileSize(acknowledgementFile.size)})
+                  </p>
+                ) : (
+                  hasAcknowledgementDoc && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      An acknowledgement is already on file. Upload a file only to add another.
+                    </p>
+                  )
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <Input
+                label="Licence / Registration Number"
+                value={statusForm.licenceNumber}
+                onChange={(e) => setStatusForm((prev) => ({ ...prev, licenceNumber: e.target.value }))}
+                placeholder="As printed on the certificate"
               />
-            </div>
-            <div>
-              <label className={LABEL_CLASS} htmlFor="record-expiry-date">
-                Expiry Date
-              </label>
-              <input
-                id="record-expiry-date"
-                type="date"
-                value={statusForm.expiryDate}
-                onChange={(e) => setStatusForm((prev) => ({ ...prev, expiryDate: e.target.value }))}
-                className={FIELD_CLASS}
-              />
-            </div>
-          </div>
-          {statusForm.status === 'approved' && record.status !== 'approved' && !statusForm.expiryDate && (
-            <p className="text-xs text-amber-700 dark:text-amber-400">
-              No expiry date entered
-              {record.rule?.renewalCycle
-                ? `: it will be set to ${record.rule.renewalCycle} days from today. Enter the date on the certificate if it differs.`
-                : ', so no renewal reminder will be raised.'}
-            </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={LABEL_CLASS} htmlFor="record-issue-date">
+                    Issue Date
+                  </label>
+                  <input
+                    id="record-issue-date"
+                    type="date"
+                    value={statusForm.issueDate}
+                    onChange={(e) => setStatusForm((prev) => ({ ...prev, issueDate: e.target.value }))}
+                    className={FIELD_CLASS}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL_CLASS} htmlFor="record-expiry-date">
+                    Expiry Date
+                  </label>
+                  <input
+                    id="record-expiry-date"
+                    type="date"
+                    value={statusForm.expiryDate}
+                    onChange={(e) => setStatusForm((prev) => ({ ...prev, expiryDate: e.target.value }))}
+                    className={FIELD_CLASS}
+                  />
+                </div>
+              </div>
+              {statusForm.status === 'approved' && (
+                <div>
+                  <label className={LABEL_CLASS} htmlFor="record-licence-file">
+                    Upload Licence
+                  </label>
+                  <input
+                    id="record-licence-file"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setLicenceFile(e.target.files?.[0] || null)}
+                    className={FILE_INPUT_CLASS}
+                  />
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {licenceFile
+                      ? `${licenceFile.name} (${formatFileSize(licenceFile.size)})`
+                      : 'Optional. The licence certificate, added to the record\'s documents.'}
+                  </p>
+                </div>
+              )}
+              {statusForm.status === 'approved' && record.status !== 'approved' && !statusForm.expiryDate && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  No expiry date entered
+                  {record.rule?.renewalCycle
+                    ? `: it will be set to ${record.rule.renewalCycle} days from today. Enter the date on the certificate if it differs.`
+                    : ', so no renewal reminder will be raised.'}
+                </p>
+              )}
+            </>
           )}
 
           <div>

@@ -39,30 +39,30 @@ export const useChartTheme = () => {
     grid: '#94a3b8',
     axis: dark ? '#94a3b8' : '#64748b',
     bucket: {
-      compliant: '#0ca30c',
-      pending: dark ? '#3987e5' : '#2a78d6',
-      expiringSoon: dark ? '#c98500' : '#eda100',
-      expired: '#d03b3b',
+      compliant: '#059669',
+      pending: dark ? '#6366f1' : '#4f46e5',
+      expiringSoon: dark ? '#d97706' : '#f59e0b',
+      expired: '#e11d48',
     } as Record<HealthBucket, string>,
     /**
      * Licence status, in stacking order: approved, applied, to be applied, expired.
      * The same four validated hues as the health buckets.
      */
     licence: {
-      approved: '#0ca30c',
-      applied: dark ? '#3987e5' : '#2a78d6',
-      toBeApplied: dark ? '#c98500' : '#eda100',
-      expired: '#d03b3b',
+      approved: '#059669',
+      applied: dark ? '#6366f1' : '#4f46e5',
+      toBeApplied: dark ? '#d97706' : '#f59e0b',
+      expired: '#e11d48',
     },
     /** Unit status: open, to be opened, closed */
     unit: {
-      open: '#0ca30c',
-      toBeOpened: dark ? '#3987e5' : '#2a78d6',
-      closed: '#d03b3b',
+      open: '#059669',
+      toBeOpened: dark ? '#6366f1' : '#4f46e5',
+      closed: '#e11d48',
     },
     /** Single-series bars */
-    series: dark ? '#3987e5' : '#2a78d6',
-    critical: '#d03b3b',
+    series: dark ? '#6366f1' : '#4f46e5',
+    critical: '#e11d48',
     /** Low → high score; the low end recedes towards the surface in each theme */
     scoreBands: dark
       ? ['#184f95', '#256abf', '#5598e7', '#b7d3f6']
