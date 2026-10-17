@@ -17,6 +17,12 @@ import {
   RefreshCw,
   ChevronRight,
   Box,
+  ListTodo,
+  AlarmClock,
+  CalendarClock,
+  CircleX,
+  Ban,
+  Layers,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -37,6 +43,16 @@ import { SCORE_BANDS, scoreBandIndex, useChartTheme } from '@/components/charts/
 import { StatusRings, StatusGauge, type StatusSlice } from '@/components/charts/StatusMeters';
 import RankedStackRows from '@/components/charts/RankedStackRows';
 import {
+  PercentCircles,
+  SegmentedRing,
+  Speedometer,
+  BigPercentTile,
+  BulletBars,
+  MonthlyColumns,
+  IconCounters,
+  type CounterItem,
+} from '@/components/charts/GlanceCharts';
+import {
   LICENCE_ORDER,
   LICENCE_LABELS,
   LICENCE_STATUS_PARAM,
@@ -51,6 +67,8 @@ import {
 } from '@/components/dashboard/operationsParts';
 
 const REFRESH_MS = 60_000;
+// The share of applicable licences each state is measured against on the target chart
+const APPROVAL_TARGET = 90;
 
 // Chart entrance timings
 const BAR_MS = 600;
@@ -239,6 +257,8 @@ export const Dashboard: React.FC = () => {
     state: searchParams.get('state') || undefined,
   }));
   const [data, setData] = useState<OperationsDashboardData | null>(null);
+  // Open and overdue tasks for the counter strip; null when they could not be loaded
+  const [taskCounts, setTaskCounts] = useState<{ open: number; overdue: number } | null>(null);
   // The map always shows every state, so another one can be picked while a state filter is on
   const [mapStates, setMapStates] = useState<OperationsDashboardData['byState']>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -261,6 +281,12 @@ export const Dashboard: React.FC = () => {
         if (id !== requestId.current) return;
         setData(next);
         setAnimate(!silent);
+        dashboardService
+          .getDashboardStats({ state: filters.state, entity: filters.entity })
+          .then((stats) => {
+            if (id === requestId.current) setTaskCounts({ open: stats.kpis.openTasks, overdue: stats.kpis.overdueTasks });
+          })
+          .catch(() => setTaskCounts(null));
 
         // The map data depends on the company only, so picking a state reuses what is
         // already loaded. It is fetched again, without holding up the page, when the
@@ -417,6 +443,86 @@ export const Dashboard: React.FC = () => {
   // A second click on the state already picked clears the filter
   const toggleState = (state: string) =>
     setFilters((prev) => ({ ...prev, state: prev.state === state ? undefined : state }));
+
+  // ── At a glance ──────────────────────────────────────────────────────────────
+  const counters: CounterItem[] = [
+    {
+      key: 'openTasks',
+      label: 'Open tasks',
+      value: taskCounts?.open ?? null,
+      icon: ListTodo,
+      tone: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
+      to: withQuery(ROUTES.TASKS, { card: 'open' }),
+    },
+    {
+      key: 'overdueTasks',
+      label: 'Overdue tasks',
+      value: taskCounts?.overdue ?? null,
+      icon: AlarmClock,
+      tone: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+      to: withQuery(ROUTES.TASKS, { card: 'overdue' }),
+    },
+    {
+      key: 'expiring',
+      label: 'Expiring in 30 days',
+      value: expiring.next30,
+      icon: CalendarClock,
+      tone: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+      to: withQuery(ROUTES.COMPLIANCE_RECORDS, { expiringWithin: '30', entity: filters.entity }),
+    },
+    {
+      key: 'expired',
+      label: 'Expired licences',
+      value: licences.expired,
+      icon: CircleX,
+      tone: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+      to: recordsLink('expired'),
+    },
+    {
+      key: 'notApplicable',
+      label: 'Not applicable',
+      value: licences.notApplicable,
+      icon: Ban,
+      tone: 'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300',
+      to: withQuery(ROUTES.COMPLIANCE_RECORDS, { status: 'not_applicable', entity: filters.entity }),
+    },
+    {
+      key: 'licenceTypes',
+      label: 'Licence types tracked',
+      value: data.byLicence.length,
+      icon: Layers,
+      tone: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300',
+    },
+  ];
+
+  const statePercents = mapStates
+    .filter((row) => row.licences.total > 0)
+    .sort((a, b) => b.licences.total - a.licences.total)
+    .map((row) => ({
+      key: row.state,
+      label: row.state,
+      pct: row.licences.approvedPct ?? 0,
+      sub: `${row.licences.approved.toLocaleString()} of ${row.licences.total.toLocaleString()}`,
+      onClick: () => toggleState(row.state),
+      selected: filters.state === row.state,
+    }));
+
+  const companyPercents = data.byCompany
+    .filter((company) => company.total > 0)
+    .map((company) => ({
+      key: company.entityId,
+      label: company.code,
+      pct: company.approvedPct ?? 0,
+      sub: `${company.approved.toLocaleString()} of ${company.total.toLocaleString()} approved`,
+    }));
+
+  // The last 12 months of openings, each beside the same month a year earlier
+  const monthlyOpenings = data.openingsTrend.slice(-12).map((point, index, recent) => {
+    const yearBefore = data.openingsTrend[data.openingsTrend.length - recent.length + index - 12];
+    return { month: point.month, current: point.opened, previous: yearBefore ? yearBefore.opened : null };
+  });
+
+  const licencePct = pct(licences.approved, licences.total);
   const selectedEntity = data.filterOptions.entities.find((entity) => entity._id === filters.entity);
   const viewLabel = [selectedEntity?.code, filters.state].filter(Boolean).join(' · ') || 'All India';
 
@@ -485,6 +591,103 @@ export const Dashboard: React.FC = () => {
         </Card>
       ) : (
         <>
+          {/* Counters: what needs doing */}
+          <Card padding="sm">
+            <IconCounters items={counters} animate={motion} />
+          </Card>
+
+          {/* At a glance: headline shares */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel title="Approval Meters" subtitle="Licences approved, and open units with every licence approved" className="lg:col-span-4">
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <Speedometer
+                  label="Licences approved"
+                  pct={licencePct}
+                  sub={`${licences.approved.toLocaleString()} of ${licences.total.toLocaleString()}`}
+                  animate={motion}
+                />
+                <Speedometer
+                  label="Units fully approved"
+                  pct={pct(units.fullyApproved, units.open)}
+                  sub={`${units.fullyApproved.toLocaleString()} of ${units.open.toLocaleString()} open units`}
+                  animate={motion}
+                />
+              </div>
+            </Panel>
+
+            <Panel title="Where Licences Stand" subtitle="Share of all applicable licences in this view" className="lg:col-span-4">
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                <BigPercentTile
+                  pct={licencePct}
+                  label="Approved"
+                  sub={`${licences.approved.toLocaleString()} licences`}
+                  color={chart.licence.approved}
+                  animate={motion}
+                  onClick={() => navigate(recordsLink('approved'))}
+                />
+                <BigPercentTile
+                  pct={pct(licences.applied, licences.total)}
+                  label="Applied"
+                  sub={`${licences.applied.toLocaleString()} awaiting the authority`}
+                  color={chart.licence.applied}
+                  animate={motion}
+                  delay={80}
+                  onClick={() => navigate(recordsLink('applied'))}
+                />
+                <BigPercentTile
+                  pct={pct(licences.toBeApplied, licences.total)}
+                  label="To be applied"
+                  sub={`${licences.toBeApplied.toLocaleString()} not filed yet`}
+                  color="#b45309"
+                  animate={motion}
+                  delay={160}
+                  onClick={() => navigate(recordsLink('toBeApplied'))}
+                />
+              </div>
+            </Panel>
+
+            <Panel title="Companies: Share Approved" subtitle="Each ring fills to the company's share of licences approved" className="lg:col-span-4">
+              {companyPercents.length === 0 ? (
+                <EmptyState>No companies in this view.</EmptyState>
+              ) : (
+                <div className="flex flex-wrap justify-around gap-4 mt-3">
+                  {companyPercents.map((company, index) => (
+                    <SegmentedRing key={company.key} item={company} animate={motion} delay={index * 120} />
+                  ))}
+                </div>
+              )}
+            </Panel>
+          </div>
+
+          {/* Every state's share approved, as circles */}
+          {statePercents.length > 0 && (
+            <Panel title="Licences Approved by State" subtitle="Largest first. Click a state to filter the dashboard.">
+              <PercentCircles items={statePercents} animate={motion} />
+            </Panel>
+          )}
+
+          {/* Against the target, and the opening pace */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel
+              title={`States Against a ${APPROVAL_TARGET}% Target`}
+              subtitle="Share of applicable licences approved; the line marks the target. Click a state to filter."
+              className="lg:col-span-7"
+            >
+              {statePercents.length === 0 ? (
+                <EmptyState>No licence records in this view.</EmptyState>
+              ) : (
+                <BulletBars rows={statePercents} target={APPROVAL_TARGET} animate={motion} />
+              )}
+            </Panel>
+            <Panel title="Units Opened per Month" subtitle="The last 12 months, against the same month a year before" className="lg:col-span-5">
+              {monthlyOpenings.length === 0 ? (
+                <EmptyState>No opening dates entered for this view.</EmptyState>
+              ) : (
+                <MonthlyColumns rows={monthlyOpenings} animate={motion} />
+              )}
+            </Panel>
+          </div>
+
           {/* Row 1: where the units are */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <Panel
@@ -747,12 +950,12 @@ export const Dashboard: React.FC = () => {
             </Panel>
           </div>
 
-          {/* Row 4: licence types and unit make-up */}
+          {/* Row 4: licence types */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <Panel
               title="Licence Status by Type"
               subtitle="Each licence across the units it applies to. Click a bar to open those records."
-              className="lg:col-span-8"
+              className="lg:col-span-12"
             >
               {licenceRows.length === 0 ? (
                 <EmptyState>No licence records in this view.</EmptyState>
@@ -768,40 +971,22 @@ export const Dashboard: React.FC = () => {
                 </>
               )}
             </Panel>
-
-            <div className="lg:col-span-4 space-y-6">
-              <Panel title="Unit Types" subtitle="Open and planned units">
-                <BarList
-                  color={chart.series}
-                  rows={data.unitTypes.map((row) => ({ key: row.code, label: row.label, value: row.units }))}
-                />
-              </Panel>
-              <Panel title="Area Types" subtitle="The local body each unit falls under">
-                <BarList
-                  color={chart.series}
-                  rows={data.areaTypes.map((row) => ({ key: row.areaType, label: row.areaType, value: row.units }))}
-                />
-              </Panel>
-            </div>
           </div>
 
-          {/* Row 5: which licence is stuck where, and how the companies compare */}
+          {/* Row 4b: unit make-up and how the companies compare */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <Panel
-              title="Licences Approved: State by Licence"
-              subtitle="Share approved for each licence in each state. Click a cell to open that licence's records."
-              className="lg:col-span-8"
-            >
-              {data.licenceGrid.rows.length === 0 ? (
-                <EmptyState>No licence records in this view.</EmptyState>
-              ) : (
-                <LicenceGrid
-                  grid={data.licenceGrid}
-                  onOpen={(ruleId) => navigate(withQuery(ROUTES.COMPLIANCE_RECORDS, { rule: ruleId, entity: filters.entity }))}
-                />
-              )}
+            <Panel title="Unit Types" subtitle="Open and planned units" className="lg:col-span-4">
+              <BarList
+                color={chart.series}
+                rows={data.unitTypes.map((row) => ({ key: row.code, label: row.label, value: row.units }))}
+              />
             </Panel>
-
+            <Panel title="Area Types" subtitle="The local body each unit falls under" className="lg:col-span-4">
+              <BarList
+                color={chart.series}
+                rows={data.areaTypes.map((row) => ({ key: row.areaType, label: row.areaType, value: row.units }))}
+              />
+            </Panel>
             <Panel title="Company Comparison" subtitle="Units operated and licence status" className="lg:col-span-4">
               {data.byCompany.length === 0 ? (
                 <EmptyState>No companies in this view.</EmptyState>
@@ -821,6 +1006,24 @@ export const Dashboard: React.FC = () => {
                     A unit shared by two companies is counted for both.
                   </p>
                 </>
+              )}
+            </Panel>
+          </div>
+
+          {/* Row 5: which licence is stuck where */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Panel
+              title="Licences Approved: State by Licence"
+              subtitle="Share approved for each licence in each state. Click a cell to open that licence's records."
+              className="lg:col-span-12"
+            >
+              {data.licenceGrid.rows.length === 0 ? (
+                <EmptyState>No licence records in this view.</EmptyState>
+              ) : (
+                <LicenceGrid
+                  grid={data.licenceGrid}
+                  onOpen={(ruleId) => navigate(withQuery(ROUTES.COMPLIANCE_RECORDS, { rule: ruleId, entity: filters.entity }))}
+                />
               )}
             </Panel>
           </div>
