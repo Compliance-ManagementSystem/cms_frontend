@@ -55,6 +55,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+/**
+ * Shows part of the app in one theme whatever the user picked, for theme-aware
+ * colours read through useTheme. Put a matching `dark` / `light` class on the
+ * wrapper element too, so the Tailwind dark: styles follow.
+ */
+export const FixedTheme: React.FC<{ theme: Theme; children: React.ReactNode }> = ({ theme, children }) => {
+  const parent = useTheme();
+  return <ThemeContext.Provider value={{ ...parent, theme }}>{children}</ThemeContext.Provider>;
+};
+
 export const useTheme = (): ThemeContextType => {
   const context = useContext(ThemeContext);
   if (!context) {

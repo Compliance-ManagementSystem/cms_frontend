@@ -4,6 +4,7 @@ export const ROUTES = {
   LOGIN: '/login',
   UNAUTHORIZED: '/unauthorized',
   DASHBOARD: '/dashboard',
+  DASHBOARD_MAP_3D: '/dashboard/map-3d',
   NOT_FOUND: '*',
 
   // Phase 5 – Entity Management

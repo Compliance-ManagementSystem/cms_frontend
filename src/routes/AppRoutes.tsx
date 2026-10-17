@@ -7,6 +7,8 @@ import { ROUTES } from '@/constants/routes';
 
 // ── Lazy-loaded pages ──────────────────────────────────────────────────────────
 const Dashboard    = React.lazy(() => import('@/pages/Dashboard'));
+// Full-screen 3D map; three.js only loads when this page is opened
+const ApprovalsMap3DPage = React.lazy(() => import('@/pages/map3d/ApprovalsMap3DPage'));
 const Login        = React.lazy(() => import('@/pages/Login'));
 const Unauthorized = React.lazy(() => import('@/pages/Unauthorized'));
 const NotFound     = React.lazy(() => import('@/pages/NotFound'));
@@ -71,6 +73,18 @@ const AppRoutes: React.FC = () => {
           <Suspense fallback={<PageLoader />}>
             <Unauthorized />
           </Suspense>
+        }
+      />
+
+      {/* ── Full-screen pages (signed in, outside the app shell) ───────────── */}
+      <Route
+        path={ROUTES.DASHBOARD_MAP_3D}
+        element={
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <ApprovalsMap3DPage />
+            </Suspense>
+          </ProtectedRoute>
         }
       />
 

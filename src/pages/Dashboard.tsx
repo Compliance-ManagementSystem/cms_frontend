@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BarChart,
   Bar,
@@ -15,14 +15,8 @@ import {
 import {
   LayoutDashboard,
   RefreshCw,
-  Building2,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Settings2,
-  ShieldCheck,
   ChevronRight,
-  type LucideIcon,
+  Box,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -31,7 +25,6 @@ import {
   OperationsDashboardData,
   OperationsFilters,
   LicenceBucket,
-  LicenceCounts,
   UnitBucket,
   StateComplianceItem,
 } from '@/services/dashboardService';
@@ -43,7 +36,19 @@ import IndiaMap, { resolveStateId } from '@/components/charts/IndiaMap';
 import { SCORE_BANDS, scoreBandIndex, useChartTheme } from '@/components/charts/chartTheme';
 import { StatusRings, StatusGauge, type StatusSlice } from '@/components/charts/StatusMeters';
 import RankedStackRows from '@/components/charts/RankedStackRows';
-import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
+import {
+  LICENCE_ORDER,
+  LICENCE_LABELS,
+  LICENCE_STATUS_PARAM,
+  pct,
+  withQuery,
+  ChartTooltip,
+  Legend,
+  StatCard,
+  ShareRows,
+  LicenceTypeChart,
+  buildUnitCards,
+} from '@/components/dashboard/operationsParts';
 
 const REFRESH_MS = 60_000;
 
@@ -51,22 +56,6 @@ const REFRESH_MS = 60_000;
 const BAR_MS = 600;
 const STACK_STAGGER_MS = 200;
 const LINE_MS = 1400;
-
-// Stacking order is fixed everywhere the statuses sit side by side
-const LICENCE_ORDER: LicenceBucket[] = ['approved', 'applied', 'toBeApplied', 'expired'];
-const LICENCE_LABELS: Record<LicenceBucket, string> = {
-  approved: 'Approved',
-  applied: 'Applied',
-  toBeApplied: 'To be applied',
-  expired: 'Expired',
-};
-// The matching filter on the Compliance Records list
-const LICENCE_STATUS_PARAM: Record<LicenceBucket, string> = {
-  approved: 'approved,expiring_soon',
-  applied: 'in_progress',
-  toBeApplied: 'pending',
-  expired: 'expired',
-};
 
 // Column headings for the state × licence grid, as the Location Master sheet abbreviates them
 const LICENCE_SHORT_NAMES: Record<string, string> = {
@@ -91,41 +80,6 @@ const UNIT_LABELS: Record<UnitBucket, string> = { open: 'Open', toBeOpened: 'To 
 const SELECT_CLASS =
   'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
 
-const pct = (part: number, whole: number): number => (whole > 0 ? Math.round((part / whole) * 100) : 0);
-
-const withQuery = (path: string, params: Record<string, string | undefined>): string => {
-  const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => value && query.set(key, value));
-  const text = query.toString();
-  return text ? `${path}?${text}` : path;
-};
-
-const ChartTooltip = ({ active, payload, label, unit }: any) => {
-  if (!active || !payload?.length) return null;
-  const rows = payload.filter((entry: any) => entry.value !== undefined && entry.value !== null);
-  const total = rows.reduce((sum: number, entry: any) => sum + (Number(entry.value) || 0), 0);
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
-      <p className="font-semibold text-slate-800 dark:text-slate-200">{payload[0]?.payload?.fullName || label}</p>
-      {rows.map((entry: any) => (
-        <p key={entry.dataKey} className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.payload?.fill }} />
-          <span className="text-slate-500 dark:text-slate-400">{entry.name}:</span>
-          <span className="font-semibold text-slate-900 dark:text-slate-100">
-            {unit ? Math.round(entry.value) : entry.value}
-            {unit || ''}
-          </span>
-        </p>
-      ))}
-      {rows.length > 1 && !unit && (
-        <p className="pt-1 border-t border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
-          Total: <span className="font-semibold text-slate-900 dark:text-slate-100">{total}</span>
-        </p>
-      )}
-    </div>
-  );
-};
-
 const TrendTooltip = ({ active, payload }: any) => {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload as { month: string; opened: number; total: number };
@@ -141,18 +95,6 @@ const TrendTooltip = ({ active, payload }: any) => {
     </div>
   );
 };
-
-/** Swatch + label row above a multi-series chart */
-const Legend: React.FC<{ items: Array<{ label: string; color: string }> }> = ({ items }) => (
-  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-slate-600 dark:text-slate-400">
-    {items.map((item) => (
-      <span key={item.label} className="inline-flex items-center gap-1.5">
-        <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
-        {item.label}
-      </span>
-    ))}
-  </div>
-);
 
 const Panel: React.FC<{
   title: string;
@@ -179,57 +121,6 @@ const EmptyState: React.FC<{ children: React.ReactNode; height?: string }> = ({ 
   </div>
 );
 
-interface StatCardData {
-  key: string;
-  label: string;
-  value: number;
-  share?: number;
-  hint: string;
-  icon: LucideIcon;
-  tone: string;
-  /** Fill of the share meter under the figure */
-  bar: string;
-  to?: string;
-}
-
-/** Top-row figure that counts up, with a meter for its share where it has one */
-const StatCard: React.FC<{ card: StatCardData; animate: boolean; delay: number }> = ({ card, animate, delay }) => {
-  const navigate = useNavigate();
-  const Icon = card.icon;
-  const value = useAnimatedNumber(card.value, animate, delay);
-  const share = useAnimatedNumber(card.share ?? 0, animate, delay);
-
-  return (
-    <button
-      type="button"
-      disabled={!card.to}
-      onClick={() => card.to && navigate(card.to)}
-      className="text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none transition enabled:hover:border-slate-300 dark:enabled:hover:border-slate-600 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md motion-reduce:transform-none flex items-center gap-3"
-    >
-      <span className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center ${card.tone}`}>
-        <Icon size={20} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">{card.label}</span>
-        <span className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
-            {Math.round(value).toLocaleString()}
-          </span>
-          {card.share !== undefined && (
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums">{Math.round(share)}%</span>
-          )}
-        </span>
-        <span className="block text-[11px] leading-tight text-slate-500 dark:text-slate-400">{card.hint}</span>
-        {card.share !== undefined && (
-          <span className="block mt-1.5 h-1 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-            <span className={`block h-full rounded-full ${card.bar}`} style={{ width: `${Math.min(share, 100)}%` }} />
-          </span>
-        )}
-      </span>
-    </button>
-  );
-};
-
 /** One labelled horizontal bar per row; used where there is a single measure */
 const BarList: React.FC<{
   rows: Array<{ key: string; label: string; hint?: string; value: number }>;
@@ -248,43 +139,6 @@ const BarList: React.FC<{
             <span className="block h-full rounded-r" style={{ width: `${(row.value / max) * 100}%`, backgroundColor: color }} />
           </span>
           <span className="text-right font-semibold text-slate-900 dark:text-slate-100">{row.value}</span>
-        </li>
-      ))}
-    </ul>
-  );
-};
-
-/** One 100% bar per row, split by licence status, with the approved share at the end */
-const ShareRows: React.FC<{
-  rows: Array<{ key: string; label: string; hint: string; counts: LicenceCounts }>;
-  buckets: LicenceBucket[];
-}> = ({ rows, buckets }) => {
-  const chart = useChartTheme();
-  return (
-    <ul className="mt-3 space-y-3">
-      {rows.map((row) => (
-        <li key={row.key}>
-          <div className="flex items-baseline justify-between gap-3 text-xs">
-            <span className="font-semibold text-slate-900 dark:text-slate-100">
-              {row.label}
-              <span className="font-normal text-slate-500 dark:text-slate-400"> · {row.hint}</span>
-            </span>
-            <span className="font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-              {row.counts.approvedPct ?? 0}%<span className="font-normal text-slate-500 dark:text-slate-400"> approved</span>
-            </span>
-          </div>
-          {/* The gap between segments shows the card surface, not a border */}
-          <div className="mt-1.5 h-3 flex gap-[2px] rounded overflow-hidden">
-            {buckets
-              .filter((bucket) => row.counts[bucket] > 0)
-              .map((bucket) => (
-                <span
-                  key={bucket}
-                  title={`${LICENCE_LABELS[bucket]}: ${row.counts[bucket]} of ${row.counts.total}`}
-                  style={{ flexGrow: row.counts[bucket], flexBasis: 0, minWidth: 3, backgroundColor: chart.licence[bucket] }}
-                />
-              ))}
-          </div>
         </li>
       ))}
     </ul>
@@ -379,7 +233,11 @@ export const Dashboard: React.FC = () => {
   const chart = useChartTheme();
   const { can } = useAuth();
 
-  const [filters, setFilters] = useState<OperationsFilters>({});
+  // The 3D map links back here with ?state= to open that state
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState<OperationsFilters>(() => ({
+    state: searchParams.get('state') || undefined,
+  }));
   const [data, setData] = useState<OperationsDashboardData | null>(null);
   // The map always shows every state, so another one can be picked while a state filter is on
   const [mapStates, setMapStates] = useState<OperationsDashboardData['byState']>([]);
@@ -507,7 +365,7 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  const { units, licences, byState, expiring } = data;
+  const { units, licences, expiring } = data;
   const scopeParams = { entity: filters.entity, state: filters.state };
   const recordsLink = (bucket: LicenceBucket, extra: Record<string, string | undefined> = {}) =>
     withQuery(ROUTES.COMPLIANCE_RECORDS, { status: LICENCE_STATUS_PARAM[bucket], entity: filters.entity, ...extra });
@@ -520,73 +378,7 @@ export const Dashboard: React.FC = () => {
   const shownLicenceBuckets = LICENCE_ORDER.filter((bucket) => bucket !== 'expired' || licences.expired > 0);
 
   // ── Top cards ────────────────────────────────────────────────────────────────
-  const openUnits = units.open;
-  const cards: StatCardData[] = [
-    {
-      key: 'total',
-      label: 'Total Units',
-      value: units.total,
-      hint: `Across ${byState.length} ${byState.length === 1 ? 'state' : 'states'}`,
-      icon: Building2,
-      tone: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
-      bar: 'bg-blue-500',
-      to: unitsLink(),
-    },
-    {
-      key: 'open',
-      label: 'Open',
-      value: units.open,
-      share: pct(units.open, units.total),
-      hint: 'Operating now',
-      icon: CheckCircle2,
-      tone: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-      bar: 'bg-emerald-500',
-      to: unitsLink('active', 'opened'),
-    },
-    {
-      key: 'closed',
-      label: 'Closed',
-      value: units.closed,
-      share: pct(units.closed, units.total),
-      hint: 'Not operating',
-      icon: XCircle,
-      tone: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
-      bar: 'bg-rose-500',
-      to: unitsLink('inactive'),
-    },
-    {
-      key: 'toBeOpened',
-      label: 'To Be Opened',
-      value: units.toBeOpened,
-      share: pct(units.toBeOpened, units.total),
-      hint: 'Planned units',
-      icon: Clock,
-      tone: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-      bar: 'bg-amber-500',
-      to: unitsLink('active', 'upcoming'),
-    },
-    {
-      key: 'underProcess',
-      label: 'Under Process',
-      value: units.underProcess,
-      share: pct(units.underProcess, openUnits),
-      hint: 'Licences pending',
-      icon: Settings2,
-      tone: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300',
-      bar: 'bg-indigo-500',
-      to: withQuery(ROUTES.COMPLIANCE_RECORDS, { status: 'in_progress,pending', entity: filters.entity }),
-    },
-    {
-      key: 'fullyApproved',
-      label: 'Fully Approved',
-      value: units.fullyApproved,
-      share: pct(units.fullyApproved, openUnits),
-      hint: 'All licences approved',
-      icon: ShieldCheck,
-      tone: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300',
-      bar: 'bg-violet-500',
-    },
-  ];
+  const cards = buildUnitCards(data, filters);
 
   // ── Chart data ───────────────────────────────────────────────────────────────
   const mapData: StateComplianceItem[] = mapStates
@@ -699,6 +491,17 @@ export const Dashboard: React.FC = () => {
               title="India Map: Licences Approved"
               subtitle="Share of applicable licences approved. Click a state to filter."
               className="lg:col-span-4"
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Box size={14} />}
+                  onClick={() => navigate(ROUTES.DASHBOARD_MAP_3D)}
+                  className="shrink-0"
+                >
+                  3D map
+                </Button>
+              }
             >
               <IndiaMap
                 data={mapData}
@@ -956,37 +759,12 @@ export const Dashboard: React.FC = () => {
               ) : (
                 <>
                   <Legend items={licenceLegend} />
-                  <div className="mt-2" style={{ height: Math.max(140, licenceRows.length * 30 + 30) }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={licenceRows} layout="vertical" margin={{ top: 0, right: 36, left: 0, bottom: 0 }}>
-                        <CartesianGrid horizontal={false} stroke={chart.grid} strokeOpacity={0.25} />
-                        <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
-                        <YAxis type="category" dataKey="name" width={226} tick={axisTick} tickLine={false} axisLine={false} interval={0} />
-                        <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
-                        {shownLicenceBuckets.map((bucket, index) => (
-                          <Bar
-                            key={bucket}
-                            dataKey={bucket}
-                            name={LICENCE_LABELS[bucket]}
-                            stackId="types"
-                            fill={chart.licence[bucket]}
-                            stroke={chart.surface}
-                            strokeWidth={2}
-                            maxBarSize={18}
-                            isAnimationActive={motion}
-                            animationBegin={index * STACK_STAGGER_MS}
-                            animationDuration={BAR_MS}
-                            cursor="pointer"
-                            onClick={(row: any) => navigate(recordsLink(bucket, { rule: row.ruleId }))}
-                          >
-                            {index === shownLicenceBuckets.length - 1 && (
-                              <LabelList dataKey="total" position="right" fill={chart.axis} fontSize={11} fontWeight={600} />
-                            )}
-                          </Bar>
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <LicenceTypeChart
+                    rows={licenceRows}
+                    buckets={shownLicenceBuckets}
+                    animate={motion}
+                    onOpen={(bucket, ruleId) => navigate(recordsLink(bucket, { rule: ruleId }))}
+                  />
                 </>
               )}
             </Panel>
