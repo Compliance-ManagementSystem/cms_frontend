@@ -37,11 +37,11 @@ import {
 import { socketService } from '@/services/socketService';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
-import { daysFromToday } from '@/utils/dates';
 import IndiaMap, { resolveStateId } from '@/components/charts/IndiaMap';
 import { SCORE_BANDS, scoreBandIndex, useChartTheme } from '@/components/charts/chartTheme';
 import { StatusRings, StatusGauge, type StatusSlice } from '@/components/charts/StatusMeters';
 import RankedStackRows from '@/components/charts/RankedStackRows';
+import { ExpiryAlert } from '@/components/dashboard/ExpiryAlert';
 import {
   PercentCircles,
   SegmentedRing,
@@ -889,64 +889,21 @@ export const Dashboard: React.FC = () => {
             </Panel>
 
             <Panel
-              title="Licences Expiring Soon"
-              subtitle="Approved licences reaching their expiry date"
+              title="Expiry Alert"
+              subtitle="Approved licences reaching their expiry date in the next 90 days"
               className="lg:col-span-3"
             >
-              {expiring.withExpiryDate === 0 ? (
-                <EmptyState>
-                  No expiry dates entered yet. Add them with Update Status on a record and they will appear here.
-                </EmptyState>
-              ) : (
-                <>
-                  <div className="grid grid-cols-3 gap-2 mt-3">
-                    {[
-                      { label: '30 days', value: expiring.next30, days: '30' },
-                      { label: '60 days', value: expiring.next60, days: '60' },
-                      { label: '90 days', value: expiring.next90, days: '90' },
-                    ].map((window) => (
-                      <button
-                        key={window.days}
-                        type="button"
-                        onClick={() =>
-                          navigate(withQuery(ROUTES.COMPLIANCE_RECORDS, { expiringWithin: window.days, entity: filters.entity }))
-                        }
-                        className="text-left p-2 rounded-lg border border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600"
-                      >
-                        <span className="block text-xl font-bold text-slate-900 dark:text-white">{window.value}</span>
-                        <span className="block text-[11px] text-slate-500 dark:text-slate-400">within {window.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {expiring.items.length === 0 ? (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">Nothing expires in the next 90 days.</p>
-                  ) : (
-                    <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
-                      {expiring.items.map((item) => {
-                        const days = daysFromToday(item.expiryDate);
-                        return (
-                          <li key={item.recordId}>
-                            <button
-                              type="button"
-                              onClick={() => navigate(ROUTES.COMPLIANCE_RECORD_DETAILS.replace(':id', item.recordId))}
-                              className="w-full text-left py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded"
-                            >
-                              <span className="block font-medium text-slate-800 dark:text-slate-200 truncate">{item.licence}</span>
-                              <span className="block text-slate-500 dark:text-slate-400 truncate">
-                                {item.unit} · {days <= 0 ? 'expires today' : `in ${days} ${days === 1 ? 'day' : 'days'}`}
-                              </span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
-                    {expiring.withExpiryDate.toLocaleString()} of {licences.approved.toLocaleString()} approved licences have an
-                    expiry date entered.
-                  </p>
-                </>
-              )}
+              <ExpiryAlert
+                expiring={expiring}
+                expiredCount={licences.expired}
+                approvedCount={licences.approved}
+                links={{
+                  within: (days) =>
+                    withQuery(ROUTES.COMPLIANCE_RECORDS, { expiringWithin: String(days), entity: filters.entity }),
+                  expired: recordsLink('expired'),
+                  approved: recordsLink('approved'),
+                }}
+              />
             </Panel>
           </div>
 
