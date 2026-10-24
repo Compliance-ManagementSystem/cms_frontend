@@ -49,8 +49,12 @@ import {
   SegmentedRing,
   Speedometer,
   BigPercentTile,
-  BulletBars,
+  RaceTrack,
   MonthlyTrend,
+  DistrictTreemap,
+  LicenceRadar,
+  Waffle,
+  HalfDonut,
   IconCounters,
   type CounterItem,
 } from '@/components/charts/GlanceCharts';
@@ -141,30 +145,6 @@ const EmptyState: React.FC<{ children: React.ReactNode; height?: string }> = ({ 
     {children}
   </div>
 );
-
-/** One labelled horizontal bar per row; used where there is a single measure */
-const BarList: React.FC<{
-  rows: Array<{ key: string; label: string; hint?: string; value: number }>;
-  color: string;
-}> = ({ rows, color }) => {
-  const max = Math.max(...rows.map((row) => row.value), 1);
-  return (
-    <ul className="mt-3 space-y-2">
-      {rows.map((row) => (
-        <li key={row.key} className="grid grid-cols-[minmax(0,9rem)_1fr_2rem] items-center gap-2 text-xs">
-          <span className="truncate text-slate-700 dark:text-slate-300" title={row.hint ? `${row.label} (${row.hint})` : row.label}>
-            {row.label}
-            {row.hint && <span className="text-slate-400 dark:text-slate-500"> · {row.hint}</span>}
-          </span>
-          <span className="h-3 rounded-r bg-slate-100 dark:bg-slate-800 overflow-hidden">
-            <span className="block h-full rounded-r" style={{ width: `${(row.value / max) * 100}%`, backgroundColor: color }} />
-          </span>
-          <span className="text-right font-semibold text-slate-900 dark:text-slate-100">{row.value}</span>
-        </li>
-      ))}
-    </ul>
-  );
-};
 
 /** States down the side, licences across the top, each cell the share approved */
 const LicenceGrid: React.FC<{
@@ -683,13 +663,13 @@ export const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <Panel
               title={`States Against a ${APPROVAL_TARGET}% Target`}
-              subtitle="Share of applicable licences approved; the line marks the target. Click a state to filter."
+              subtitle="One track per state, filled to its share approved; the dashed line is the target. Click a state to filter."
               className="lg:col-span-7"
             >
               {statePercents.length === 0 ? (
                 <EmptyState>No licence records in this view.</EmptyState>
               ) : (
-                <BulletBars rows={statePercents} target={APPROVAL_TARGET} animate={motion} />
+                <RaceTrack rows={statePercents} target={APPROVAL_TARGET} animate={motion} />
               )}
             </Panel>
             <Panel title="Units Opened per Month" subtitle="The last 12 months, against the same month a year before" className="lg:col-span-5">
@@ -835,15 +815,7 @@ export const Dashboard: React.FC = () => {
               {data.topDistricts.length === 0 ? (
                 <EmptyState>No districts entered for this view.</EmptyState>
               ) : (
-                <BarList
-                  color={chart.series}
-                  rows={data.topDistricts.map((row) => ({
-                    key: `${row.district}|${row.state}`,
-                    label: row.district,
-                    hint: filters.state ? undefined : row.state,
-                    value: row.units,
-                  }))}
-                />
+                <DistrictTreemap rows={data.topDistricts} animate={motion} />
               )}
             </Panel>
 
@@ -924,12 +896,13 @@ export const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <Panel
               title="Licence Status by Type"
-              subtitle="Each licence across the units it applies to. Click a bar to open those records."
+              subtitle="Each spoke is a licence, reaching out to its share approved. Dents are the licences furthest behind."
               className="lg:col-span-12"
             >
               {licenceRows.length === 0 ? (
                 <EmptyState>No licence records in this view.</EmptyState>
-              ) : (
+              ) : licenceRows.length < 3 ? (
+                // A radar needs at least three spokes to make a shape
                 <>
                   <Legend items={licenceLegend} />
                   <LicenceTypeChart
@@ -939,6 +912,19 @@ export const Dashboard: React.FC = () => {
                     onOpen={(bucket, ruleId) => navigate(recordsLink(bucket, { rule: ruleId }))}
                   />
                 </>
+              ) : (
+                <LicenceRadar
+                  rows={licenceRows.map((row) => ({
+                    ruleId: row.ruleId,
+                    label: LICENCE_SHORT_NAMES[row.code] || row.code,
+                    name: row.fullName,
+                    counts: row,
+                  }))}
+                  buckets={shownLicenceBuckets}
+                  target={APPROVAL_TARGET}
+                  animate={motion}
+                  onOpen={(bucket, ruleId) => navigate(recordsLink(bucket, { rule: ruleId }))}
+                />
               )}
             </Panel>
           </div>
@@ -946,16 +932,27 @@ export const Dashboard: React.FC = () => {
           {/* Row 4b: unit make-up and how the companies compare */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <Panel title="Unit Types" subtitle="Open and planned units" className="lg:col-span-4">
-              <BarList
-                color={chart.series}
-                rows={data.unitTypes.map((row) => ({ key: row.code, label: row.label, value: row.units }))}
-              />
+              {data.unitTypes.length === 0 ? (
+                <EmptyState>No unit types entered for this view.</EmptyState>
+              ) : (
+                <Waffle
+                  rows={data.unitTypes.map((row) => ({ key: row.code, label: row.label, value: row.units }))}
+                  noun="units"
+                  animate={motion}
+                />
+              )}
             </Panel>
             <Panel title="Area Types" subtitle="The local body each unit falls under" className="lg:col-span-4">
-              <BarList
-                color={chart.series}
-                rows={data.areaTypes.map((row) => ({ key: row.areaType, label: row.areaType, value: row.units }))}
-              />
+              {data.areaTypes.length === 0 ? (
+                <EmptyState>No area types entered for this view.</EmptyState>
+              ) : (
+                <HalfDonut
+                  rows={data.areaTypes.map((row) => ({ key: row.areaType, label: row.areaType, value: row.units }))}
+                  noun="units"
+                  unsetLabels={['Not set']}
+                  animate={motion}
+                />
+              )}
             </Panel>
             <Panel title="Company Comparison" subtitle="Units operated and licence status" className="lg:col-span-4">
               {data.byCompany.length === 0 ? (
