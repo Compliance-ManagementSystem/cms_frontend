@@ -231,26 +231,58 @@ export const BigPercentTile: React.FC<{
   pct: number;
   label: string;
   sub: string;
-  /** Background: a status colour from the chart theme */
+  /** Fill: a status colour from the chart theme */
   color: string;
   animate: boolean;
   delay?: number;
   onClick?: () => void;
 }> = ({ pct, label, sub, color, animate, delay = 0, onClick }) => {
-  const shown = useAnimatedNumber(pct, animate, delay);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!onClick}
-      className="text-left rounded-xl p-4 text-white shadow-sm transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-md motion-reduce:transform-none flex flex-col justify-between min-h-[132px]"
-      style={{ backgroundColor: color }}
-    >
+  const { dark } = useChartTheme();
+  const shown = useAnimatedNumber(pct, animate, delay, 1200);
+  const level = Math.min(Math.max(shown, 0), 100);
+  // Above the fill the text takes the colour (lifted a little on the dark surface); below it, white
+  const ink = dark ? `color-mix(in srgb, ${color} 60%, white)` : color;
+  const content = (
+    <>
       <span className="text-4xl font-bold tabular-nums leading-none">{Math.round(shown)}%</span>
       <span>
         <span className="block text-sm font-semibold mt-3">{label}</span>
         <span className="block text-[11px] opacity-90 leading-snug">{sub}</span>
       </span>
+    </>
+  );
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      title={`${label}: ${pct}%`}
+      className="relative overflow-hidden text-left rounded-xl shadow-sm transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-md motion-reduce:transform-none min-h-[180px]"
+      style={{ backgroundColor: `color-mix(in srgb, ${color} ${dark ? 18 : 12}%, transparent)`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 30%, transparent)` }}
+    >
+      {/* The empty part: coloured text on the tint */}
+      <span className="absolute inset-0 p-4 flex flex-col justify-between" style={{ color: ink }}>
+        {content}
+      </span>
+      {/* The filled part: the same layout in white, cut off at the fill line */}
+      <span
+        aria-hidden
+        className="absolute inset-0 p-4 flex flex-col justify-between text-white"
+        style={{
+          backgroundImage: `linear-gradient(180deg, color-mix(in srgb, ${color} 80%, white), ${color} 40%)`,
+          clipPath: `inset(${100 - level}% 0 0 0)`,
+        }}
+      >
+        {content}
+      </span>
+      {/* A soft highlight along the fill line */}
+      {level > 0 && level < 100 && (
+        <span
+          aria-hidden
+          className="absolute inset-x-0 h-px bg-white/60"
+          style={{ bottom: `${level}%` }}
+        />
+      )}
     </button>
   );
 };
@@ -536,7 +568,8 @@ export const MonthlyTrend: React.FC<{
 // ── 6b. Districts as a treemap: tile size is the unit count, colour the state ──
 
 // Kept clear of the four status colours, so a category never reads as a licence status
-const CATEGORY_HUES = ['#4f46e5', '#0891b2', '#c026d3', '#ea580c', '#2563eb', '#be123c', '#7c3aed', '#0f766e'];
+// (green, indigo, amber and red are taken, and so are their near neighbours)
+const CATEGORY_HUES = ['#0891b2', '#c026d3', '#7c3aed', '#db2777', '#0284c7', '#a16207', '#475569', '#9333ea'];
 
 export const DistrictTreemap: React.FC<{
   rows: Array<{ district: string; state: string; units: number }>;
@@ -696,9 +729,9 @@ export const LicenceRadar: React.FC<{
             Target {target}%
           </span>
         </div>
-        <div className="h-[380px]">
+        <div className="h-[460px]">
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart data={data} outerRadius="72%" margin={{ top: 16, right: 24, bottom: 16, left: 24 }}>
+            <RadarChart data={data} outerRadius="78%" margin={{ top: 16, right: 24, bottom: 16, left: 24 }}>
               <defs>
                 <radialGradient id="licenceRadarApproved" cx="50%" cy="50%" r="50%">
                   <stop offset="0%" stopColor={chart.licence.approved} stopOpacity={0.25} />
@@ -892,7 +925,7 @@ export const Waffle: React.FC<{
             </span>
             <span className="ml-auto font-semibold tabular-nums text-slate-900 dark:text-slate-100">{row.value}</span>
             <span className="w-9 text-right tabular-nums text-slate-400 dark:text-slate-500">
-              {total > 0 ? Math.round((row.value / total) * 100) : 0}%
+              {total === 0 ? '0%' : row.value / total < 0.005 ? '<1%' : `${Math.round((row.value / total) * 100)}%`}
             </span>
           </li>
         ))}
@@ -982,6 +1015,423 @@ export const HalfDonut: React.FC<{
           </li>
         ))}
       </ul>
+    </div>
+  );
+};
+
+// ── 6f. Bubbles: one circle per state, sized by count, ringed by status ──────
+
+// Short names for bubbles too small for the full one
+const STATE_CODES: Record<string, string> = {
+  'Andhra Pradesh': 'AP', 'Arunachal Pradesh': 'AR', Assam: 'AS', Bihar: 'BR', Chhattisgarh: 'CG', Goa: 'GA',
+  Gujarat: 'GJ', Haryana: 'HR', 'Himachal Pradesh': 'HP', Jharkhand: 'JH', Karnataka: 'KA', Kerala: 'KL',
+  'Madhya Pradesh': 'MP', Maharashtra: 'MH', Manipur: 'MN', Meghalaya: 'ML', Mizoram: 'MZ', Nagaland: 'NL',
+  Odisha: 'OD', Punjab: 'PB', Rajasthan: 'RJ', Sikkim: 'SK', 'Tamil Nadu': 'TN', Telangana: 'TG', Tripura: 'TR',
+  'Uttar Pradesh': 'UP', Uttarakhand: 'UK', 'West Bengal': 'WB', Delhi: 'DL', 'Jammu and Kashmir': 'JK',
+};
+
+const BUBBLE_GAP = 6;
+
+/** Packs circles, largest first, each as close to the middle as it fits without overlapping */
+const packCircles = (radii: number[]): Array<{ x: number; y: number }> => {
+  const placed: Array<{ x: number; y: number; r: number }> = [];
+  const fits = (x: number, y: number, r: number) =>
+    placed.every((c) => Math.hypot(c.x - x, c.y - y) >= c.r + r + BUBBLE_GAP - 0.01);
+  for (const r of radii) {
+    if (placed.length === 0) {
+      placed.push({ x: 0, y: 0, r });
+      continue;
+    }
+    const candidates: Array<{ x: number; y: number }> = [];
+    // Touching one placed circle, at a spread of angles
+    for (const c of placed) {
+      for (let step = 0; step < 24; step++) {
+        const angle = (step / 24) * Math.PI * 2;
+        const d = c.r + r + BUBBLE_GAP;
+        candidates.push({ x: c.x + d * Math.cos(angle), y: c.y + d * Math.sin(angle) });
+      }
+    }
+    // Touching two placed circles at once: where the two "touching" circles cross
+    for (let i = 0; i < placed.length; i++) {
+      for (let j = i + 1; j < placed.length; j++) {
+        const a = placed[i];
+        const b = placed[j];
+        const ra = a.r + r + BUBBLE_GAP;
+        const rb = b.r + r + BUBBLE_GAP;
+        const d = Math.hypot(b.x - a.x, b.y - a.y);
+        if (d === 0 || d > ra + rb || d < Math.abs(ra - rb)) continue;
+        const along = (ra * ra - rb * rb + d * d) / (2 * d);
+        const h = Math.sqrt(Math.max(ra * ra - along * along, 0));
+        const mx = a.x + (along * (b.x - a.x)) / d;
+        const my = a.y + (along * (b.y - a.y)) / d;
+        candidates.push({ x: mx + (h * (b.y - a.y)) / d, y: my - (h * (b.x - a.x)) / d });
+        candidates.push({ x: mx - (h * (b.y - a.y)) / d, y: my + (h * (b.x - a.x)) / d });
+      }
+    }
+    // Slightly wider than tall suits the panel
+    const best = candidates
+      .filter((c) => fits(c.x, c.y, r))
+      .sort((p, q) => Math.hypot(p.x * 0.8, p.y) - Math.hypot(q.x * 0.8, q.y))[0];
+    placed.push({ ...(best ?? { x: 0, y: 0 }), r });
+  }
+  return placed.map(({ x, y }) => ({ x, y }));
+};
+
+export const StateBubbles: React.FC<{
+  rows: Array<{ key: string; label: string; values: Record<string, number> }>;
+  series: Array<{ key: string; label: string; color: string }>;
+  animate: boolean;
+  selected?: string;
+  onSelect: (key: string) => void;
+}> = ({ rows, series, animate, selected, onSelect }) => {
+  const chart = useChartTheme();
+  const [hidden, setHidden] = React.useState<string[]>([]);
+  const [hovered, setHovered] = React.useState<string | null>(null);
+  const [shown, setShown] = React.useState(!animate);
+  React.useEffect(() => {
+    if (!animate) return setShown(true);
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(frame);
+  }, [animate]);
+
+  const visible = series.filter((item) => !hidden.includes(item.key));
+  const totalOf = (row: (typeof rows)[number]) => visible.reduce((sum, item) => sum + (row.values[item.key] || 0), 0);
+  const items = rows
+    .map((row) => ({ ...row, total: totalOf(row) }))
+    .filter((row) => row.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  // Area follows the count; the smallest still has room for its short name and number
+  const max = Math.max(...items.map((row) => row.total), 1);
+  const radii = items.map((row) => Math.max(26, 92 * Math.sqrt(row.total / max)));
+  const layout = React.useMemo(() => packCircles(radii), [radii.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pad = 8;
+  const minX = Math.min(...layout.map((c, i) => c.x - radii[i]), 0) - pad;
+  const maxX = Math.max(...layout.map((c, i) => c.x + radii[i]), 0) + pad;
+  const minY = Math.min(...layout.map((c, i) => c.y - radii[i]), 0) - pad;
+  const maxY = Math.max(...layout.map((c, i) => c.y + radii[i]), 0) + pad;
+  const ink = chart.dark ? '#f8fafc' : '#0f172a';
+  const focus = items.find((row) => row.key === hovered);
+
+  const toggle = (key: string) =>
+    setHidden((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : prev.length + 1 >= series.length ? prev : [...prev, key]));
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1 mt-2 text-[11px]">
+        {series.map((item) => {
+          const off = hidden.includes(item.key);
+          return (
+            <button
+              key={item.key}
+              type="button"
+              aria-pressed={!off}
+              title={off ? `Show ${item.label}` : `Hide ${item.label}`}
+              onClick={() => toggle(item.key)}
+              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full border transition-colors ${
+                off
+                  ? 'border-transparent text-slate-400 dark:text-slate-500 line-through'
+                  : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color, opacity: off ? 0.35 : 1 }} />
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="relative mt-2">
+        <svg viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`} className="w-full max-h-[340px]" role="img" aria-label="Units by state">
+          <defs>
+            <radialGradient id="stateBubbleFill" cx="35%" cy="30%" r="75%">
+              <stop offset="0%" stopColor={chart.dark ? '#334155' : '#ffffff'} />
+              <stop offset="100%" stopColor={chart.dark ? '#1e293b' : '#e2e8f0'} />
+            </radialGradient>
+          </defs>
+          {items.map((row, index) => {
+            const { x, y } = layout[index];
+            const r = radii[index];
+            const ringR = r - 4;
+            const ringWidth = Math.max(4, Math.min(9, r * 0.12));
+            const circumference = 2 * Math.PI * ringR;
+            const big = r >= 44;
+            const isSelected = selected === row.key;
+            let offset = 0;
+            return (
+              <g
+                key={row.key}
+                onClick={() => onSelect(row.key)}
+                onMouseEnter={() => setHovered(row.key)}
+                onMouseLeave={() => setHovered(null)}
+                className="cursor-pointer"
+                style={{
+                  transform: `translate(${x}px, ${y}px) scale(${shown ? 1 : 0})`,
+                  transition: `transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1) ${animate ? index * 70 : 0}ms, opacity 150ms`,
+                  opacity: hovered !== null && hovered !== row.key ? 0.35 : 1,
+                }}
+              >
+                <title>{`${row.label}: ${row.total} units`}</title>
+                <circle r={r} fill="url(#stateBubbleFill)" stroke={isSelected ? ink : 'none'} strokeWidth={2} />
+                {/* Status ring, starting at 12 o'clock */}
+                {visible.map((item) => {
+                  const value = row.values[item.key] || 0;
+                  if (value === 0) return null;
+                  const length = (value / row.total) * circumference;
+                  const gap = visible.filter((v) => (row.values[v.key] || 0) > 0).length > 1 ? 2 : 0;
+                  const arc = (
+                    <circle
+                      key={item.key}
+                      r={ringR}
+                      fill="none"
+                      stroke={item.color}
+                      strokeWidth={ringWidth}
+                      strokeDasharray={`${Math.max(length - gap, 1)} ${circumference}`}
+                      strokeDashoffset={-offset}
+                      transform="rotate(-90)"
+                    />
+                  );
+                  offset += length;
+                  return arc;
+                })}
+                <text textAnchor="middle" y={big ? -2 : 4} fontSize={big ? Math.min(r * 0.42, 34) : 13} fontWeight={800} fill={ink}>
+                  {row.total}
+                </text>
+                <text
+                  textAnchor="middle"
+                  y={big ? Math.min(r * 0.42, 34) * 0.55 + 4 : -9}
+                  fontSize={big ? 12 : 9}
+                  fontWeight={600}
+                  fill={chart.axis}
+                  style={{ display: big || r >= 26 ? undefined : 'none' }}
+                >
+                  {big ? row.label : STATE_CODES[row.label] || row.label.slice(0, 2).toUpperCase()}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* Details for the hovered state */}
+        {focus && (
+          <div className="absolute top-0 right-0 pointer-events-none min-w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
+            <p className="font-semibold text-slate-800 dark:text-slate-200">{focus.label}</p>
+            {visible.map((item) => {
+              const value = focus.values[item.key] || 0;
+              return (
+                <p key={item.key} className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="text-slate-500 dark:text-slate-400">{item.label}:</span>
+                  <span className="ml-auto font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
+                    {value}
+                    <span className="font-normal text-slate-500 dark:text-slate-400"> ({Math.round((value / focus.total) * 100)}%)</span>
+                  </span>
+                </p>
+              );
+            })}
+            <p className="pt-1 border-t border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+              Total: <span className="font-semibold text-slate-900 dark:text-slate-100">{focus.total}</span>
+            </p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+};
+
+// ── 6g. Sankey: states on the left flowing into statuses on the right ────────
+
+const SANKEY_W = 640;
+const SANKEY_H = 300;
+const SANKEY_NODE = 12;
+const SANKEY_GAP = 8;
+const SANKEY_MIN = 6;
+// Room for the names either side
+const SANKEY_LEFT = 150;
+const SANKEY_RIGHT = SANKEY_W - 170;
+// States beyond this many are grouped into one node
+const SANKEY_STATES = 5;
+
+interface SankeyNode {
+  key: string;
+  label: string;
+  total: number;
+  y: number;
+  h: number;
+  /** Where the next ribbon leaves or arrives */
+  cursor: number;
+}
+
+/** Stacks nodes top to bottom, each sized by its total, with a minimum so small ones stay visible */
+const stackNodes = <T extends { key: string; label: string; total: number }>(items: T[]): Array<T & SankeyNode> => {
+  const sum = items.reduce((acc, item) => acc + item.total, 0) || 1;
+  const room = SANKEY_H - SANKEY_GAP * (items.length - 1);
+  const raw = items.map((item) => (item.total / sum) * room);
+  // Whatever the minimum adds is taken back from the others in proportion
+  const extra = raw.reduce((acc, h) => acc + Math.max(SANKEY_MIN - h, 0), 0);
+  const big = raw.reduce((acc, h) => acc + (h > SANKEY_MIN ? h : 0), 0) || 1;
+  let y = 0;
+  return items.map((item, index) => {
+    const h = raw[index] < SANKEY_MIN ? SANKEY_MIN : raw[index] - (extra * raw[index]) / big;
+    const node = { ...item, y, h, cursor: y };
+    y += h + SANKEY_GAP;
+    return node;
+  });
+};
+
+export const StateSankey: React.FC<{
+  rows: Array<{ key: string; label: string; values: Record<string, number> }>;
+  series: Array<{ key: string; label: string; color: string }>;
+  animate: boolean;
+  selected?: string;
+  onSelect: (key: string) => void;
+}> = ({ rows, series, animate, selected, onSelect }) => {
+  const chart = useChartTheme();
+  const [focus, setFocus] = React.useState<{ state?: string; status?: string } | null>(null);
+  const [shown, setShown] = React.useState(!animate);
+  React.useEffect(() => {
+    if (!animate) return setShown(true);
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(frame);
+  }, [animate]);
+
+  const ink = chart.dark ? '#f8fafc' : '#0f172a';
+  const sumOf = (values: Record<string, number>) => series.reduce((acc, item) => acc + (values[item.key] || 0), 0);
+  const ranked = rows
+    .map((row) => ({ ...row, total: sumOf(row.values) }))
+    .filter((row) => row.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  // The largest states keep their own node; two or more small ones share one
+  const grouped = ranked.length > SANKEY_STATES + 1;
+  const rest = grouped ? ranked.slice(SANKEY_STATES) : [];
+  const states = grouped
+    ? [
+        ...ranked.slice(0, SANKEY_STATES),
+        {
+          key: '__other',
+          label: `${rest.length} other states`,
+          values: Object.fromEntries(series.map((item) => [item.key, rest.reduce((acc, row) => acc + (row.values[item.key] || 0), 0)])),
+          total: rest.reduce((acc, row) => acc + row.total, 0),
+        },
+      ]
+    : ranked;
+  const grand = states.reduce((acc, row) => acc + row.total, 0);
+  const statuses = series
+    .map((item) => ({ ...item, total: states.reduce((acc, row) => acc + (row.values[item.key] || 0), 0) }))
+    .filter((item) => item.total > 0);
+
+  const left = stackNodes(states);
+  const right = stackNodes(statuses);
+
+  // One ribbon per state and status: leaving in status order, arriving in state order
+  const ribbons = left.flatMap((state) =>
+    right
+      .filter((status) => (state.values[status.key] || 0) > 0)
+      .map((status) => {
+        const value = state.values[status.key] || 0;
+        const fromH = (value / state.total) * state.h;
+        const toH = (value / status.total) * status.h;
+        const ribbon = { state, status, value, y0: state.cursor, y1: state.cursor + fromH, t0: status.cursor, t1: status.cursor + toH };
+        state.cursor += fromH;
+        status.cursor += toH;
+        return ribbon;
+      })
+  );
+
+  const x0 = SANKEY_LEFT + SANKEY_NODE;
+  const x1 = SANKEY_RIGHT;
+  const mid = (x0 + x1) / 2;
+  const lit = (stateKey: string, statusKey: string) =>
+    !focus || (focus.state ? focus.state === stateKey : true) && (focus.status ? focus.status === statusKey : true);
+  const hoveredRibbon = focus?.state && focus?.status ? ribbons.find((r) => r.state.key === focus.state && r.status.key === focus.status) : null;
+
+  return (
+    <div className="relative mt-3">
+      <svg viewBox={`0 -4 ${SANKEY_W} ${SANKEY_H + 8}`} className="w-full" role="img" aria-label="Licences flowing from each state to their status">
+        <defs>
+          {ribbons.map((r) => (
+            <linearGradient key={`${r.state.key}-${r.status.key}`} id={`sankey-${r.state.key}-${r.status.key}`.replace(/\W/g, '')} x1="0" x2="1">
+              <stop offset="0%" stopColor={r.status.color} stopOpacity={0.25} />
+              <stop offset="100%" stopColor={r.status.color} stopOpacity={0.65} />
+            </linearGradient>
+          ))}
+        </defs>
+
+        {ribbons.map((r, index) => (
+          <path
+            key={`${r.state.key}-${r.status.key}`}
+            d={`M ${x0} ${r.y0} C ${mid} ${r.y0}, ${mid} ${r.t0}, ${x1} ${r.t0} L ${x1} ${r.t1} C ${mid} ${r.t1}, ${mid} ${r.y1}, ${x0} ${r.y1} Z`}
+            fill={`url(#${`sankey-${r.state.key}-${r.status.key}`.replace(/\W/g, '')})`}
+            onMouseEnter={() => setFocus({ state: r.state.key, status: r.status.key })}
+            onMouseLeave={() => setFocus(null)}
+            style={{
+              opacity: !shown ? 0 : lit(r.state.key, r.status.key) ? 1 : 0.15,
+              transition: `opacity ${shown && focus ? 150 : 500}ms ease-out ${focus ? 0 : animate ? index * 25 : 0}ms`,
+            }}
+          />
+        ))}
+
+        {/* States */}
+        {left.map((state) => {
+          const other = state.key === '__other';
+          const isSelected = selected === state.key;
+          return (
+            <g
+              key={state.key}
+              onMouseEnter={() => setFocus({ state: state.key })}
+              onMouseLeave={() => setFocus(null)}
+              onClick={other ? undefined : () => onSelect(state.key)}
+              className={other ? undefined : 'cursor-pointer'}
+            >
+              <title>
+                {other
+                  ? rest.map((row) => `${row.label}: ${row.total}`).join('\n')
+                  : `${state.label}: ${state.total} licences. Click to filter.`}
+              </title>
+              <rect x={SANKEY_LEFT} y={state.y} width={SANKEY_NODE} height={state.h} rx={3} fill={other ? chart.grid : ink} fillOpacity={other ? 0.6 : 0.85} />
+              <text
+                x={SANKEY_LEFT - 8}
+                y={state.y + state.h / 2}
+                dy="0.35em"
+                textAnchor="end"
+                fontSize={12}
+                fontWeight={isSelected ? 800 : 600}
+                fill={other ? chart.axis : ink}
+              >
+                {state.label}
+                <tspan fill={chart.axis} fontWeight={500}> {state.total.toLocaleString()}</tspan>
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Statuses */}
+        {right.map((status) => (
+          <g key={status.key} onMouseEnter={() => setFocus({ status: status.key })} onMouseLeave={() => setFocus(null)}>
+            <rect x={SANKEY_RIGHT} y={status.y} width={SANKEY_NODE} height={status.h} rx={3} fill={status.color} />
+            <text x={SANKEY_RIGHT + SANKEY_NODE + 8} y={status.y + status.h / 2} dy="-0.2em" fontSize={12} fontWeight={700} fill={ink}>
+              {status.label}
+            </text>
+            <text x={SANKEY_RIGHT + SANKEY_NODE + 8} y={status.y + status.h / 2} dy="1.05em" fontSize={11} fill={chart.axis}>
+              {status.total.toLocaleString()} · {grand > 0 ? Math.round((status.total / grand) * 100) : 0}%
+            </text>
+          </g>
+        ))}
+      </svg>
+
+      {hoveredRibbon && (
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap">
+          <span className="font-semibold text-slate-900 dark:text-slate-100">{hoveredRibbon.state.label}</span>
+          <span className="text-slate-400"> → </span>
+          <span className="font-semibold" style={{ color: hoveredRibbon.status.color }}>
+            {hoveredRibbon.status.label}
+          </span>
+          <span className="text-slate-500 dark:text-slate-400">
+            : {hoveredRibbon.value.toLocaleString()} ({Math.round((hoveredRibbon.value / hoveredRibbon.state.total) * 100)}% of the state)
+          </span>
+        </div>
+      )}
     </div>
   );
 };

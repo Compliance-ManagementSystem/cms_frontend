@@ -40,7 +40,6 @@ import { ROUTES } from '@/constants/routes';
 import IndiaMap, { resolveStateId } from '@/components/charts/IndiaMap';
 import { SCORE_BANDS, scoreBandIndex, useChartTheme } from '@/components/charts/chartTheme';
 import { StatusRings, StatusGauge, type StatusSlice } from '@/components/charts/StatusMeters';
-import RankedStackRows from '@/components/charts/RankedStackRows';
 import { ExpiryAlert } from '@/components/dashboard/ExpiryAlert';
 import {
   PercentCircles,
@@ -53,6 +52,8 @@ import {
   LicenceRadar,
   Waffle,
   HalfDonut,
+  StateBubbles,
+  StateSankey,
   IconCounters,
   type CounterItem,
 } from '@/components/charts/GlanceCharts';
@@ -713,17 +714,15 @@ export const Dashboard: React.FC = () => {
 
             <Panel
               title="Units by State"
-              subtitle="Largest first. Click a state to filter, or a status to hide it."
+              subtitle="Bubble size is the unit count; the ring splits it by status. Click a state to filter, or a status to hide it."
               className="lg:col-span-5"
             >
-              <RankedStackRows
+              <StateBubbles
                 rows={stateUnitRows}
                 series={UNIT_ORDER.map((bucket) => ({ key: bucket, label: UNIT_LABELS[bucket], color: chart.unit[bucket] }))}
                 animate={motion}
                 selected={filters.state}
                 onSelect={toggleState}
-                countLabel="Units"
-                shareLabel="% of state"
               />
             </Panel>
 
@@ -776,13 +775,13 @@ export const Dashboard: React.FC = () => {
 
             <Panel
               title="Licence Status by State"
-              subtitle="Applicable licences at open and planned units. Click a state to filter."
+              subtitle="Where each state's licences stand: ribbon width is the number of licences. Click a state to filter."
               className="lg:col-span-5"
             >
               {stateLicenceRows.length === 0 ? (
                 <EmptyState height="h-72">No licence records in this view.</EmptyState>
               ) : (
-                <RankedStackRows
+                <StateSankey
                   rows={stateLicenceRows}
                   series={shownLicenceBuckets.map((bucket) => ({
                     key: bucket,
@@ -792,8 +791,6 @@ export const Dashboard: React.FC = () => {
                   animate={motion}
                   selected={filters.state}
                   onSelect={toggleState}
-                  countLabel="Licences"
-                  shareLabel="% of state"
                 />
               )}
             </Panel>
