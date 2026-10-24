@@ -1,18 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  LabelList,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
-import {
   LayoutDashboard,
   RefreshCw,
   ChevronRight,
@@ -48,6 +36,8 @@ import {
   BigPercentTile,
   RaceTrack,
   MonthlyTrend,
+  GrowthCurve,
+  YearlyOpenings,
   DistrictTreemap,
   LicenceRadar,
   Waffle,
@@ -63,7 +53,6 @@ import {
   LICENCE_STATUS_PARAM,
   pct,
   withQuery,
-  ChartTooltip,
   Legend,
   StatCard,
   StatusStrip,
@@ -75,9 +64,6 @@ import {
 const REFRESH_MS = 60_000;
 // The share of applicable licences each state is measured against on the target chart
 const APPROVAL_TARGET = 90;
-
-// Chart entrance timings
-const LINE_MS = 1400;
 
 // Column headings for the state × licence grid, as the Location Master sheet abbreviates them
 const LICENCE_SHORT_NAMES: Record<string, string> = {
@@ -101,22 +87,6 @@ const UNIT_LABELS: Record<UnitBucket, string> = { open: 'Open', toBeOpened: 'To 
 
 const SELECT_CLASS =
   'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
-
-const TrendTooltip = ({ active, payload }: any) => {
-  if (!active || !payload?.length) return null;
-  const point = payload[0].payload as { month: string; opened: number; total: number };
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
-      <p className="font-semibold text-slate-800 dark:text-slate-200">{point.month}</p>
-      <p className="text-slate-500 dark:text-slate-400">
-        Opened so far: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.total}</span>
-      </p>
-      <p className="text-slate-500 dark:text-slate-400">
-        Opened that month: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.opened}</span>
-      </p>
-    </div>
-  );
-};
 
 const Panel: React.FC<{
   title: string;
@@ -398,7 +368,6 @@ export const Dashboard: React.FC = () => {
   const unmappedStates = mapStates.filter((row) => !resolveStateId(row.state)).map((row) => row.state);
 
   const trend = data.openingsTrend;
-  const trendTickGap = Math.max(1, Math.ceil(trend.length / 6));
 
   const unitSlices: StatusSlice[] = UNIT_ORDER.map((bucket) => ({
     key: bucket,
@@ -415,7 +384,6 @@ export const Dashboard: React.FC = () => {
     to: recordsLink(bucket),
   }));
 
-  const axisTick = { fill: chart.axis, fontSize: 11 };
   const selectState = (state: string) => setFilters((prev) => ({ ...prev, state }));
   // A second click on the state already picked clears the filter
   const toggleState = (state: string) =>
@@ -737,39 +705,7 @@ export const Dashboard: React.FC = () => {
               {trend.length < 2 ? (
                 <EmptyState height="h-72">No opening dates entered for this view.</EmptyState>
               ) : (
-                <div className="h-72 mt-3">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trend} margin={{ top: 18, right: 28, left: -18, bottom: 0 }}>
-                      <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
-                      <XAxis dataKey="month" tick={axisTick} tickLine={false} axisLine={false} interval={trendTickGap - 1} />
-                      <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
-                      <Tooltip content={<TrendTooltip />} />
-                      <Line
-                        type="monotone"
-                        dataKey="total"
-                        name="Units opened so far"
-                        stroke={chart.series}
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 5, stroke: chart.surface, strokeWidth: 2 }}
-                        isAnimationActive={motion}
-                        animationDuration={LINE_MS}
-                      >
-                        {/* Label the latest point only */}
-                        <LabelList
-                          dataKey="total"
-                          content={({ x, y, value, index }: any) =>
-                            index === trend.length - 1 ? (
-                              <text x={x} y={y - 8} textAnchor="middle" fill={chart.axis} fontSize={11} fontWeight={600}>
-                                {value}
-                              </text>
-                            ) : null
-                          }
-                        />
-                      </Line>
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                <GrowthCurve rows={trend} animate={motion} />
               )}
             </Panel>
 
@@ -926,36 +862,7 @@ export const Dashboard: React.FC = () => {
               {data.openingsByYear.length === 0 ? (
                 <EmptyState>No opening dates entered for this view.</EmptyState>
               ) : (
-                <div className="h-64 mt-3">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data.openingsByYear} margin={{ top: 20, right: 16, left: -18, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="openingsByYearFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={chart.series} stopOpacity={0.35} />
-                          <stop offset="100%" stopColor={chart.series} stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
-                      <XAxis dataKey="year" tick={axisTick} tickLine={false} axisLine={false} />
-                      <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
-                      <Tooltip content={<ChartTooltip />} cursor={{ stroke: chart.grid, strokeOpacity: 0.5 }} />
-                      <Area
-                        type="monotone"
-                        dataKey="opened"
-                        name="Units opened"
-                        stroke={chart.series}
-                        strokeWidth={2}
-                        fill="url(#openingsByYearFill)"
-                        dot={{ r: 3, fill: chart.series, stroke: chart.surface, strokeWidth: 1.5 }}
-                        activeDot={{ r: 5, stroke: chart.surface, strokeWidth: 2 }}
-                        isAnimationActive={motion}
-                        animationDuration={LINE_MS}
-                      >
-                        <LabelList dataKey="opened" position="top" offset={8} fill={chart.axis} fontSize={11} fontWeight={600} />
-                      </Area>
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+                <YearlyOpenings rows={data.openingsByYear} animate={motion} />
               )}
             </Panel>
 
@@ -969,7 +876,7 @@ export const Dashboard: React.FC = () => {
               ) : (
                 <>
                   <Legend items={licenceLegend} />
-                  <YearColumnsChart rows={yearRows} buckets={shownLicenceBuckets} animate={motion} />
+                  <YearColumnsChart rows={yearRows} buckets={shownLicenceBuckets} animate={motion} target={APPROVAL_TARGET} />
                 </>
               )}
             </Panel>

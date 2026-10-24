@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   LineChart,
   Line,
+  AreaChart,
+  Area,
+  ReferenceDot,
   Treemap,
   PieChart,
   Pie,
@@ -561,6 +564,325 @@ export const MonthlyTrend: React.FC<{
           </LineChart>
         </ResponsiveContainer>
       </div>
+    </>
+  );
+};
+
+// ── 6a. Running total of units opened, with milestones and the latest figure ──
+
+export const GrowthCurve: React.FC<{
+  /** Month by month, oldest first; month reads like "Nov '21" */
+  rows: Array<{ month: string; opened: number; total: number }>;
+  animate: boolean;
+}> = ({ rows, animate }) => {
+  const chart = useChartTheme();
+  const axisTick = { fill: chart.axis, fontSize: 11 };
+  const last = rows[rows.length - 1];
+  const yearAgo = rows[rows.length - 13];
+  const lastYear = last.total - (yearAgo ? yearAgo.total : 0);
+  const busiest = rows.reduce((best, row) => (row.opened > best.opened ? row : best), rows[0]);
+
+  // Milestones every 50, 100, 200… so there are two to four of them
+  const step = [25, 50, 100, 200, 500, 1000].find((size) => last.total / size <= 4) ?? 1000;
+  const milestones = Array.from({ length: Math.floor(last.total / step) }, (_, index) => (index + 1) * step)
+    .map((mark) => ({ mark, row: rows.find((row) => row.total >= mark) }))
+    .filter((item): item is { mark: number; row: (typeof rows)[number] } => !!item.row && item.row !== last);
+
+  // A tick each January, labelled with the year; short histories fall back to an even spread
+  const januaries = rows.filter((row) => row.month.startsWith('Jan')).map((row) => row.month);
+  const ticks = januaries.length >= 2 ? januaries : rows.filter((_, index) => index % Math.ceil(rows.length / 5) === 0).map((row) => row.month);
+  const tickLabel = (month: string) => (januaries.length >= 2 ? `20${month.slice(-2)}` : month);
+
+  return (
+    <>
+      {/* The headline: where it stands, and how fast it is moving */}
+      <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
+        <div>
+          <p className="text-3xl font-extrabold leading-none text-slate-900 dark:text-slate-100 tabular-nums">{last.total}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">units opened so far</p>
+        </div>
+        {lastYear > 0 && (
+          <span className="mb-4 inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+            ↑ {lastYear} in the last 12 months
+          </span>
+        )}
+      </div>
+
+      <div className="h-60 mt-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={rows} margin={{ top: 22, right: 26, left: -18, bottom: 0 }}>
+            <defs>
+              <linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={chart.series} stopOpacity={0.45} />
+                <stop offset="100%" stopColor={chart.series} stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="growthStroke" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#06b6d4" />
+                <stop offset="100%" stopColor={chart.series} />
+              </linearGradient>
+              <filter id="growthGlow" x="-10%" y="-10%" width="120%" height="140%">
+                <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor={chart.series} floodOpacity={0.35} />
+              </filter>
+            </defs>
+            <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.18} strokeDasharray="3 4" />
+            <XAxis dataKey="month" ticks={ticks} tickFormatter={tickLabel} tick={axisTick} tickLine={false} axisLine={false} />
+            <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} tickCount={4} />
+            <Tooltip
+              cursor={{ stroke: chart.series, strokeOpacity: 0.4, strokeDasharray: '4 4' }}
+              content={({ active, payload }: any) => {
+                if (!active || !payload?.length) return null;
+                const point = payload[0].payload;
+                return (
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">{point.month}</p>
+                    <p className="text-slate-500 dark:text-slate-400">
+                      Opened so far: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.total}</span>
+                    </p>
+                    <p className="text-slate-500 dark:text-slate-400">
+                      Opened that month: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.opened}</span>
+                    </p>
+                  </div>
+                );
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="total"
+              name="Units opened so far"
+              stroke="url(#growthStroke)"
+              strokeWidth={3}
+              fill="url(#growthFill)"
+              filter="url(#growthGlow)"
+              dot={false}
+              activeDot={{ r: 5, fill: chart.series, stroke: chart.surface, strokeWidth: 2 }}
+              isAnimationActive={animate}
+              animationDuration={1400}
+            />
+            {/* Milestones as small flags on the curve */}
+            {milestones.map(({ mark, row }) => (
+              <ReferenceDot
+                key={mark}
+                x={row.month}
+                y={row.total}
+                r={4}
+                fill={chart.surface}
+                stroke={chart.series}
+                strokeWidth={2}
+                label={{ value: `${mark}`, position: 'left', offset: 8, fill: chart.axis, fontSize: 10, fontWeight: 700 }}
+              />
+            ))}
+            {/* The latest figure, with a slow pulse */}
+            <ReferenceDot
+              x={last.month}
+              y={last.total}
+              r={5}
+              shape={({ cx, cy }: any) => (
+                <g>
+                  <circle cx={cx} cy={cy} r={5} fill={chart.series} opacity={0.35}>
+                    <animate attributeName="r" values="5;13;5" dur="2.4s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.35;0;0.35" dur="2.4s" repeatCount="indefinite" />
+                  </circle>
+                  <circle cx={cx} cy={cy} r={5} fill={chart.series} stroke={chart.surface} strokeWidth={2} />
+                  <text x={cx} y={cy - 12} textAnchor="middle" fill={chart.series} fontSize={12} fontWeight={800}>
+                    {last.total}
+                  </text>
+                </g>
+              )}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+        Busiest month: <span className="font-semibold text-slate-700 dark:text-slate-300">{busiest.month}</span>, {busiest.opened} opened
+      </p>
+    </>
+  );
+};
+
+// ── 6a2. Units opened per year: peak, change year on year, current year so far ──
+
+export const YearlyOpenings: React.FC<{
+  rows: Array<{ year: string; opened: number }>;
+  animate: boolean;
+}> = ({ rows, animate }) => {
+  const chart = useChartTheme();
+  const axisTick = { fill: chart.axis, fontSize: 12, fontWeight: 600 };
+  const thisYear = String(new Date().getFullYear());
+  const lastIndex = rows.length - 1;
+  // The current year is still running, so its stretch of the line is dashed
+  const partial = rows[lastIndex]?.year === thisYear && rows.length > 1;
+  const data = rows.map((row, index) => ({
+    ...row,
+    change: index > 0 ? row.opened - rows[index - 1].opened : null,
+    done: !partial || index < lastIndex ? row.opened : null,
+    running: partial && index >= lastIndex - 1 ? row.opened : null,
+  }));
+  const peak = data.reduce((best, row) => (row.opened > best.opened ? row : best), data[0]);
+  const latest = data[lastIndex];
+  const peakColor = chart.dark ? '#fbbf24' : '#d97706';
+
+  return (
+    <>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="rounded-xl px-3 py-2 bg-amber-50 dark:bg-amber-500/10">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">Best year</p>
+          <p className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+            {peak.opened}
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> in {peak.year}</span>
+          </p>
+        </div>
+        <div className="rounded-xl px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+            {latest.year}
+            {partial ? ' so far' : ''}
+          </p>
+          <p className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+            {latest.opened}
+            {latest.change !== null && latest.change !== 0 && (
+              <span className={`text-xs font-semibold ${latest.change > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                {' '}
+                {latest.change > 0 ? '↑' : '↓'} {Math.abs(latest.change)} vs {data[lastIndex - 1].year}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div className="h-56 mt-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 26, right: 18, left: 18, bottom: 0 }}>
+            <defs>
+              <linearGradient id="yearlyFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={chart.series} stopOpacity={0.4} />
+                <stop offset="100%" stopColor={chart.series} stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="yearlyStroke" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#8b5cf6" />
+                <stop offset="100%" stopColor={chart.series} />
+              </linearGradient>
+              <filter id="yearlyGlow" x="-10%" y="-10%" width="120%" height="140%">
+                <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor={chart.series} floodOpacity={0.35} />
+              </filter>
+            </defs>
+            <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.18} strokeDasharray="3 4" />
+            <XAxis
+              dataKey="year"
+              tick={axisTick}
+              tickLine={false}
+              axisLine={false}
+              padding={{ left: 8, right: 8 }}
+              tickFormatter={(year: string) => (partial && year === latest.year ? `${year}*` : year)}
+            />
+            <YAxis hide domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
+            <Tooltip
+              cursor={{ stroke: chart.series, strokeOpacity: 0.4, strokeDasharray: '4 4' }}
+              content={({ active, payload }: any) => {
+                if (!active || !payload?.length) return null;
+                const point = payload[0].payload;
+                return (
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">
+                      {point.year}
+                      {partial && point.year === latest.year ? ' (so far)' : ''}
+                    </p>
+                    <p className="text-slate-500 dark:text-slate-400">
+                      Units opened: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.opened}</span>
+                    </p>
+                    {point.change !== null && (
+                      <p className="text-slate-500 dark:text-slate-400">
+                        Change on the year before:{' '}
+                        <span className={`font-semibold ${point.change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {point.change >= 0 ? '+' : '−'}
+                          {Math.abs(point.change)}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                );
+              }}
+            />
+            {/* The fill runs under the whole line, finished years and the current one alike */}
+            <Area type="monotone" dataKey="opened" stroke="none" fill="url(#yearlyFill)" isAnimationActive={animate} animationDuration={1200} />
+            <Area
+              type="monotone"
+              dataKey="done"
+              stroke="url(#yearlyStroke)"
+              strokeWidth={3}
+              fill="none"
+              filter="url(#yearlyGlow)"
+              connectNulls={false}
+              isAnimationActive={animate}
+              animationDuration={1200}
+              activeDot={false}
+              dot={(props: any) => {
+                const { cx, cy, payload, index } = props;
+                if (payload.done === null) return <g key={index} />;
+                const isPeak = payload.year === peak.year;
+                return (
+                  <g key={index}>
+                    <circle cx={cx} cy={cy} r={isPeak ? 7 : 5} fill={isPeak ? peakColor : chart.series} stroke={chart.surface} strokeWidth={2.5} />
+                    <text x={cx} y={cy - 14} textAnchor="middle" fill={isPeak ? peakColor : chart.axis} fontSize={isPeak ? 14 : 12} fontWeight={800}>
+                      {isPeak ? `★ ${payload.opened}` : payload.opened}
+                    </text>
+                  </g>
+                );
+              }}
+            />
+            {partial && (
+              <Area
+                type="monotone"
+                dataKey="running"
+                stroke={chart.series}
+                strokeWidth={3}
+                strokeDasharray="6 5"
+                fill="none"
+                connectNulls={false}
+                isAnimationActive={animate}
+                animationDuration={1200}
+                activeDot={false}
+                dot={(props: any) => {
+                  const { cx, cy, payload, index } = props;
+                  if (index !== lastIndex) return <g key={index} />;
+                  return (
+                    <g key={index}>
+                      <circle cx={cx} cy={cy} r={5} fill={chart.surface} stroke={chart.series} strokeWidth={2.5} />
+                      <text x={cx} y={cy - 14} textAnchor="middle" fill={chart.axis} fontSize={12} fontWeight={800}>
+                        {payload.opened}
+                      </text>
+                    </g>
+                  );
+                }}
+              />
+            )}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Year-on-year change, one chip under each year after the first */}
+      <div className="mt-1 flex justify-between gap-1 px-[18px]">
+        {data.map((row) => (
+          <span key={row.year} className="flex-1 text-center">
+            {row.change === null ? (
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">start</span>
+            ) : (
+              <span
+                className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
+                  row.change > 0
+                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+                    : row.change < 0
+                      ? 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                {row.change > 0 ? '+' : row.change < 0 ? '−' : ''}
+                {Math.abs(row.change)}
+              </span>
+            )}
+          </span>
+        ))}
+      </div>
+      {partial && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">* {latest.year} is still running; the dashed stretch is the year so far.</p>}
     </>
   );
 };

@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, Cell, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Building2, CheckCircle2, XCircle, Clock, Settings2, ShieldCheck, type LucideIcon } from 'lucide-react';
 import type { LicenceBucket, LicenceCounts, OperationsDashboardData, OperationsFilters } from '@/services/dashboardService';
 import { useChartTheme } from '@/components/charts/chartTheme';
@@ -180,121 +180,146 @@ export const ShareRows: React.FC<{
   </ul>
 );
 
-/** One column per opening year, stacked by status as shares of 100%, with the share approved on top */
+/** One column per opening year, filled by status as shares of 100%, against the approval target */
 export const YearColumnsChart: React.FC<{
   rows: Array<{ key: string; label: string; hint: string; counts: LicenceCounts }>;
   buckets: LicenceBucket[];
   animate: boolean;
-}> = ({ rows, buckets, animate }) => {
+  /** 0–100; drawn as a dashed line across the columns */
+  target?: number;
+}> = ({ rows, buckets, animate, target = 90 }) => {
   const chart = useChartTheme();
-  const [active, setActive] = React.useState<number | null>(null);
-  const axisTick = { fill: chart.axis, fontSize: 12, fontWeight: 600 };
-  const data = rows.map((row) => ({
-    ...row,
-    // Unrounded, so every year adds up to exactly 100
-    ...Object.fromEntries(buckets.map((bucket) => [bucket, (row.counts[bucket] / row.counts.total) * 100])),
-  }));
-  // Only the top segment of each column gets the rounded corners
-  const topBucket = data.map((row) => [...buckets].reverse().find((bucket) => row.counts[bucket] > 0));
-  return (
-    <div className="h-72 mt-2">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={data}
-          margin={{ top: 4, right: 4, left: 4, bottom: 0 }}
-          barCategoryGap="22%"
-          onMouseMove={(state: any) => setActive(state?.activeTooltipIndex ?? null)}
-          onMouseLeave={() => setActive(null)}
+  const [hovered, setHovered] = React.useState<string | null>(null);
+  const [grown, setGrown] = React.useState(!animate);
+  React.useEffect(() => {
+    if (!animate) return setGrown(true);
+    const frame = requestAnimationFrame(() => setGrown(true));
+    return () => cancelAnimationFrame(frame);
+  }, [animate]);
+
+  const share = (row: (typeof rows)[number], bucket: LicenceBucket) =>
+    row.counts.total > 0 ? (row.counts[bucket] / row.counts.total) * 100 : 0;
+  const dated = rows.filter((row) => row.key !== 'No date');
+  const undated = rows.filter((row) => row.key === 'No date');
+  const best = dated.reduce<(typeof rows)[number] | null>((top, row) => (!top || (row.counts.approvedPct ?? 0) > (top.counts.approvedPct ?? 0) ? row : top), null);
+  const newest = dated[dated.length - 1];
+  const behind = dated.filter((row) => (row.counts.approvedPct ?? 0) < target).length;
+  const targetLine = chart.dark ? '#f8fafc' : '#0f172a';
+  // Approved share as a badge: green at the target, amber close to it, red well short
+  const badge = (pct: number) =>
+    pct >= target
+      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300'
+      : pct >= 60
+        ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300'
+        : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300';
+
+  const column = (row: (typeof rows)[number], index: number) => {
+    const pct = row.counts.approvedPct ?? 0;
+    const dim = hovered !== null && hovered !== row.key;
+    const units = row.hint.split(' · ')[0];
+    return (
+      <div
+        key={row.key}
+        className="relative flex-1 min-w-0 flex flex-col items-center"
+        onMouseEnter={() => setHovered(row.key)}
+        onMouseLeave={() => setHovered(null)}
+        style={{ opacity: dim ? 0.4 : 1, transition: 'opacity 150ms' }}
+      >
+        <span className={`mb-2 h-6 inline-flex items-center rounded-full px-2 text-xs font-extrabold tabular-nums ${badge(pct)}`}>{pct}%</span>
+        <div
+          className="relative w-full max-w-[58px] h-52 rounded-2xl overflow-hidden flex flex-col-reverse gap-[2px] bg-slate-100 dark:bg-slate-800 transition-transform duration-200"
+          style={{ transform: hovered === row.key ? 'translateY(-3px)' : 'none', boxShadow: hovered === row.key ? '0 8px 18px -8px rgba(15,23,42,0.35)' : 'none' }}
         >
-          <defs>
+          {buckets
+            .filter((bucket) => row.counts[bucket] > 0)
+            .map((bucket) => {
+              const part = share(row, bucket);
+              return (
+                <span
+                  key={bucket}
+                  className="relative flex items-center justify-center text-[10px] font-bold text-white overflow-hidden"
+                  style={{
+                    height: grown ? `${part}%` : '0%',
+                    minHeight: grown ? 3 : 0,
+                    backgroundImage: `linear-gradient(180deg, color-mix(in srgb, ${chart.licence[bucket]} 75%, white), ${chart.licence[bucket]})`,
+                    transition: `height 800ms cubic-bezier(0.22, 1, 0.36, 1) ${animate ? index * 90 : 0}ms`,
+                  }}
+                >
+                  {part >= 12 ? `${Math.round(part)}%` : null}
+                </span>
+              );
+            })}
+        </div>
+        <span className="mt-2 text-xs font-bold text-slate-700 dark:text-slate-200">{row.label === 'No date' ? 'No date' : row.label}</span>
+        <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-full">{units}</span>
+
+        {hovered === row.key && (
+          <div className="absolute z-20 top-8 left-1/2 -translate-x-1/2 pointer-events-none min-w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
+            <p className="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+              {row.key === 'No date' ? 'No opening date' : `Opened ${row.label}`}
+            </p>
+            <p className="text-slate-500 dark:text-slate-400 whitespace-nowrap">{row.hint}</p>
             {buckets.map((bucket) => (
-              <linearGradient key={bucket} id={`yearColumns-${bucket}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={chart.licence[bucket]} stopOpacity={1} />
-                <stop offset="100%" stopColor={chart.licence[bucket]} stopOpacity={0.72} />
-              </linearGradient>
+              <p key={bucket} className="flex items-center gap-2 whitespace-nowrap">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: chart.licence[bucket] }} />
+                <span className="text-slate-500 dark:text-slate-400">{LICENCE_LABELS[bucket]}:</span>
+                <span className="ml-auto font-semibold text-slate-900 dark:text-slate-100">
+                  {Math.round(share(row, bucket))}% ({row.counts[bucket]})
+                </span>
+              </p>
             ))}
-          </defs>
-          <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} />
-          {/* Every column reaches 100%, so the share approved sits in a row along the top */}
-          <XAxis
-            xAxisId="approved"
-            orientation="top"
-            dataKey="key"
-            tickLine={false}
-            axisLine={false}
-            height={30}
-            tick={({ x, y, payload }: any) => {
-              const row = data.find((item) => item.key === payload.value);
-              return (
-                <text x={x} y={y - 6} textAnchor="middle" fill={chart.licence.approved} fontSize={16} fontWeight={800}>
-                  {row?.counts.approvedPct ?? 0}%
-                </text>
-              );
-            }}
-          />
-          <YAxis hide domain={[0, 100]} allowDataOverflow />
-          <Tooltip
-            cursor={false}
-            content={({ active: shown, payload }: any) => {
-              if (!shown || !payload?.length) return null;
-              const row = payload[0].payload;
-              return (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
-                  <p className="font-semibold text-slate-800 dark:text-slate-200">
-                    {row.key === 'No date' ? 'No opening date' : `Opened ${row.label}`}
-                  </p>
-                  <p className="text-slate-500 dark:text-slate-400">{row.hint}</p>
-                  {buckets.map((bucket) => (
-                    <p key={bucket} className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: chart.licence[bucket] }} />
-                      <span className="text-slate-500 dark:text-slate-400">{LICENCE_LABELS[bucket]}:</span>
-                      <span className="font-semibold text-slate-900 dark:text-slate-100">
-                        {Math.round(row[bucket])}% ({row.counts[bucket]})
-                      </span>
-                    </p>
-                  ))}
-                </div>
-              );
-            }}
-          />
-          {buckets.map((bucket, index) => (
-            <Bar
-              key={bucket}
-              dataKey={bucket}
-              name={LICENCE_LABELS[bucket]}
-              stackId="share"
-              stroke={chart.surface}
-              strokeWidth={2}
-              maxBarSize={64}
-              isAnimationActive={animate}
-              animationBegin={index * STACK_STAGGER_MS}
-              animationDuration={BAR_MS}
-            >
-              {data.map((row, rowIndex) => (
-                <Cell
-                  key={row.key}
-                  fill={`url(#yearColumns-${bucket})`}
-                  // The hovered year stays bright, the rest step back
-                  fillOpacity={active === null || active === rowIndex ? 1 : 0.35}
-                  radius={(topBucket[rowIndex] === bucket ? [10, 10, 0, 0] : 0) as any}
-                />
-              ))}
-              {/* The share approved, inside the green segment when it fits */}
-              {bucket === 'approved' && (
-                <LabelList
-                  dataKey="approved"
-                  position="center"
-                  fill="#ffffff"
-                  fontSize={11}
-                  fontWeight={700}
-                  formatter={(value: number) => (value >= 14 ? `${Math.round(value)}%` : '')}
-                />
-              )}
-            </Bar>
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      {/* The story in one line each: the best year, the newest, and how many fall short */}
+      {best && newest && (
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="rounded-xl px-3 py-2 bg-emerald-50 dark:bg-emerald-500/10">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Best year</p>
+            <p className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+              {best.counts.approvedPct ?? 0}%<span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> · {best.label}</span>
+            </p>
+          </div>
+          <div className="rounded-xl px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Newest units</p>
+            <p className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+              {newest.counts.approvedPct ?? 0}%<span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> · {newest.label}</span>
+            </p>
+          </div>
+          <div className="rounded-xl px-3 py-2 bg-rose-50 dark:bg-rose-500/10">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-400">Below {target}%</p>
+            <p className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+              {behind}
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> of {dated.length} years</span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="relative mt-4 flex items-end gap-2 sm:gap-3">
+        {/* The target across every column: each box starts 32px down (24px badge + 8px gap) and is 208px tall */}
+        <div
+          className="absolute inset-x-0 z-10 pointer-events-none border-t-2 border-dashed"
+          style={{ top: 32 + 208 * (1 - target / 100), borderColor: targetLine, opacity: 0.55 }}
+        >
+          <span className="absolute -top-2.5 right-0 rounded px-1 text-[10px] font-bold bg-white dark:bg-slate-900" style={{ color: targetLine }}>
+            {target}%
+          </span>
+        </div>
+        {dated.map((row, index) => column(row, index))}
+        {undated.length > 0 && (
+          <>
+            <span className="self-stretch w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+            {undated.map((row) => column(row, dated.length))}
+          </>
+        )}
+      </div>
+    </>
   );
 };
 
