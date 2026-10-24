@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Building2, CheckCircle2, XCircle, Clock, Settings2, ShieldCheck, type LucideIcon } from 'lucide-react';
 import type { LicenceBucket, LicenceCounts, OperationsDashboardData, OperationsFilters } from '@/services/dashboardService';
 import { useChartTheme } from '@/components/charts/chartTheme';
@@ -169,6 +169,124 @@ export const ShareRows: React.FC<{
         </li>
       ))}
     </ul>
+  );
+};
+
+/** One column per opening year, stacked by status as shares of 100%, with the share approved on top */
+export const YearColumnsChart: React.FC<{
+  rows: Array<{ key: string; label: string; hint: string; counts: LicenceCounts }>;
+  buckets: LicenceBucket[];
+  animate: boolean;
+}> = ({ rows, buckets, animate }) => {
+  const chart = useChartTheme();
+  const [active, setActive] = React.useState<number | null>(null);
+  const axisTick = { fill: chart.axis, fontSize: 12, fontWeight: 600 };
+  const data = rows.map((row) => ({
+    ...row,
+    // Unrounded, so every year adds up to exactly 100
+    ...Object.fromEntries(buckets.map((bucket) => [bucket, (row.counts[bucket] / row.counts.total) * 100])),
+  }));
+  // Only the top segment of each column gets the rounded corners
+  const topBucket = data.map((row) => [...buckets].reverse().find((bucket) => row.counts[bucket] > 0));
+  return (
+    <div className="h-72 mt-2">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={data}
+          margin={{ top: 4, right: 4, left: 4, bottom: 0 }}
+          barCategoryGap="22%"
+          onMouseMove={(state: any) => setActive(state?.activeTooltipIndex ?? null)}
+          onMouseLeave={() => setActive(null)}
+        >
+          <defs>
+            {buckets.map((bucket) => (
+              <linearGradient key={bucket} id={`yearColumns-${bucket}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={chart.licence[bucket]} stopOpacity={1} />
+                <stop offset="100%" stopColor={chart.licence[bucket]} stopOpacity={0.72} />
+              </linearGradient>
+            ))}
+          </defs>
+          <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} />
+          {/* Every column reaches 100%, so the share approved sits in a row along the top */}
+          <XAxis
+            xAxisId="approved"
+            orientation="top"
+            dataKey="key"
+            tickLine={false}
+            axisLine={false}
+            height={30}
+            tick={({ x, y, payload }: any) => {
+              const row = data.find((item) => item.key === payload.value);
+              return (
+                <text x={x} y={y - 6} textAnchor="middle" fill={chart.licence.approved} fontSize={16} fontWeight={800}>
+                  {row?.counts.approvedPct ?? 0}%
+                </text>
+              );
+            }}
+          />
+          <YAxis hide domain={[0, 100]} allowDataOverflow />
+          <Tooltip
+            cursor={false}
+            content={({ active: shown, payload }: any) => {
+              if (!shown || !payload?.length) return null;
+              const row = payload[0].payload;
+              return (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
+                  <p className="font-semibold text-slate-800 dark:text-slate-200">
+                    {row.key === 'No date' ? 'No opening date' : `Opened ${row.label}`}
+                  </p>
+                  <p className="text-slate-500 dark:text-slate-400">{row.hint}</p>
+                  {buckets.map((bucket) => (
+                    <p key={bucket} className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: chart.licence[bucket] }} />
+                      <span className="text-slate-500 dark:text-slate-400">{LICENCE_LABELS[bucket]}:</span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
+                        {Math.round(row[bucket])}% ({row.counts[bucket]})
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              );
+            }}
+          />
+          {buckets.map((bucket, index) => (
+            <Bar
+              key={bucket}
+              dataKey={bucket}
+              name={LICENCE_LABELS[bucket]}
+              stackId="share"
+              stroke={chart.surface}
+              strokeWidth={2}
+              maxBarSize={64}
+              isAnimationActive={animate}
+              animationBegin={index * STACK_STAGGER_MS}
+              animationDuration={BAR_MS}
+            >
+              {data.map((row, rowIndex) => (
+                <Cell
+                  key={row.key}
+                  fill={`url(#yearColumns-${bucket})`}
+                  // The hovered year stays bright, the rest step back
+                  fillOpacity={active === null || active === rowIndex ? 1 : 0.35}
+                  radius={(topBucket[rowIndex] === bucket ? [10, 10, 0, 0] : 0) as any}
+                />
+              ))}
+              {/* The share approved, inside the green segment when it fits */}
+              {bucket === 'approved' && (
+                <LabelList
+                  dataKey="approved"
+                  position="center"
+                  fill="#ffffff"
+                  fontSize={11}
+                  fontWeight={700}
+                  formatter={(value: number) => (value >= 14 ? `${Math.round(value)}%` : '')}
+                />
+              )}
+            </Bar>
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 };
 

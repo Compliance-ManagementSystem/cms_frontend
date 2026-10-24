@@ -64,6 +64,7 @@ import {
   Legend,
   StatCard,
   ShareRows,
+  YearColumnsChart,
   LicenceTypeChart,
   buildUnitCards,
 } from '@/components/dashboard/operationsParts';
@@ -358,6 +359,16 @@ export const Dashboard: React.FC = () => {
           return { name: row.state, fullName: `${row.state} (${total} licences)`, ...shares } as Record<string, any>;
         })
         .sort((a, b) => b.approved - a.approved),
+    [data]
+  );
+  const yearRows = useMemo(
+    () =>
+      (data?.byOpeningYear ?? []).map((row) => ({
+        key: row.year,
+        label: row.year,
+        hint: `${row.units} ${row.units === 1 ? 'unit' : 'units'} · ${row.total} licences`,
+        counts: row,
+      })),
     [data]
   );
   const licenceRows = useMemo(
@@ -1036,15 +1047,7 @@ export const Dashboard: React.FC = () => {
               ) : (
                 <>
                   <Legend items={licenceLegend} />
-                  <ShareRows
-                    buckets={shownLicenceBuckets}
-                    rows={data.byOpeningYear.map((row) => ({
-                      key: row.year,
-                      label: row.year === 'No date' ? 'No opening date' : `Opened ${row.year}`,
-                      hint: `${row.units} ${row.units === 1 ? 'unit' : 'units'} · ${row.total} licences`,
-                      counts: row,
-                    }))}
-                  />
+                  <YearColumnsChart rows={yearRows} buckets={shownLicenceBuckets} animate={motion} />
                 </>
               )}
             </Panel>
