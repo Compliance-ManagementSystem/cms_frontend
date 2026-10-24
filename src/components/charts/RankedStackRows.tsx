@@ -35,6 +35,9 @@ const Row: React.FC<{
 }> = ({ row, series, max, mode, index, animate, selected, hovered, dimmed, tipAbove, onHover, onSelect }) => {
   const total = series.reduce((sum, item) => sum + (row.values[item.key] || 0), 0);
   const shownTotal = useAnimatedNumber(total, animate, index * 60);
+  // In share mode the first series leads: its share is printed on the bar and at the end of the row
+  const lead = series[0];
+  const leadPct = total > 0 ? Math.round(((row.values[lead?.key] || 0) / total) * 100) : 0;
   // Bars start empty and grow once the row is on the page
   const [ready, setReady] = useState(!animate);
   useEffect(() => {
@@ -71,7 +74,7 @@ const Row: React.FC<{
         >
           {row.label}
         </span>
-        <span className="h-3 rounded-r-md bg-slate-100 dark:bg-slate-800">
+        <span className={`${mode === 'share' ? 'h-4' : 'h-3'} rounded-r-md bg-slate-100 dark:bg-slate-800 transition-[height] duration-200`}>
           <span
             className="flex h-full rounded-r-md overflow-hidden origin-left motion-reduce:transition-none"
             style={{
@@ -87,7 +90,7 @@ const Row: React.FC<{
               return (
                 <span
                   key={item.key}
-                  className="motion-reduce:transition-none"
+                  className="flex items-center pl-1.5 overflow-hidden text-[10px] font-bold text-white motion-reduce:transition-none"
                   style={{
                     flexGrow: value,
                     flexBasis: 0,
@@ -98,13 +101,15 @@ const Row: React.FC<{
                     filter: hovered ? 'saturate(1.2) brightness(1.08)' : 'none',
                     transition: `flex-grow 500ms ${EASE}, filter 150ms`,
                   }}
-                />
+                >
+                  {mode === 'share' && item.key === lead?.key && leadPct >= 14 ? `${leadPct}%` : null}
+                </span>
               );
             })}
           </span>
         </span>
         <span className="text-right font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
-          {Math.round(shownTotal).toLocaleString()}
+          {mode === 'share' ? `${leadPct}%` : Math.round(shownTotal).toLocaleString()}
         </span>
       </button>
 
@@ -139,7 +144,8 @@ const Row: React.FC<{
 
 /**
  * One row per item, largest first, each bar split by series. The legend switches
- * a series off and on, and the toggle swaps counts for each row's own make-up.
+ * a series off and on, and the toggle swaps counts for each row's own make-up,
+ * ranked by the first series' share and with that share printed on the bar.
  */
 const RankedStackRows: React.FC<{
   rows: RankedRow[];
@@ -147,15 +153,25 @@ const RankedStackRows: React.FC<{
   animate: boolean;
   selected?: string;
   onSelect: (key: string) => void;
-}> = ({ rows, series, animate, selected, onSelect }) => {
+  /** Toggle wording, e.g. "Licences" and "% of state" */
+  countLabel?: string;
+  shareLabel?: string;
+}> = ({ rows, series, animate, selected, onSelect, countLabel = 'Count', shareLabel = 'Share %' }) => {
   const [mode, setMode] = useState<Mode>('count');
   const [hidden, setHidden] = useState<string[]>([]);
   const [hover, setHover] = useState<string | null>(null);
 
   const shown = series.filter((item) => !hidden.includes(item.key));
   const totalOf = (row: RankedRow, items: RankedSeries[]) => items.reduce((sum, item) => sum + (row.values[item.key] || 0), 0);
-  // Ranked on every series, so switching one off does not shuffle the rows
-  const ranked = [...rows].sort((a, b) => totalOf(b, series) - totalOf(a, series));
+  // Counts rank on every series, so switching one off does not shuffle the rows;
+  // shares rank on the first series shown, so the furthest along come first
+  const leadShare = (row: RankedRow) => {
+    const total = totalOf(row, shown);
+    return total > 0 ? (row.values[shown[0].key] || 0) / total : 0;
+  };
+  const ranked = [...rows].sort((a, b) =>
+    mode === 'share' ? leadShare(b) - leadShare(a) || totalOf(b, series) - totalOf(a, series) : totalOf(b, series) - totalOf(a, series)
+  );
   const max = Math.max(...ranked.map((row) => totalOf(row, shown)), 1);
 
   const toggle = (key: string) =>
@@ -204,7 +220,7 @@ const RankedStackRows: React.FC<{
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
-              {option === 'count' ? 'Count' : 'Share %'}
+              {option === 'count' ? countLabel : shareLabel}
             </button>
           ))}
         </div>

@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  BarChart,
-  Bar,
   LineChart,
   Line,
   AreaChart,
@@ -78,8 +76,6 @@ const REFRESH_MS = 60_000;
 const APPROVAL_TARGET = 90;
 
 // Chart entrance timings
-const BAR_MS = 600;
-const STACK_STAGGER_MS = 200;
 const LINE_MS = 1400;
 
 // Column headings for the state × licence grid, as the Location Master sheet abbreviates them
@@ -326,19 +322,6 @@ export const Dashboard: React.FC = () => {
           label: row.state,
           values: Object.fromEntries(LICENCE_ORDER.map((bucket) => [bucket, row.licences[bucket]])),
         })),
-    [data]
-  );
-  const stateShareRows = useMemo(
-    () =>
-      (data?.byState ?? [])
-        .filter((row) => row.licences.total > 0)
-        .map((row) => {
-          const total = row.licences.total;
-          // Unrounded, so every row adds up to exactly 100
-          const shares = Object.fromEntries(LICENCE_ORDER.map((bucket) => [bucket, (row.licences[bucket] / total) * 100]));
-          return { name: row.state, fullName: `${row.state} (${total} licences)`, ...shares } as Record<string, any>;
-        })
-        .sort((a, b) => b.approved - a.approved),
     [data]
   );
   const yearRows = useMemo(
@@ -739,6 +722,8 @@ export const Dashboard: React.FC = () => {
                 animate={motion}
                 selected={filters.state}
                 onSelect={toggleState}
+                countLabel="Units"
+                shareLabel="% of state"
               />
             </Panel>
 
@@ -807,6 +792,8 @@ export const Dashboard: React.FC = () => {
                   animate={motion}
                   selected={filters.state}
                   onSelect={toggleState}
+                  countLabel="Licences"
+                  shareLabel="% of state"
                 />
               )}
             </Panel>
@@ -825,9 +812,9 @@ export const Dashboard: React.FC = () => {
             </Panel>
           </div>
 
-          {/* Row 3: districts, state comparison, expiries */}
+          {/* Row 3: districts and expiries */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <Panel title="Top 10 Districts by Unit Count" subtitle="Open and planned units" className="lg:col-span-4">
+            <Panel title="Top 10 Districts by Unit Count" subtitle="Open and planned units" className="lg:col-span-8">
               {data.topDistricts.length === 0 ? (
                 <EmptyState>No districts entered for this view.</EmptyState>
               ) : (
@@ -835,64 +822,10 @@ export const Dashboard: React.FC = () => {
               )}
             </Panel>
 
-            <Panel title="Licence Status by State (Percentage)" subtitle="Highest share approved first" className="lg:col-span-5">
-              {stateShareRows.length === 0 ? (
-                <EmptyState>No licence records in this view.</EmptyState>
-              ) : (
-                <>
-                  <Legend items={licenceLegend} />
-                  <div className="mt-2" style={{ height: Math.max(120, stateShareRows.length * 30 + 30) }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stateShareRows} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-                        <XAxis
-                          type="number"
-                          domain={[0, 100]}
-                          ticks={[0, 25, 50, 75, 100]}
-                          allowDataOverflow
-                          tick={axisTick}
-                          tickLine={false}
-                          axisLine={false}
-                          tickFormatter={(v) => `${v}%`}
-                        />
-                        <YAxis type="category" dataKey="name" width={104} tick={axisTick} tickLine={false} axisLine={false} interval={0} />
-                        <Tooltip content={<ChartTooltip unit="%" />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
-                        {shownLicenceBuckets.map((bucket, index) => (
-                          <Bar
-                            key={bucket}
-                            dataKey={bucket}
-                            name={LICENCE_LABELS[bucket]}
-                            stackId="share"
-                            fill={chart.licence[bucket]}
-                            stroke={chart.surface}
-                            strokeWidth={2}
-                            maxBarSize={18}
-                            isAnimationActive={motion}
-                            animationBegin={index * STACK_STAGGER_MS}
-                            animationDuration={BAR_MS}
-                          >
-                            {bucket === 'approved' && (
-                              <LabelList
-                                dataKey="approved"
-                                position="insideLeft"
-                                fill="#ffffff"
-                                fontSize={11}
-                                fontWeight={700}
-                                formatter={(value: number) => (value >= 14 ? `${Math.round(value)}%` : '')}
-                              />
-                            )}
-                          </Bar>
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </>
-              )}
-            </Panel>
-
             <Panel
               title="Expiry Alert"
               subtitle="Approved licences reaching their expiry date in the next 90 days"
-              className="lg:col-span-3"
+              className="lg:col-span-4"
             >
               <ExpiryAlert
                 expiring={expiring}
