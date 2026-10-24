@@ -135,42 +135,50 @@ export const StatCard: React.FC<{ card: StatCardData; animate: boolean; delay: n
   );
 };
 
+/** One thin bar split by licence status; the gap between segments shows the card surface */
+export const StatusStrip: React.FC<{ counts: LicenceCounts; buckets: LicenceBucket[]; className?: string }> = ({
+  counts,
+  buckets,
+  className = '',
+}) => {
+  const chart = useChartTheme();
+  return (
+    <div className={`flex gap-[2px] overflow-hidden ${className}`}>
+      {buckets
+        .filter((bucket) => counts[bucket] > 0)
+        .map((bucket) => (
+          <span
+            key={bucket}
+            title={`${LICENCE_LABELS[bucket]}: ${counts[bucket]} of ${counts.total}`}
+            style={{ flexGrow: counts[bucket], flexBasis: 0, minWidth: 3, backgroundColor: chart.licence[bucket] }}
+          />
+        ))}
+    </div>
+  );
+};
+
 /** One 100% bar per row, split by licence status, with the approved share at the end */
 export const ShareRows: React.FC<{
   rows: Array<{ key: string; label: string; hint: string; counts: LicenceCounts }>;
   buckets: LicenceBucket[];
-}> = ({ rows, buckets }) => {
-  const chart = useChartTheme();
-  return (
-    <ul className="mt-3 space-y-3">
-      {rows.map((row) => (
-        <li key={row.key}>
-          <div className="flex items-baseline justify-between gap-3 text-xs">
-            <span className="font-semibold text-slate-900 dark:text-slate-100">
-              {row.label}
-              <span className="font-normal text-slate-500 dark:text-slate-400"> · {row.hint}</span>
-            </span>
-            <span className="font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-              {row.counts.approvedPct ?? 0}%<span className="font-normal text-slate-500 dark:text-slate-400"> approved</span>
-            </span>
-          </div>
-          {/* The gap between segments shows the card surface, not a border */}
-          <div className="mt-1.5 h-3 flex gap-[2px] rounded overflow-hidden">
-            {buckets
-              .filter((bucket) => row.counts[bucket] > 0)
-              .map((bucket) => (
-                <span
-                  key={bucket}
-                  title={`${LICENCE_LABELS[bucket]}: ${row.counts[bucket]} of ${row.counts.total}`}
-                  style={{ flexGrow: row.counts[bucket], flexBasis: 0, minWidth: 3, backgroundColor: chart.licence[bucket] }}
-                />
-              ))}
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-};
+}> = ({ rows, buckets }) => (
+  <ul className="mt-3 space-y-3">
+    {rows.map((row) => (
+      <li key={row.key}>
+        <div className="flex items-baseline justify-between gap-3 text-xs">
+          <span className="font-semibold text-slate-900 dark:text-slate-100">
+            {row.label}
+            <span className="font-normal text-slate-500 dark:text-slate-400"> · {row.hint}</span>
+          </span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+            {row.counts.approvedPct ?? 0}%<span className="font-normal text-slate-500 dark:text-slate-400"> approved</span>
+          </span>
+        </div>
+        <StatusStrip counts={row.counts} buckets={buckets} className="mt-1.5 h-3 rounded" />
+      </li>
+    ))}
+  </ul>
+);
 
 /** One column per opening year, stacked by status as shares of 100%, with the share approved on top */
 export const YearColumnsChart: React.FC<{

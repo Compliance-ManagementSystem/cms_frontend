@@ -67,7 +67,7 @@ import {
   ChartTooltip,
   Legend,
   StatCard,
-  ShareRows,
+  StatusStrip,
   YearColumnsChart,
   LicenceTypeChart,
   buildUnitCards,
@@ -507,6 +507,8 @@ export const Dashboard: React.FC = () => {
       label: company.code,
       pct: company.approvedPct ?? 0,
       sub: `${company.approved.toLocaleString()} of ${company.total.toLocaleString()} approved`,
+      units: company.units,
+      counts: company,
     }));
 
   // The last 12 months of openings, each beside the same month a year earlier
@@ -639,15 +641,29 @@ export const Dashboard: React.FC = () => {
               </div>
             </Panel>
 
-            <Panel title="Companies: Share Approved" subtitle="Each ring fills to the company's share of licences approved" className="lg:col-span-4">
+            <Panel
+              title="Companies"
+              subtitle="Each ring fills to the company's share of licences approved; the strip shows the rest"
+              className="lg:col-span-4"
+            >
               {companyPercents.length === 0 ? (
                 <EmptyState>No companies in this view.</EmptyState>
               ) : (
-                <div className="flex flex-wrap justify-around gap-4 mt-3">
-                  {companyPercents.map((company, index) => (
-                    <SegmentedRing key={company.key} item={company} animate={motion} delay={index * 120} />
-                  ))}
-                </div>
+                <>
+                  <Legend items={licenceLegend} />
+                  <div className="flex flex-wrap justify-around gap-x-4 gap-y-5 mt-3">
+                    {companyPercents.map((company, index) => (
+                      <div key={company.key} className="flex flex-col items-center w-32">
+                        <SegmentedRing item={company} animate={motion} delay={index * 120} />
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                          {company.units} {company.units === 1 ? 'unit' : 'units'}
+                        </span>
+                        <StatusStrip counts={company.counts} buckets={shownLicenceBuckets} className="mt-2 h-2 w-full rounded-full" />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-4">A unit shared by two companies is counted for both.</p>
+                </>
               )}
             </Panel>
           </div>
@@ -929,9 +945,9 @@ export const Dashboard: React.FC = () => {
             </Panel>
           </div>
 
-          {/* Row 4b: unit make-up and how the companies compare */}
+          {/* Row 4b: unit make-up */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <Panel title="Unit Types" subtitle="Open and planned units" className="lg:col-span-4">
+            <Panel title="Unit Types" subtitle="Open and planned units" className="lg:col-span-6">
               {data.unitTypes.length === 0 ? (
                 <EmptyState>No unit types entered for this view.</EmptyState>
               ) : (
@@ -942,7 +958,7 @@ export const Dashboard: React.FC = () => {
                 />
               )}
             </Panel>
-            <Panel title="Area Types" subtitle="The local body each unit falls under" className="lg:col-span-4">
+            <Panel title="Area Types" subtitle="The local body each unit falls under" className="lg:col-span-6">
               {data.areaTypes.length === 0 ? (
                 <EmptyState>No area types entered for this view.</EmptyState>
               ) : (
@@ -952,27 +968,6 @@ export const Dashboard: React.FC = () => {
                   unsetLabels={['Not set']}
                   animate={motion}
                 />
-              )}
-            </Panel>
-            <Panel title="Company Comparison" subtitle="Units operated and licence status" className="lg:col-span-4">
-              {data.byCompany.length === 0 ? (
-                <EmptyState>No companies in this view.</EmptyState>
-              ) : (
-                <>
-                  <Legend items={licenceLegend} />
-                  <ShareRows
-                    buckets={shownLicenceBuckets}
-                    rows={data.byCompany.map((company) => ({
-                      key: company.entityId,
-                      label: company.code,
-                      hint: `${company.units} ${company.units === 1 ? 'unit' : 'units'} · ${company.total} licences`,
-                      counts: company,
-                    }))}
-                  />
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
-                    A unit shared by two companies is counted for both.
-                  </p>
-                </>
               )}
             </Panel>
           </div>
