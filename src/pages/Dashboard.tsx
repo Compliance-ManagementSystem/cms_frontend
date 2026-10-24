@@ -5,6 +5,8 @@ import {
   Bar,
   LineChart,
   Line,
+  AreaChart,
+  Area,
   LabelList,
   XAxis,
   YAxis,
@@ -48,7 +50,7 @@ import {
   Speedometer,
   BigPercentTile,
   BulletBars,
-  MonthlyColumns,
+  MonthlyTrend,
   IconCounters,
   type CounterItem,
 } from '@/components/charts/GlanceCharts';
@@ -683,7 +685,7 @@ export const Dashboard: React.FC = () => {
               {monthlyOpenings.length === 0 ? (
                 <EmptyState>No opening dates entered for this view.</EmptyState>
               ) : (
-                <MonthlyColumns rows={monthlyOpenings} animate={motion} />
+                <MonthlyTrend rows={monthlyOpenings} animate={motion} />
               )}
             </Panel>
           </div>
@@ -993,23 +995,32 @@ export const Dashboard: React.FC = () => {
               ) : (
                 <div className="h-64 mt-3">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data.openingsByYear} margin={{ top: 20, right: 8, left: -18, bottom: 0 }}>
+                    <AreaChart data={data.openingsByYear} margin={{ top: 20, right: 16, left: -18, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="openingsByYearFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={chart.series} stopOpacity={0.35} />
+                          <stop offset="100%" stopColor={chart.series} stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
                       <XAxis dataKey="year" tick={axisTick} tickLine={false} axisLine={false} />
                       <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
-                      <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
-                      <Bar
+                      <Tooltip content={<ChartTooltip />} cursor={{ stroke: chart.grid, strokeOpacity: 0.5 }} />
+                      <Area
+                        type="monotone"
                         dataKey="opened"
                         name="Units opened"
-                        fill={chart.series}
-                        radius={[4, 4, 0, 0]}
-                        maxBarSize={24}
+                        stroke={chart.series}
+                        strokeWidth={2}
+                        fill="url(#openingsByYearFill)"
+                        dot={{ r: 3, fill: chart.series, stroke: chart.surface, strokeWidth: 1.5 }}
+                        activeDot={{ r: 5, stroke: chart.surface, strokeWidth: 2 }}
                         isAnimationActive={motion}
-                        animationDuration={BAR_MS}
+                        animationDuration={LINE_MS}
                       >
-                        <LabelList dataKey="opened" position="top" fill={chart.axis} fontSize={11} fontWeight={600} />
-                      </Bar>
-                    </BarChart>
+                        <LabelList dataKey="opened" position="top" offset={8} fill={chart.axis} fontSize={11} fontWeight={600} />
+                      </Area>
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
               )}

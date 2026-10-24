@@ -1,8 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ComposedChart,
-  Bar,
+  LineChart,
   Line,
   LabelList,
   XAxis,
@@ -315,9 +314,9 @@ const BulletRow: React.FC<{ row: PercentItem; target: number; targetLine: string
   );
 };
 
-// ── 6. Units opened per month: this year as columns, last year as dots ────────
+// ── 6. Units opened per month: this year as a solid line, last year dashed ────
 
-export const MonthlyColumns: React.FC<{
+export const MonthlyTrend: React.FC<{
   rows: Array<{ month: string; current: number; previous: number | null }>;
   animate: boolean;
 }> = ({ rows, animate }) => {
@@ -328,17 +327,17 @@ export const MonthlyColumns: React.FC<{
     <>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-slate-600 dark:text-slate-400">
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: chart.series }} />
+          <span className="w-4 h-0.5 rounded-full" style={{ backgroundColor: chart.series }} />
           Last 12 months
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: previousColor }} />
+          <span className="w-4 border-t-2 border-dashed" style={{ borderColor: previousColor }} />
           Same month a year before
         </span>
       </div>
       <div className="h-60 mt-2">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 20, right: 8, left: -18, bottom: 0 }}>
+          <LineChart data={rows} margin={{ top: 20, right: 12, left: -18, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.25} />
             {/* Month only on the axis ("Nov '25" → "Nov"); the tooltip gives the year */}
             <XAxis
@@ -351,7 +350,7 @@ export const MonthlyColumns: React.FC<{
             />
             <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
             <Tooltip
-              cursor={{ fill: chart.grid, fillOpacity: 0.12 }}
+              cursor={{ stroke: chart.grid, strokeOpacity: 0.5 }}
               content={({ active, payload }: any) =>
                 active && payload?.length ? (
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
@@ -369,19 +368,32 @@ export const MonthlyColumns: React.FC<{
                 ) : null
               }
             />
-            <Bar dataKey="current" name="Opened" fill={chart.series} radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={animate}>
-              <LabelList dataKey="current" position="top" fill={chart.axis} fontSize={10} fontWeight={600} />
-            </Bar>
+            {/* Last year first, so this year's line draws on top */}
             <Line
+              type="monotone"
               dataKey="previous"
               name="A year before"
-              stroke="none"
-              dot={{ r: 4, fill: previousColor, stroke: chart.surface, strokeWidth: 2 }}
-              activeDot={{ r: 5, fill: previousColor, stroke: chart.surface, strokeWidth: 2 }}
+              stroke={previousColor}
+              strokeWidth={2}
+              strokeDasharray="5 4"
+              dot={false}
+              activeDot={{ r: 4, fill: previousColor, stroke: chart.surface, strokeWidth: 2 }}
               isAnimationActive={animate}
               connectNulls={false}
             />
-          </ComposedChart>
+            <Line
+              type="monotone"
+              dataKey="current"
+              name="Opened"
+              stroke={chart.series}
+              strokeWidth={2.5}
+              dot={{ r: 3, fill: chart.series, stroke: chart.surface, strokeWidth: 1.5 }}
+              activeDot={{ r: 5, fill: chart.series, stroke: chart.surface, strokeWidth: 2 }}
+              isAnimationActive={animate}
+            >
+              <LabelList dataKey="current" position="top" offset={8} fill={chart.axis} fontSize={10} fontWeight={600} />
+            </Line>
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </>
