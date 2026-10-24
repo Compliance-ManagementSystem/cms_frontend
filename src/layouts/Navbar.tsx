@@ -17,6 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { ROUTES } from '@/constants/routes';
 import { notificationService } from '@/services/notificationService';
 import { socketService } from '@/services/socketService';
+import GlobalSearch from '@/layouts/GlobalSearch';
 
 interface NavbarProps {
   sidebarCollapsed: boolean;
@@ -60,6 +61,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
   const { theme, toggleTheme } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotifs, setRecentNotifs] = useState<any[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -98,6 +100,18 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Ctrl/Cmd + K opens global search from anywhere
+  useEffect(() => {
+    const handleShortcut = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener('keydown', handleShortcut);
+    return () => document.removeEventListener('keydown', handleShortcut);
   }, []);
 
   const handleLogout = async () => {
@@ -198,10 +212,13 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
         <button
           id="navbar-search"
           aria-label="Search"
-          className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all duration-150"
+          title="Search (Ctrl+K)"
+          onClick={() => setSearchOpen(true)}
+          className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all duration-150 cursor-pointer"
         >
           <Search size={18} />
         </button>
+        <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
         {/* Theme toggle */}
         <button
