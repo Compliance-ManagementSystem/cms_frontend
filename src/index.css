@@ -163,6 +163,16 @@
   );
 }
 
+/* ── Indeterminate progress bar: a segment sliding across, over and over ─────── */
+@keyframes loaderSlide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+.loader-slide {
+  animation: loaderSlide 1.2s ease-in-out infinite;
+}
+
 /* ── Page fade-in ───────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; }
