@@ -43,7 +43,7 @@ import {
   Waffle,
   HalfDonut,
   StateBubbles,
-  StateSankey,
+  StateRose,
   IconCounters,
   type CounterItem,
 } from '@/components/charts/GlanceCharts';
@@ -543,55 +543,66 @@ export const Dashboard: React.FC = () => {
             <IconCounters items={counters} animate={motion} />
           </Card>
 
-          {/* At a glance: headline shares */}
+          {/* At a glance: headline shares, with every state's share approved beneath; companies alongside */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <Panel title="Approval Meters" subtitle="Licences approved, and open units with every licence approved" className="lg:col-span-4">
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <Speedometer
-                  label="Licences approved"
-                  pct={licencePct}
-                  sub={`${licences.approved.toLocaleString()} of ${licences.total.toLocaleString()}`}
-                  animate={motion}
-                />
-                <Speedometer
-                  label="Units fully approved"
-                  pct={pct(units.fullyApproved, units.open)}
-                  sub={`${units.fullyApproved.toLocaleString()} of ${units.open.toLocaleString()} open units`}
-                  animate={motion}
-                />
-              </div>
-            </Panel>
+            <div className="lg:col-span-8 flex flex-col gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Panel title="Approval Meters" subtitle="Licences approved, and open units with every licence approved">
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <Speedometer
+                      label="Licences approved"
+                      pct={licencePct}
+                      sub={`${licences.approved.toLocaleString()} of ${licences.total.toLocaleString()}`}
+                      animate={motion}
+                    />
+                    <Speedometer
+                      label="Units fully approved"
+                      pct={pct(units.fullyApproved, units.open)}
+                      sub={`${units.fullyApproved.toLocaleString()} of ${units.open.toLocaleString()} open units`}
+                      animate={motion}
+                    />
+                  </div>
+                </Panel>
 
-            <Panel title="Where Licences Stand" subtitle="Share of all applicable licences in this view" className="lg:col-span-4">
-              <div className="grid grid-cols-3 gap-3 mt-3">
-                <BigPercentTile
-                  pct={licencePct}
-                  label="Approved"
-                  sub={`${licences.approved.toLocaleString()} licences`}
-                  color={chart.licence.approved}
-                  animate={motion}
-                  onClick={() => navigate(recordsLink('approved'))}
-                />
-                <BigPercentTile
-                  pct={pct(licences.applied, licences.total)}
-                  label="Applied"
-                  sub={`${licences.applied.toLocaleString()} awaiting the authority`}
-                  color={chart.licence.applied}
-                  animate={motion}
-                  delay={80}
-                  onClick={() => navigate(recordsLink('applied'))}
-                />
-                <BigPercentTile
-                  pct={pct(licences.toBeApplied, licences.total)}
-                  label="To be applied"
-                  sub={`${licences.toBeApplied.toLocaleString()} not filed yet`}
-                  color="#b45309"
-                  animate={motion}
-                  delay={160}
-                  onClick={() => navigate(recordsLink('toBeApplied'))}
-                />
+                <Panel title="Where Licences Stand" subtitle="Share of all applicable licences in this view">
+                  <div className="grid grid-cols-3 gap-3 mt-3">
+                    <BigPercentTile
+                      pct={licencePct}
+                      label="Approved"
+                      sub={`${licences.approved.toLocaleString()} licences`}
+                      color={chart.licence.approved}
+                      animate={motion}
+                      onClick={() => navigate(recordsLink('approved'))}
+                    />
+                    <BigPercentTile
+                      pct={pct(licences.applied, licences.total)}
+                      label="Applied"
+                      sub={`${licences.applied.toLocaleString()} awaiting the authority`}
+                      color={chart.licence.applied}
+                      animate={motion}
+                      delay={80}
+                      onClick={() => navigate(recordsLink('applied'))}
+                    />
+                    <BigPercentTile
+                      pct={pct(licences.toBeApplied, licences.total)}
+                      label="To be applied"
+                      sub={`${licences.toBeApplied.toLocaleString()} not filed yet`}
+                      color="#b45309"
+                      animate={motion}
+                      delay={160}
+                      onClick={() => navigate(recordsLink('toBeApplied'))}
+                    />
+                  </div>
+                </Panel>
               </div>
-            </Panel>
+
+              {/* Every state's share approved, as circles */}
+              {statePercents.length > 0 && (
+                <Panel className="flex-1" title="Licences Approved by State" subtitle="Largest first. Click a state to filter the dashboard.">
+                  <PercentCircles items={statePercents} animate={motion} />
+                </Panel>
+              )}
+            </div>
 
             <Panel
               title="Companies"
@@ -619,13 +630,6 @@ export const Dashboard: React.FC = () => {
               )}
             </Panel>
           </div>
-
-          {/* Every state's share approved, as circles */}
-          {statePercents.length > 0 && (
-            <Panel title="Licences Approved by State" subtitle="Largest first. Click a state to filter the dashboard.">
-              <PercentCircles items={statePercents} animate={motion} />
-            </Panel>
-          )}
 
           {/* Against the target, and the opening pace */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -699,7 +703,7 @@ export const Dashboard: React.FC = () => {
             </Panel>
           </div>
 
-          {/* Row 2: growth and licence status */}
+          {/* Row 2: growth, districts and licence completion */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <Panel title="Units Opened Over Time" subtitle="Running total, by opening date" className="lg:col-span-4">
               {trend.length < 2 ? (
@@ -709,25 +713,11 @@ export const Dashboard: React.FC = () => {
               )}
             </Panel>
 
-            <Panel
-              title="Licence Status by State"
-              subtitle="Where each state's licences stand: ribbon width is the number of licences. Click a state to filter."
-              className="lg:col-span-5"
-            >
-              {stateLicenceRows.length === 0 ? (
-                <EmptyState height="h-72">No licence records in this view.</EmptyState>
+            <Panel title="Top 10 Districts by Unit Count" subtitle="Open and planned units" className="lg:col-span-5">
+              {data.topDistricts.length === 0 ? (
+                <EmptyState>No districts entered for this view.</EmptyState>
               ) : (
-                <StateSankey
-                  rows={stateLicenceRows}
-                  series={shownLicenceBuckets.map((bucket) => ({
-                    key: bucket,
-                    label: LICENCE_LABELS[bucket],
-                    color: chart.licence[bucket],
-                  }))}
-                  animate={motion}
-                  selected={filters.state}
-                  onSelect={toggleState}
-                />
+                <DistrictTreemap rows={data.topDistricts} animate={motion} />
               )}
             </Panel>
 
@@ -745,13 +735,27 @@ export const Dashboard: React.FC = () => {
             </Panel>
           </div>
 
-          {/* Row 3: districts and expiries */}
+          {/* Row 3: licence status by state, and expiries */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <Panel title="Top 10 Districts by Unit Count" subtitle="Open and planned units" className="lg:col-span-8">
-              {data.topDistricts.length === 0 ? (
-                <EmptyState>No districts entered for this view.</EmptyState>
+            <Panel
+              title="Licence Status by State"
+              subtitle="One petal per state, sized by its licences and coloured by where they stand. Click a state to filter."
+              className="lg:col-span-8"
+            >
+              {stateLicenceRows.length === 0 ? (
+                <EmptyState height="h-72">No licence records in this view.</EmptyState>
               ) : (
-                <DistrictTreemap rows={data.topDistricts} animate={motion} />
+                <StateRose
+                  rows={stateLicenceRows}
+                  series={shownLicenceBuckets.map((bucket) => ({
+                    key: bucket,
+                    label: LICENCE_LABELS[bucket],
+                    color: chart.licence[bucket],
+                  }))}
+                  animate={motion}
+                  selected={filters.state}
+                  onSelect={toggleState}
+                />
               )}
             </Panel>
 

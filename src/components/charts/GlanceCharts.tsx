@@ -1561,47 +1561,30 @@ export const StateBubbles: React.FC<{
   );
 };
 
-// ── 6g. Sankey: states on the left flowing into statuses on the right ────────
+// ── 6g. Rose: one petal per state, layered by status from the centre out ──────
 
-const SANKEY_W = 640;
-const SANKEY_H = 300;
-const SANKEY_NODE = 12;
-const SANKEY_GAP = 8;
-const SANKEY_MIN = 6;
-// Room for the names either side
-const SANKEY_LEFT = 150;
-const SANKEY_RIGHT = SANKEY_W - 170;
-// States beyond this many are grouped into one node
-const SANKEY_STATES = 5;
+const ROSE_SIZE = 420;
+const ROSE_HOLE = 44;
+const ROSE_MAX = 158;
+// Even the smallest state's petal reaches this far past the hole
+const ROSE_MIN_LENGTH = 22;
+// Room either side for the names
+const ROSE_MARGIN = 80;
+// States beyond this many share one petal
+const ROSE_STATES = 9;
 
-interface SankeyNode {
-  key: string;
-  label: string;
-  total: number;
-  y: number;
-  h: number;
-  /** Where the next ribbon leaves or arrives */
-  cursor: number;
-}
-
-/** Stacks nodes top to bottom, each sized by its total, with a minimum so small ones stay visible */
-const stackNodes = <T extends { key: string; label: string; total: number }>(items: T[]): Array<T & SankeyNode> => {
-  const sum = items.reduce((acc, item) => acc + item.total, 0) || 1;
-  const room = SANKEY_H - SANKEY_GAP * (items.length - 1);
-  const raw = items.map((item) => (item.total / sum) * room);
-  // Whatever the minimum adds is taken back from the others in proportion
-  const extra = raw.reduce((acc, h) => acc + Math.max(SANKEY_MIN - h, 0), 0);
-  const big = raw.reduce((acc, h) => acc + (h > SANKEY_MIN ? h : 0), 0) || 1;
-  let y = 0;
-  return items.map((item, index) => {
-    const h = raw[index] < SANKEY_MIN ? SANKEY_MIN : raw[index] - (extra * raw[index]) / big;
-    const node = { ...item, y, h, cursor: y };
-    y += h + SANKEY_GAP;
-    return node;
-  });
+/** An annular wedge from angle a0 to a1 (degrees, 0 at 12 o'clock), between radii r0 and r1 */
+const wedge = (a0: number, a1: number, r0: number, r1: number) => {
+  const c = ROSE_SIZE / 2;
+  const pt = (deg: number, r: number) => {
+    const rad = ((deg - 90) * Math.PI) / 180;
+    return `${c + r * Math.cos(rad)} ${c + r * Math.sin(rad)}`;
+  };
+  const large = a1 - a0 > 180 ? 1 : 0;
+  return `M ${pt(a0, r0)} L ${pt(a0, r1)} A ${r1} ${r1} 0 ${large} 1 ${pt(a1, r1)} L ${pt(a1, r0)} A ${r0} ${r0} 0 ${large} 0 ${pt(a0, r0)} Z`;
 };
 
-export const StateSankey: React.FC<{
+export const StateRose: React.FC<{
   rows: Array<{ key: string; label: string; values: Record<string, number> }>;
   series: Array<{ key: string; label: string; color: string }>;
   animate: boolean;
@@ -1609,11 +1592,11 @@ export const StateSankey: React.FC<{
   onSelect: (key: string) => void;
 }> = ({ rows, series, animate, selected, onSelect }) => {
   const chart = useChartTheme();
-  const [focus, setFocus] = React.useState<{ state?: string; status?: string } | null>(null);
-  const [shown, setShown] = React.useState(!animate);
+  const [hovered, setHovered] = React.useState<string | null>(null);
+  const [grown, setGrown] = React.useState(!animate);
   React.useEffect(() => {
-    if (!animate) return setShown(true);
-    const frame = requestAnimationFrame(() => setShown(true));
+    if (!animate) return setGrown(true);
+    const frame = requestAnimationFrame(() => setGrown(true));
     return () => cancelAnimationFrame(frame);
   }, [animate]);
 
@@ -1623,13 +1606,11 @@ export const StateSankey: React.FC<{
     .map((row) => ({ ...row, total: sumOf(row.values) }))
     .filter((row) => row.total > 0)
     .sort((a, b) => b.total - a.total);
-
-  // The largest states keep their own node; two or more small ones share one
-  const grouped = ranked.length > SANKEY_STATES + 1;
-  const rest = grouped ? ranked.slice(SANKEY_STATES) : [];
-  const states = grouped
+  const grouped = ranked.length > ROSE_STATES + 1;
+  const rest = grouped ? ranked.slice(ROSE_STATES) : [];
+  const petals = grouped
     ? [
-        ...ranked.slice(0, SANKEY_STATES),
+        ...ranked.slice(0, ROSE_STATES),
         {
           key: '__other',
           label: `${rest.length} other states`,
@@ -1638,122 +1619,152 @@ export const StateSankey: React.FC<{
         },
       ]
     : ranked;
-  const grand = states.reduce((acc, row) => acc + row.total, 0);
-  const statuses = series
-    .map((item) => ({ ...item, total: states.reduce((acc, row) => acc + (row.values[item.key] || 0), 0) }))
-    .filter((item) => item.total > 0);
 
-  const left = stackNodes(states);
-  const right = stackNodes(statuses);
+  const grand = petals.reduce((acc, row) => acc + row.total, 0);
+  const max = Math.max(...petals.map((row) => row.total), 1);
+  // Area follows the count, so a petal twice the licences has twice the colour
+  const radius = (value: number) => Math.sqrt(ROSE_HOLE ** 2 + (value / max) * (ROSE_MAX ** 2 - ROSE_HOLE ** 2));
+  // A petal's tip, never shorter than the minimum; its layers split it by area
+  const tipOf = (total: number) => Math.max(radius(total), ROSE_HOLE + ROSE_MIN_LENGTH);
+  const layerRadius = (cumulative: number, total: number, tip: number) =>
+    Math.sqrt(ROSE_HOLE ** 2 + (total > 0 ? cumulative / total : 0) * (tip ** 2 - ROSE_HOLE ** 2));
+  const slice = 360 / Math.max(petals.length, 1);
+  const pad = petals.length > 1 ? Math.min(3, slice * 0.08) : 0;
+  const c = ROSE_SIZE / 2;
 
-  // One ribbon per state and status: leaving in status order, arriving in state order
-  const ribbons = left.flatMap((state) =>
-    right
-      .filter((status) => (state.values[status.key] || 0) > 0)
-      .map((status) => {
-        const value = state.values[status.key] || 0;
-        const fromH = (value / state.total) * state.h;
-        const toH = (value / status.total) * status.h;
-        const ribbon = { state, status, value, y0: state.cursor, y1: state.cursor + fromH, t0: status.cursor, t1: status.cursor + toH };
-        state.cursor += fromH;
-        status.cursor += toH;
-        return ribbon;
-      })
-  );
-
-  const x0 = SANKEY_LEFT + SANKEY_NODE;
-  const x1 = SANKEY_RIGHT;
-  const mid = (x0 + x1) / 2;
-  const lit = (stateKey: string, statusKey: string) =>
-    !focus || (focus.state ? focus.state === stateKey : true) && (focus.status ? focus.status === statusKey : true);
-  const hoveredRibbon = focus?.state && focus?.status ? ribbons.find((r) => r.state.key === focus.state && r.status.key === focus.status) : null;
+  const focus = petals.find((row) => row.key === hovered);
+  const shown = focus ?? { label: 'All states', values: Object.fromEntries(series.map((item) => [item.key, petals.reduce((acc, row) => acc + (row.values[item.key] || 0), 0)])), total: grand };
 
   return (
-    <div className="relative mt-3">
-      <svg viewBox={`0 -4 ${SANKEY_W} ${SANKEY_H + 8}`} className="w-full" role="img" aria-label="Licences flowing from each state to their status">
-        <defs>
-          {ribbons.map((r) => (
-            <linearGradient key={`${r.state.key}-${r.status.key}`} id={`sankey-${r.state.key}-${r.status.key}`.replace(/\W/g, '')} x1="0" x2="1">
-              <stop offset="0%" stopColor={r.status.color} stopOpacity={0.25} />
-              <stop offset="100%" stopColor={r.status.color} stopOpacity={0.65} />
-            </linearGradient>
-          ))}
-        </defs>
-
-        {ribbons.map((r, index) => (
+    <div className="mt-3 grid grid-cols-1 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6 items-center">
+      <svg
+        viewBox={`${-ROSE_MARGIN} 0 ${ROSE_SIZE + ROSE_MARGIN * 2} ${ROSE_SIZE}`}
+        className="w-full max-w-[560px] mx-auto overflow-visible"
+        role="img"
+        aria-label="Licences by state and status"
+      >
+        {/* Every state's lane, full length, so the rose reads as a whole circle */}
+        {petals.map((row, index) => (
           <path
-            key={`${r.state.key}-${r.status.key}`}
-            d={`M ${x0} ${r.y0} C ${mid} ${r.y0}, ${mid} ${r.t0}, ${x1} ${r.t0} L ${x1} ${r.t1} C ${mid} ${r.t1}, ${mid} ${r.y1}, ${x0} ${r.y1} Z`}
-            fill={`url(#${`sankey-${r.state.key}-${r.status.key}`.replace(/\W/g, '')})`}
-            onMouseEnter={() => setFocus({ state: r.state.key, status: r.status.key })}
-            onMouseLeave={() => setFocus(null)}
-            style={{
-              opacity: !shown ? 0 : lit(r.state.key, r.status.key) ? 1 : 0.15,
-              transition: `opacity ${shown && focus ? 150 : 500}ms ease-out ${focus ? 0 : animate ? index * 25 : 0}ms`,
-            }}
+            key={row.key}
+            d={wedge(index * slice + pad / 2, (index + 1) * slice - pad / 2, ROSE_HOLE, ROSE_MAX)}
+            fill={chart.noData}
+            fillOpacity={chart.dark ? 0.55 : 0.6}
           />
         ))}
+        {/* Rings for scale at a quarter, half, three quarters and all of the largest state, numbered just left of 12 o'clock, clear of the largest petal */}
+        {[0.25, 0.5, 0.75, 1].map((share) => (
+          <g key={share}>
+            <circle cx={c} cy={c} r={radius(max * share)} fill="none" stroke={chart.grid} strokeOpacity={0.55} strokeWidth={1} strokeDasharray="3 4" />
+            <text x={c - 4} y={c - radius(max * share) - 3} textAnchor="end" fontSize={9} fontWeight={600} fill={chart.axis}>
+              {Math.round(max * share).toLocaleString()}
+            </text>
+          </g>
+        ))}
 
-        {/* States */}
-        {left.map((state) => {
-          const other = state.key === '__other';
-          const isSelected = selected === state.key;
+        {petals.map((row, index) => {
+          const a0 = index * slice + pad / 2;
+          const a1 = (index + 1) * slice - pad / 2;
+          const mid = (a0 + a1) / 2;
+          const other = row.key === '__other';
+          const dim = hovered !== null && hovered !== row.key;
+          const outer = tipOf(row.total);
+          // Names sit in an even ring just outside the lanes, on the side each petal points to
+          const labelR = ROSE_MAX + 14;
+          const rad = ((mid - 90) * Math.PI) / 180;
+          const lx = c + labelR * Math.cos(rad);
+          const ly = c + labelR * Math.sin(rad);
+          const anchor = Math.abs(lx - c) < 12 ? 'middle' : lx > c ? 'start' : 'end';
+          let cumulative = 0;
           return (
             <g
-              key={state.key}
-              onMouseEnter={() => setFocus({ state: state.key })}
-              onMouseLeave={() => setFocus(null)}
-              onClick={other ? undefined : () => onSelect(state.key)}
+              key={row.key}
+              onMouseEnter={() => setHovered(row.key)}
+              onMouseLeave={() => setHovered(null)}
+              onClick={other ? undefined : () => onSelect(row.key)}
               className={other ? undefined : 'cursor-pointer'}
+              style={{ opacity: dim ? 0.3 : 1, transition: 'opacity 150ms' }}
             >
               <title>
-                {other
-                  ? rest.map((row) => `${row.label}: ${row.total}`).join('\n')
-                  : `${state.label}: ${state.total} licences. Click to filter.`}
+                {other ? rest.map((item) => `${item.label}: ${item.total}`).join('\n') : `${row.label}: ${row.total} licences. Click to filter.`}
               </title>
-              <rect x={SANKEY_LEFT} y={state.y} width={SANKEY_NODE} height={state.h} rx={3} fill={other ? chart.grid : ink} fillOpacity={other ? 0.6 : 0.85} />
-              <text
-                x={SANKEY_LEFT - 8}
-                y={state.y + state.h / 2}
-                dy="0.35em"
-                textAnchor="end"
-                fontSize={12}
-                fontWeight={isSelected ? 800 : 600}
-                fill={other ? chart.axis : ink}
+              <g
+                style={{
+                  transformOrigin: `${c}px ${c}px`,
+                  transform: grown ? 'scale(1)' : 'scale(0)',
+                  transition: `transform 700ms cubic-bezier(0.34, 1.4, 0.64, 1) ${animate ? index * 80 : 0}ms`,
+                }}
               >
-                {state.label}
-                <tspan fill={chart.axis} fontWeight={500}> {state.total.toLocaleString()}</tspan>
+                {series.map((item) => {
+                  const value = row.values[item.key] || 0;
+                  if (value === 0) return null;
+                  const r0 = layerRadius(cumulative, row.total, outer);
+                  cumulative += value;
+                  const r1 = layerRadius(cumulative, row.total, outer);
+                  return (
+                    <path
+                      key={item.key}
+                      d={wedge(a0, a1, r0, r1)}
+                      fill={item.color}
+                      fillOpacity={other ? 0.55 : 0.92}
+                      stroke={chart.surface}
+                      strokeWidth={1.5}
+                    />
+                  );
+                })}
+                {selected === row.key && <path d={wedge(a0, a1, ROSE_HOLE, outer)} fill="none" stroke={ink} strokeWidth={2.5} />}
+              </g>
+              <text x={lx} y={ly} textAnchor={anchor} dy="-0.15em" fontSize={11} fontWeight={700} fill={other ? chart.axis : ink}>
+                {row.label}
+              </text>
+              <text x={lx} y={ly} textAnchor={anchor} dy="1em" fontSize={10} fill={chart.axis}>
+                {row.total.toLocaleString()}
               </text>
             </g>
           );
         })}
 
-        {/* Statuses */}
-        {right.map((status) => (
-          <g key={status.key} onMouseEnter={() => setFocus({ status: status.key })} onMouseLeave={() => setFocus(null)}>
-            <rect x={SANKEY_RIGHT} y={status.y} width={SANKEY_NODE} height={status.h} rx={3} fill={status.color} />
-            <text x={SANKEY_RIGHT + SANKEY_NODE + 8} y={status.y + status.h / 2} dy="-0.2em" fontSize={12} fontWeight={700} fill={ink}>
-              {status.label}
-            </text>
-            <text x={SANKEY_RIGHT + SANKEY_NODE + 8} y={status.y + status.h / 2} dy="1.05em" fontSize={11} fill={chart.axis}>
-              {status.total.toLocaleString()} · {grand > 0 ? Math.round((status.total / grand) * 100) : 0}%
-            </text>
-          </g>
-        ))}
+        {/* The hollow: every licence in view, or the hovered state's */}
+        <circle cx={c} cy={c} r={ROSE_HOLE - 4} fill={chart.surface} />
+        <text x={c} y={c} textAnchor="middle" dy="0.1em" fontSize={20} fontWeight={800} fill={ink}>
+          {shown.total.toLocaleString()}
+        </text>
+        <text x={c} y={c} textAnchor="middle" dy="1.6em" fontSize={9} fill={chart.axis}>
+          licences
+        </text>
       </svg>
 
-      {hoveredRibbon && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap">
-          <span className="font-semibold text-slate-900 dark:text-slate-100">{hoveredRibbon.state.label}</span>
-          <span className="text-slate-400"> → </span>
-          <span className="font-semibold" style={{ color: hoveredRibbon.status.color }}>
-            {hoveredRibbon.status.label}
-          </span>
-          <span className="text-slate-500 dark:text-slate-400">
-            : {hoveredRibbon.value.toLocaleString()} ({Math.round((hoveredRibbon.value / hoveredRibbon.state.total) * 100)}% of the state)
-          </span>
-        </div>
-      )}
+      {/* The breakdown beside it: all states, or the one under the pointer */}
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{shown.label}</p>
+        <p className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+          {shown.total.toLocaleString()}
+          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400"> licences</span>
+        </p>
+        <ul className="mt-3 space-y-2.5">
+          {series.map((item) => {
+            const value = shown.values[item.key] || 0;
+            const share = shown.total > 0 ? Math.round((value / shown.total) * 100) : 0;
+            return (
+              <li key={item.key}>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="text-slate-700 dark:text-slate-300">{item.label}</span>
+                  <span className="ml-auto font-semibold tabular-nums text-slate-900 dark:text-slate-100">{value.toLocaleString()}</span>
+                  <span className="w-9 text-right tabular-nums text-slate-400 dark:text-slate-500">{share}%</span>
+                </div>
+                <div className="mt-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${share}%`, backgroundColor: item.color }} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-4">
+          Each petal is a state: longer means more licences, and the colours run from approved at the centre outwards. Point at a petal for its
+          figures; click to filter.
+        </p>
+      </div>
     </div>
   );
 };
