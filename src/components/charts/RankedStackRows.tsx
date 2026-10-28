@@ -69,12 +69,16 @@ const Row: React.FC<{
       >
         <span
           className={`truncate ${
-            selected || hovered ? 'font-semibold text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-300'
+            selected || hovered
+              ? 'font-semibold text-slate-900 dark:text-slate-100'
+              : 'text-slate-700 dark:text-slate-300'
           }`}
         >
           {row.label}
         </span>
-        <span className={`${mode === 'share' ? 'h-4' : 'h-3'} rounded-r-md bg-slate-100 dark:bg-slate-800 transition-[height] duration-200`}>
+        <span
+          className={`${mode === 'share' ? 'h-4' : 'h-3'} rounded-r-md bg-slate-100 dark:bg-slate-800 transition-[height] duration-200`}
+        >
           <span
             className="flex h-full rounded-r-md overflow-hidden origin-left motion-reduce:transition-none"
             style={{
@@ -128,7 +132,10 @@ const Row: React.FC<{
                 <span className="text-slate-500 dark:text-slate-400">{item.label}:</span>
                 <span className="ml-auto font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
                   {value.toLocaleString()}
-                  <span className="font-normal text-slate-500 dark:text-slate-400"> ({Math.round((value / total) * 100)}%)</span>
+                  <span className="font-normal text-slate-500 dark:text-slate-400">
+                    {' '}
+                    ({Math.round((value / total) * 100)}%)
+                  </span>
                 </span>
               </p>
             );
@@ -162,7 +169,8 @@ const RankedStackRows: React.FC<{
   const [hover, setHover] = useState<string | null>(null);
 
   const shown = series.filter((item) => !hidden.includes(item.key));
-  const totalOf = (row: RankedRow, items: RankedSeries[]) => items.reduce((sum, item) => sum + (row.values[item.key] || 0), 0);
+  const totalOf = (row: RankedRow, items: RankedSeries[]) =>
+    items.reduce((sum, item) => sum + (row.values[item.key] || 0), 0);
   // Counts rank on every series, so switching one off does not shuffle the rows;
   // shares rank on the first series shown, so the furthest along come first
   const leadShare = (row: RankedRow) => {
@@ -170,7 +178,9 @@ const RankedStackRows: React.FC<{
     return total > 0 ? (row.values[shown[0].key] || 0) / total : 0;
   };
   const ranked = [...rows].sort((a, b) =>
-    mode === 'share' ? leadShare(b) - leadShare(a) || totalOf(b, series) - totalOf(a, series) : totalOf(b, series) - totalOf(a, series)
+    mode === 'share'
+      ? leadShare(b) - leadShare(a) || totalOf(b, series) - totalOf(a, series)
+      : totalOf(b, series) - totalOf(a, series)
   );
   const max = Math.max(...ranked.map((row) => totalOf(row, shown)), 1);
 
@@ -200,7 +210,10 @@ const RankedStackRows: React.FC<{
                     : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
-                <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: item.color, opacity: off ? 0.35 : 1 }} />
+                <span
+                  className="w-2.5 h-2.5 rounded-sm"
+                  style={{ backgroundColor: item.color, opacity: off ? 0.35 : 1 }}
+                />
                 {item.label}
               </button>
             );

@@ -137,17 +137,14 @@ export interface PaginatedResponse<T> {
 export const adminService = {
   // ── Users ──
   getUsers: async (params?: PaginationParams) => {
-    const res = await axiosInstance.get<{ success: boolean; data: PaginatedResponse<UserItem> }>(
-      '/admin/users',
-      { params }
-    );
+    const res = await axiosInstance.get<{ success: boolean; data: PaginatedResponse<UserItem> }>('/admin/users', {
+      params,
+    });
     return res.data.data;
   },
 
   getUserById: async (id: string) => {
-    const res = await axiosInstance.get<{ success: boolean; data: { user: UserItem } }>(
-      `/admin/users/${id}`
-    );
+    const res = await axiosInstance.get<{ success: boolean; data: { user: UserItem } }>(`/admin/users/${id}`);
     return res.data.data.user;
   },
 
@@ -168,16 +165,19 @@ export const adminService = {
     return res.data;
   },
 
-  updateUser: async (id: string, payload: Partial<{
-    firstName: string;
-    lastName: string;
-    email: string;
-    password?: string;
-    role: string;
-    entity?: string | null;
-    phone?: string;
-    status?: string;
-  }>) => {
+  updateUser: async (
+    id: string,
+    payload: Partial<{
+      firstName: string;
+      lastName: string;
+      email: string;
+      password?: string;
+      role: string;
+      entity?: string | null;
+      phone?: string;
+      status?: string;
+    }>
+  ) => {
     const res = await axiosInstance.put<{ success: boolean; data: { user: UserItem }; message: string }>(
       `/admin/users/${id}`,
       payload
@@ -194,17 +194,13 @@ export const adminService = {
   },
 
   deleteUser: async (id: string) => {
-    const res = await axiosInstance.delete<{ success: boolean; message: string }>(
-      `/admin/users/${id}`
-    );
+    const res = await axiosInstance.delete<{ success: boolean; message: string }>(`/admin/users/${id}`);
     return res.data;
   },
 
   // ── Roles ──
   getRoles: async () => {
-    const res = await axiosInstance.get<{ success: boolean; data: { roles: RoleItem[] } }>(
-      '/admin/roles'
-    );
+    const res = await axiosInstance.get<{ success: boolean; data: { roles: RoleItem[] } }>('/admin/roles');
     return res.data.data.roles;
   },
 
@@ -228,12 +224,15 @@ export const adminService = {
     return res.data;
   },
 
-  updateRole: async (id: string, payload: Partial<{
-    name: string;
-    description: string;
-    permissions: Array<{ resource: string; actions: string[] }>;
-    status: 'active' | 'inactive';
-  }>) => {
+  updateRole: async (
+    id: string,
+    payload: Partial<{
+      name: string;
+      description: string;
+      permissions: Array<{ resource: string; actions: string[] }>;
+      status: 'active' | 'inactive';
+    }>
+  ) => {
     const res = await axiosInstance.put<{ success: boolean; data: { role: RoleItem }; message: string }>(
       `/admin/roles/${id}`,
       payload
@@ -242,9 +241,7 @@ export const adminService = {
   },
 
   deleteRole: async (id: string) => {
-    const res = await axiosInstance.delete<{ success: boolean; message: string }>(
-      `/admin/roles/${id}`
-    );
+    const res = await axiosInstance.delete<{ success: boolean; message: string }>(`/admin/roles/${id}`);
     return res.data;
   },
 
@@ -271,7 +268,10 @@ export const adminService = {
     return res.data;
   },
 
-  updatePermission: async (id: string, payload: Partial<{ name: string; description: string; status: 'active' | 'inactive' }>) => {
+  updatePermission: async (
+    id: string,
+    payload: Partial<{ name: string; description: string; status: 'active' | 'inactive' }>
+  ) => {
     const res = await axiosInstance.put<{ success: boolean; data: { permission: PermissionItem }; message: string }>(
       `/admin/permissions/${id}`,
       payload
@@ -280,9 +280,7 @@ export const adminService = {
   },
 
   deletePermission: async (id: string) => {
-    const res = await axiosInstance.delete<{ success: boolean; message: string }>(
-      `/admin/permissions/${id}`
-    );
+    const res = await axiosInstance.delete<{ success: boolean; message: string }>(`/admin/permissions/${id}`);
     return res.data;
   },
 
@@ -319,14 +317,17 @@ export const adminService = {
     return res.data;
   },
 
-  updateMasterData: async (id: string, payload: Partial<{
-    label: string;
-    description: string;
-    parent: string | null;
-    sortOrder: number;
-    metadata: Record<string, any>;
-    status: 'active' | 'inactive';
-  }>) => {
+  updateMasterData: async (
+    id: string,
+    payload: Partial<{
+      label: string;
+      description: string;
+      parent: string | null;
+      sortOrder: number;
+      metadata: Record<string, any>;
+      status: 'active' | 'inactive';
+    }>
+  ) => {
     const res = await axiosInstance.put<{ success: boolean; data: { item: MasterDataItem }; message: string }>(
       `/admin/master-data/${id}`,
       payload
@@ -343,25 +344,23 @@ export const adminService = {
   },
 
   deleteMasterData: async (id: string) => {
-    const res = await axiosInstance.delete<{ success: boolean; message: string }>(
-      `/admin/master-data/${id}`
-    );
+    const res = await axiosInstance.delete<{ success: boolean; message: string }>(`/admin/master-data/${id}`);
     return res.data;
   },
 
   // ── Settings ──
   getSettings: async () => {
-    const res = await axiosInstance.get<{ success: boolean; data: { settings: SystemSettings } }>(
-      '/admin/settings'
-    );
+    const res = await axiosInstance.get<{ success: boolean; data: { settings: SystemSettings } }>('/admin/settings');
     return res.data.data.settings;
   },
 
-  updateSettings: async (payload: Partial<{
-    notifications: Partial<SystemSettings['notifications']>;
-    config: Partial<SystemSettings['config']>;
-    workflows?: any[];
-  }>) => {
+  updateSettings: async (
+    payload: Partial<{
+      notifications: Partial<SystemSettings['notifications']>;
+      config: Partial<SystemSettings['config']>;
+      workflows?: any[];
+    }>
+  ) => {
     const res = await axiosInstance.put<{ success: boolean; data: { settings: SystemSettings }; message: string }>(
       '/admin/settings',
       payload

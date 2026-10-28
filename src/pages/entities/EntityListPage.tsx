@@ -26,8 +26,8 @@ const scoreStyle = (percentage: number) =>
   percentage >= 80
     ? { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
     : percentage >= 60
-    ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
-    : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
+      ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+      : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
 
 const healthText = (health: EntityHealth) =>
   [
@@ -452,7 +452,9 @@ export const EntityListPage: React.FC = () => {
               }`}
             >
               <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{card.label}</div>
-              <div className={`text-xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}>
+              <div
+                className={`text-xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}
+              >
                 {card.value}
               </div>
             </button>

@@ -1,16 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import {
-  Bell,
-  Search,
-  Moon,
-  Sun,
-  ChevronDown,
-  LogOut,
-  Shield,
-  Building,
-  Menu,
-} from 'lucide-react';
+import { Bell, Search, Moon, Sun, ChevronDown, LogOut, Shield, Building, Menu } from 'lucide-react';
 import { SIDEBAR_GROUPS } from '@/constants/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -24,10 +14,7 @@ interface NavbarProps {
   onOpenMobileSidebar?: () => void;
 }
 
-const ROLE_BADGE_CONFIG: Record<
-  string,
-  { label: string; className: string }
-> = {
+const ROLE_BADGE_CONFIG: Record<string, { label: string; className: string }> = {
   super_admin: {
     label: 'Super Admin',
     className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
@@ -70,8 +57,14 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
   // Fetch initial notifications & unread count
   useEffect(() => {
     if (user) {
-      notificationService.getUnreadCount().then((count) => setUnreadCount(count)).catch(() => {});
-      notificationService.getNotifications(1, 5).then((res) => setRecentNotifs(res.data)).catch(() => {});
+      notificationService
+        .getUnreadCount()
+        .then((count) => setUnreadCount(count))
+        .catch(() => {});
+      notificationService
+        .getNotifications(1, 5)
+        .then((res) => setRecentNotifs(res.data))
+        .catch(() => {});
       socketService.connect();
     }
   }, [user]);
@@ -135,9 +128,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
       try {
         await notificationService.markAsRead(notif._id);
         setUnreadCount((c) => Math.max(0, c - 1));
-        setRecentNotifs((prev) =>
-          prev.map((n) => (n._id === notif._id ? { ...n, isRead: true } : n))
-        );
+        setRecentNotifs((prev) => prev.map((n) => (n._id === notif._id ? { ...n, isRead: true } : n)));
       } catch (err) {
         console.error(err);
       }
@@ -150,9 +141,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
 
   // Resolve page title from current path
   const currentItem = SIDEBAR_GROUPS.flatMap((g) => g.items).find(
-    (item) =>
-      location.pathname === item.path ||
-      location.pathname.startsWith(item.path + '/')
+    (item) => location.pathname === item.path || location.pathname.startsWith(item.path + '/')
   );
 
   const pageTitle = currentItem?.label ?? 'Compliance Management System';
@@ -192,9 +181,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
           </button>
         )}
         <div className="min-w-0">
-          <h1 className="text-sm sm:text-base font-semibold text-slate-100 leading-tight truncate">
-            {pageTitle}
-          </h1>
+          <h1 className="text-sm sm:text-base font-semibold text-slate-100 leading-tight truncate">{pageTitle}</h1>
           <p className="text-xs text-slate-500 hidden sm:block">
             {new Date().toLocaleDateString('en-IN', {
               weekday: 'long',
@@ -274,9 +261,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
 
               <div className="max-h-72 overflow-y-auto divide-y divide-slate-800/60">
                 {recentNotifs.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-slate-500">
-                    No new notifications.
-                  </div>
+                  <div className="p-6 text-center text-xs text-slate-500">No new notifications.</div>
                 ) : (
                   recentNotifs.map((notif) => (
                     <div
@@ -287,16 +272,14 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`text-xs font-medium truncate ${!notif.isRead ? 'text-slate-100 font-semibold' : 'text-slate-300'}`}>
+                        <span
+                          className={`text-xs font-medium truncate ${!notif.isRead ? 'text-slate-100 font-semibold' : 'text-slate-300'}`}
+                        >
                           {notif.title}
                         </span>
-                        {!notif.isRead && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" />
-                        )}
+                        {!notif.isRead && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" />}
                       </div>
-                      <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
-                        {notif.body}
-                      </p>
+                      <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{notif.body}</p>
                       <span className="text-[9px] text-slate-500 mt-1 block">
                         {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -324,12 +307,8 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
               {userInitials}
             </div>
             <div className="text-left hidden sm:block">
-              <p className="text-xs font-semibold text-slate-200 leading-tight">
-                {user?.fullName || 'User'}
-              </p>
-              <p className="text-[10px] text-slate-400 leading-tight">
-                {roleBadge.label}
-              </p>
+              <p className="text-xs font-semibold text-slate-200 leading-tight">{user?.fullName || 'User'}</p>
+              <p className="text-[10px] text-slate-400 leading-tight">{roleBadge.label}</p>
             </div>
             <ChevronDown
               size={14}
@@ -344,12 +323,8 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
             <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-slate-900/95 border border-slate-800 p-2 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-100">
               {/* Header profile info */}
               <div className="px-3 py-2.5 border-b border-slate-800 mb-1">
-                <p className="text-xs font-semibold text-white truncate">
-                  {user?.fullName}
-                </p>
-                <p className="text-[11px] text-slate-400 truncate mb-2">
-                  {user?.email}
-                </p>
+                <p className="text-xs font-semibold text-white truncate">{user?.fullName}</p>
+                <p className="text-[11px] text-slate-400 truncate mb-2">{user?.email}</p>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${roleBadge.className}`}

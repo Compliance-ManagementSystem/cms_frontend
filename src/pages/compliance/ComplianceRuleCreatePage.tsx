@@ -83,13 +83,24 @@ export const ComplianceRuleCreatePage: React.FC = () => {
           <Button variant="outline" onClick={goBack} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" form={RULE_FORM_ID} variant="primary" isLoading={isSubmitting} leftIcon={<Save size={16} />}>
+          <Button
+            type="submit"
+            form={RULE_FORM_ID}
+            variant="primary"
+            isLoading={isSubmitting}
+            leftIcon={<Save size={16} />}
+          >
             Create Rule
           </Button>
         </div>
       </div>
 
-      <RuleForm template={template || undefined} isSubmitting={isSubmitting} onSubmit={handleSubmit} onCancel={goBack} />
+      <RuleForm
+        template={template || undefined}
+        isSubmitting={isSubmitting}
+        onSubmit={handleSubmit}
+        onCancel={goBack}
+      />
     </div>
   );
 };

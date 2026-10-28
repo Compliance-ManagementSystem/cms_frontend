@@ -49,7 +49,9 @@ export const LocationCreatePage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Add Location</h1>
-            <p className="text-sm text-slate-600 dark:text-slate-400">A unit, clinic or office that belongs to an entity</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              A unit, clinic or office that belongs to an entity
+            </p>
           </div>
         </div>
 
@@ -57,7 +59,13 @@ export const LocationCreatePage: React.FC = () => {
           <Button variant="outline" onClick={goBack} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" form={LOCATION_FORM_ID} variant="primary" isLoading={isSubmitting} leftIcon={<Save size={16} />}>
+          <Button
+            type="submit"
+            form={LOCATION_FORM_ID}
+            variant="primary"
+            isLoading={isSubmitting}
+            leftIcon={<Save size={16} />}
+          >
             Create Location
           </Button>
         </div>

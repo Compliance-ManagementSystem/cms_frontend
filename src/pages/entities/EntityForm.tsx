@@ -223,8 +223,8 @@ const EntityForm: React.FC<EntityFormProps> = ({
     <form id={ENTITY_FORM_ID} onSubmit={handleSubmit} noValidate className="space-y-6">
       {!canEditCore && (
         <p className="text-sm text-slate-700 dark:text-slate-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-600/40 rounded-lg px-4 py-3">
-          You can update this entity's contact details, address and description. Its name, code, type, owner, status
-          and statutory identifiers can only be changed by an administrator.
+          You can update this entity's contact details, address and description. Its name, code, type, owner, status and
+          statutory identifiers can only be changed by an administrator.
         </p>
       )}
 
@@ -253,11 +253,13 @@ const EntityForm: React.FC<EntityFormProps> = ({
             <Input
               label="Entity Code"
               name="code"
-                error={errors['code']}
+              error={errors['code']}
               value={form.code}
               onChange={(e) => setField('code', e.target.value.toUpperCase())}
               placeholder="e.g. ACPL"
-              hint={isEdit ? 'Short unique code shown across the system.' : 'Leave blank to generate one from the name.'}
+              hint={
+                isEdit ? 'Short unique code shown across the system.' : 'Leave blank to generate one from the name.'
+              }
             />
 
             <div>
@@ -357,7 +359,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
             <Input
               label="GSTIN"
               name="gstin"
-                error={errors['gstin']}
+              error={errors['gstin']}
               value={form.gstin}
               onChange={(e) => setField('gstin', e.target.value.toUpperCase())}
               placeholder="e.g. 27AAAAA0000A1Z5"
@@ -366,7 +368,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
             <Input
               label="PAN"
               name="pan"
-                error={errors['pan']}
+              error={errors['pan']}
               value={form.pan}
               onChange={(e) => setField('pan', e.target.value.toUpperCase())}
               placeholder="e.g. AAAAA0000A"
@@ -375,7 +377,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
             <Input
               label="CIN"
               name="cin"
-                error={errors['cin']}
+              error={errors['cin']}
               value={form.cin}
               onChange={(e) => setField('cin', e.target.value.toUpperCase())}
               placeholder="e.g. U72200MH2020PTC123456"
@@ -411,7 +413,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
           <Input
             label="Contact Email"
             name="contactEmail"
-                error={errors['contactEmail']}
+            error={errors['contactEmail']}
             type="email"
             required
             value={form.contactEmail}
@@ -422,7 +424,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
           <Input
             label="Contact Phone"
             name="contactPhone"
-                error={errors['contactPhone']}
+            error={errors['contactPhone']}
             required
             value={form.contactPhone}
             onChange={(e) => setField('contactPhone', e.target.value)}
@@ -459,7 +461,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
             <Input
               label="Address Line 1"
               name="address.line1"
-                error={errors['address.line1']}
+              error={errors['address.line1']}
               required
               value={form.address.line1}
               onChange={(e) => setAddress('line1', e.target.value)}
@@ -552,7 +554,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
           <Input
             label="City"
             name="address.city"
-                error={errors['address.city']}
+            error={errors['address.city']}
             required
             value={form.address.city}
             onChange={(e) => setAddress('city', e.target.value)}
@@ -563,7 +565,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
             <Input
               label="Pincode"
               name="address.pincode"
-                error={errors['address.pincode']}
+              error={errors['address.pincode']}
               value={form.address.pincode}
               onChange={(e) => setAddress('pincode', e.target.value)}
               placeholder="e.g. 400001"

@@ -1,12 +1,6 @@
 import axiosInstance from '@/api/axiosInstance';
 
-export type TaskStatus =
-  | 'open'
-  | 'in_progress'
-  | 'pending_approval'
-  | 'completed'
-  | 'overdue'
-  | 'cancelled';
+export type TaskStatus = 'open' | 'in_progress' | 'pending_approval' | 'completed' | 'overdue' | 'cancelled';
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 

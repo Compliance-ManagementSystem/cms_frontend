@@ -116,19 +116,22 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const [previewDocTitle, setPreviewDocTitle] = useState('');
 
   // Fetch Record
-  const fetchRecord = useCallback(async (silent = false) => {
-    if (!id) return;
-    if (!silent) setIsLoading(true);
-    try {
-      const data = await complianceRecordService.getRecordById(id);
-      setRecord(data);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load compliance record');
-      navigate(ROUTES.COMPLIANCE_RECORDS);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id, navigate, toast]);
+  const fetchRecord = useCallback(
+    async (silent = false) => {
+      if (!id) return;
+      if (!silent) setIsLoading(true);
+      try {
+        const data = await complianceRecordService.getRecordById(id);
+        setRecord(data);
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to load compliance record');
+        navigate(ROUTES.COMPLIANCE_RECORDS);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [id, navigate, toast]
+  );
 
   // Fetch document requirements and the comment trail
   const fetchWorkflow = useCallback(async () => {
@@ -225,13 +228,13 @@ export const ComplianceRecordDetailPage: React.FC = () => {
               type: ACKNOWLEDGEMENT_DOC_TYPE,
             }
           : statusForm.status === 'approved' && licenceFile
-          ? {
-              file: licenceFile,
-              label: 'licence',
-              name: licenceNumber ? `Licence - ${licenceNumber}` : 'Licence',
-              type: LICENCE_DOC_TYPE,
-            }
-          : null;
+            ? {
+                file: licenceFile,
+                label: 'licence',
+                name: licenceNumber ? `Licence - ${licenceNumber}` : 'Licence',
+                type: LICENCE_DOC_TYPE,
+              }
+            : null;
 
       if (statusUpload) {
         try {
@@ -391,25 +394,65 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const renderStatusBadge = (status: ComplianceRecordStatus) => {
     switch (status) {
       case 'approved':
-        return <Badge variant="success" size="md">APPROVED</Badge>;
+        return (
+          <Badge variant="success" size="md">
+            APPROVED
+          </Badge>
+        );
       case 'submitted':
-        return <Badge variant="info" size="md">SUBMITTED</Badge>;
+        return (
+          <Badge variant="info" size="md">
+            SUBMITTED
+          </Badge>
+        );
       case 'under_review':
-        return <Badge variant="info" size="md">UNDER REVIEW</Badge>;
+        return (
+          <Badge variant="info" size="md">
+            UNDER REVIEW
+          </Badge>
+        );
       case 'correction':
-        return <Badge variant="warning" size="md">NEEDS CORRECTION</Badge>;
+        return (
+          <Badge variant="warning" size="md">
+            NEEDS CORRECTION
+          </Badge>
+        );
       case 'resubmitted':
-        return <Badge variant="info" size="md">RESUBMITTED</Badge>;
+        return (
+          <Badge variant="info" size="md">
+            RESUBMITTED
+          </Badge>
+        );
       case 'expiring_soon':
-        return <Badge variant="warning" size="md">EXPIRING SOON</Badge>;
+        return (
+          <Badge variant="warning" size="md">
+            EXPIRING SOON
+          </Badge>
+        );
       case 'expired':
-        return <Badge variant="danger" size="md">EXPIRED</Badge>;
+        return (
+          <Badge variant="danger" size="md">
+            EXPIRED
+          </Badge>
+        );
       case 'rejected':
-        return <Badge variant="danger" size="md">REJECTED</Badge>;
+        return (
+          <Badge variant="danger" size="md">
+            REJECTED
+          </Badge>
+        );
       case 'in_progress':
-        return <Badge variant="info" size="md">APPLIED</Badge>;
+        return (
+          <Badge variant="info" size="md">
+            APPLIED
+          </Badge>
+        );
       case 'not_applicable':
-        return <Badge variant="default" size="md">NOT APPLICABLE</Badge>;
+        return (
+          <Badge variant="default" size="md">
+            NOT APPLICABLE
+          </Badge>
+        );
       case 'pending':
       default:
         return (
@@ -425,9 +468,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const expiryDays = record.expiryDate ? daysFromToday(record.expiryDate) : null;
 
   // Who wrote the comment currently stored on the record
-  const latestCommentSource = (workflowData?.approvals || []).find(
-    (a) => a.comments && a.comments === record.comments
-  );
+  const latestCommentSource = (workflowData?.approvals || []).find((a) => a.comments && a.comments === record.comments);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -449,7 +490,9 @@ export const ComplianceRecordDetailPage: React.FC = () => {
               {renderStatusBadge(record.status)}
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1">
-              <span className="font-mono text-indigo-600 dark:text-indigo-300 font-semibold">{record.recordNumber}</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-300 font-semibold">
+                {record.recordNumber}
+              </span>
               <span>•</span>
               {record.licenceNumber && (
                 <>
@@ -534,9 +577,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                 {record.approvalDate ? new Date(record.approvalDate).toLocaleDateString() : 'Not yet'}
               </div>
               <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                {record.approvalDate
-                  ? formatRelativeDays(record.approvalDate)
-                  : 'Not approved yet'}
+                {record.approvalDate ? formatRelativeDays(record.approvalDate) : 'Not approved yet'}
               </div>
             </Card>
 
@@ -553,15 +594,15 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   expiryDays !== null && expiryDays < 0
                     ? 'text-rose-600 dark:text-rose-400 font-semibold'
                     : expiryDays !== null && expiryDays <= 30
-                    ? 'text-amber-600 dark:text-amber-400 font-semibold'
-                    : 'text-slate-400 dark:text-slate-500'
+                      ? 'text-amber-600 dark:text-amber-400 font-semibold'
+                      : 'text-slate-400 dark:text-slate-500'
                 }`}
               >
                 {!record.expiryDate
                   ? 'Not entered yet'
                   : expiryDays! < 0
-                  ? `Expired ${formatRelativeDays(record.expiryDate)}`
-                  : `Expires ${formatRelativeDays(record.expiryDate)}`}
+                    ? `Expired ${formatRelativeDays(record.expiryDate)}`
+                    : `Expires ${formatRelativeDays(record.expiryDate)}`}
               </div>
               {record.issueDate && (
                 <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
@@ -580,7 +621,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Required Documents</h3>
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {documentRequirements.filter((r) => r.status !== 'missing').length} of {documentRequirements.length} uploaded
+                  {documentRequirements.filter((r) => r.status !== 'missing').length} of {documentRequirements.length}{' '}
+                  uploaded
                   {' · '}
                   {documentRequirements.filter((r) => r.status === 'verified').length} verified
                 </span>
@@ -615,10 +657,10 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                           {req.status === 'missing'
                             ? 'Not uploaded yet'
                             : req.status === 'pending'
-                            ? `Uploaded — awaiting verification (${req.documents.map((d) => d.name).join(', ')})`
-                            : req.status === 'rejected'
-                            ? 'Rejected by reviewer — upload a corrected version'
-                            : `Verified (${req.documents.map((d) => d.name).join(', ')})`}
+                              ? `Uploaded — awaiting verification (${req.documents.map((d) => d.name).join(', ')})`
+                              : req.status === 'rejected'
+                                ? 'Rejected by reviewer — upload a corrected version'
+                                : `Verified (${req.documents.map((d) => d.name).join(', ')})`}
                         </div>
                       </div>
                     </div>
@@ -671,13 +713,17 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                 {record.rule?.legalReference && (
                   <div>
                     <span className="text-slate-500 dark:text-slate-400 block">Statutory Act / Section:</span>
-                    <span className="text-indigo-600 dark:text-indigo-300 font-medium">{record.rule.legalReference}</span>
+                    <span className="text-indigo-600 dark:text-indigo-300 font-medium">
+                      {record.rule.legalReference}
+                    </span>
                   </div>
                 )}
 
                 <div>
                   <span className="text-slate-500 dark:text-slate-400 block">Category:</span>
-                  <span className="text-slate-700 dark:text-slate-200">{record.rule?.category?.label || 'General'}</span>
+                  <span className="text-slate-700 dark:text-slate-200">
+                    {record.rule?.category?.label || 'General'}
+                  </span>
                 </div>
 
                 <div>
@@ -767,9 +813,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
           </div>
 
           {!record.documents || record.documents.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 text-sm">
-              No evidence documents uploaded yet.
-            </div>
+            <div className="text-center py-12 text-slate-500 text-sm">No evidence documents uploaded yet.</div>
           ) : (
             <div className="space-y-3">
               {record.documents.map((doc) => {
@@ -794,7 +838,9 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                             </span>
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2 mt-1">
-                            <span className="truncate max-w-[220px]" title={doc.fileName}>{doc.fileName}</span>
+                            <span className="truncate max-w-[220px]" title={doc.fileName}>
+                              {doc.fileName}
+                            </span>
                             <span>•</span>
                             <span>{formatFileSize(doc.fileSize)}</span>
                             <span>•</span>
@@ -806,7 +852,12 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 self-end lg:self-center">
-                        <Button variant="outline" size="sm" leftIcon={<Eye size={13} />} onClick={() => openPreview(doc)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<Eye size={13} />}
+                          onClick={() => openPreview(doc)}
+                        >
                           Preview
                         </Button>
                         <Button
@@ -848,22 +899,32 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     {isExpanded && (
                       <div className="border-t border-slate-200 dark:border-slate-700/60 divide-y divide-slate-200 dark:divide-slate-700/60">
                         {versions.map((v) => (
-                          <div key={v._id || v.version} className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs">
+                          <div
+                            key={v._id || v.version}
+                            className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs"
+                          >
                             <div className="flex items-start gap-3 min-w-0">
                               <span className="font-mono font-semibold text-indigo-700 dark:text-indigo-300 w-8 shrink-0">
                                 v{v.version}
                               </span>
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2 text-slate-700 dark:text-slate-300">
-                                  <span className="truncate max-w-[220px]" title={v.fileName}>{v.fileName}</span>
+                                  <span className="truncate max-w-[220px]" title={v.fileName}>
+                                    {v.fileName}
+                                  </span>
                                   {v.status === 'active' ? (
-                                    <Badge variant="success" size="sm">CURRENT</Badge>
+                                    <Badge variant="success" size="sm">
+                                      CURRENT
+                                    </Badge>
                                   ) : (
-                                    <Badge variant="default" size="sm">SUPERSEDED</Badge>
+                                    <Badge variant="default" size="sm">
+                                      SUPERSEDED
+                                    </Badge>
                                   )}
                                 </div>
                                 <div className="text-slate-500 dark:text-slate-400 mt-0.5">
-                                  {formatFileSize(v.fileSize)} · {v.uploadedBy?.fullName || v.uploadedBy?.email || 'User'} ·{' '}
+                                  {formatFileSize(v.fileSize)} ·{' '}
+                                  {v.uploadedBy?.fullName || v.uploadedBy?.email || 'User'} ·{' '}
                                   {new Date(v.uploadedAt).toLocaleString()}
                                   {v.notes ? ` · "${v.notes}"` : ''}
                                 </div>
@@ -984,8 +1045,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       >
         <form onSubmit={handleReplaceSubmit} className="space-y-4">
           <p className="text-xs text-slate-600 dark:text-slate-400">
-            A new version (<strong>v{(replaceTargetDoc?.currentVersion || 1) + 1}</strong>) will be created.
-            The current version will be archived into historical records and will <strong>never be destroyed</strong>.
+            A new version (<strong>v{(replaceTargetDoc?.currentVersion || 1) + 1}</strong>) will be created. The current
+            version will be archived into historical records and will <strong>never be destroyed</strong>.
           </p>
 
           <div>
@@ -1017,18 +1078,9 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       </Modal>
 
       {/* ── Preview Document Modal ───────────────────────────────────────────── */}
-      <Modal
-        isOpen={isPreviewModalOpen}
-        onClose={closePreview}
-        title={`Preview: ${previewDocTitle}`}
-        size="xl"
-      >
+      <Modal isOpen={isPreviewModalOpen} onClose={closePreview} title={`Preview: ${previewDocTitle}`} size="xl">
         <div className="h-[550px] w-full bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
-          <iframe
-            src={previewDocUrl}
-            title={previewDocTitle}
-            className="w-full h-full border-0"
-          />
+          <iframe src={previewDocUrl} title={previewDocTitle} className="w-full h-full border-0" />
         </div>
       </Modal>
 
@@ -1157,7 +1209,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {licenceFile
                       ? `${licenceFile.name} (${formatFileSize(licenceFile.size)})`
-                      : 'Optional. The licence certificate, added to the record\'s documents.'}
+                      : "Optional. The licence certificate, added to the record's documents."}
                   </p>
                 </div>
               )}

@@ -173,7 +173,7 @@ export interface CreateRulePayload {
   approvalLevels?: number;
 }
 
-export interface UpdateRulePayload extends Partial<CreateRulePayload> {}
+export type UpdateRulePayload = Partial<CreateRulePayload>;
 
 // ── Service Methods ───────────────────────────────────────────────────────────
 

@@ -215,8 +215,12 @@ const RuleForm: React.FC<RuleFormProps> = ({ initial, template, isSubmitting, on
       return;
     }
     // Start with a type that is not on the list yet
-    const unused = docTypes.find((type) => !form.requiredDocs.some((doc) => doc.documentType === type._id)) || docTypes[0];
-    setField('requiredDocs', [...form.requiredDocs, { documentType: unused._id, label: unused.label, isMandatory: true }]);
+    const unused =
+      docTypes.find((type) => !form.requiredDocs.some((doc) => doc.documentType === type._id)) || docTypes[0];
+    setField('requiredDocs', [
+      ...form.requiredDocs,
+      { documentType: unused._id, label: unused.label, isMandatory: true },
+    ]);
   };
 
   const updateDocument = (index: number, changes: Partial<RequiredDoc>) =>
@@ -383,7 +387,8 @@ const RuleForm: React.FC<RuleFormProps> = ({ initial, template, isSubmitting, on
               className={CHECKBOX_CLASS}
             />
             <span className="text-sm text-slate-800 dark:text-slate-200">
-              Mandatory by law <span className="text-slate-500 dark:text-slate-400">(untick for recommended practice)</span>
+              Mandatory by law{' '}
+              <span className="text-slate-500 dark:text-slate-400">(untick for recommended practice)</span>
             </span>
           </label>
         </div>

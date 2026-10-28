@@ -10,29 +10,13 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  (
-    {
-      label,
-      error,
-      hint,
-      leftAddon,
-      rightAddon,
-      fullWidth = false,
-      id,
-      className = '',
-      ...props
-    },
-    ref
-  ) => {
+  ({ label, error, hint, leftAddon, rightAddon, fullWidth = false, id, className = '', ...props }, ref) => {
     const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
 
     return (
       <div className={`flex flex-col gap-1.5 ${fullWidth ? 'w-full' : ''}`}>
         {label && (
-          <label
-            htmlFor={inputId}
-            className="text-sm font-medium text-slate-700 dark:text-slate-300"
-          >
+          <label htmlFor={inputId} className="text-sm font-medium text-slate-700 dark:text-slate-300">
             {label}
             {props.required && (
               <span className="text-red-500 dark:text-red-400 ml-0.5" aria-label="required">
@@ -44,9 +28,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
         <div className="relative flex items-center">
           {leftAddon && (
-            <div className="absolute left-3 text-slate-400 dark:text-slate-400 pointer-events-none">
-              {leftAddon}
-            </div>
+            <div className="absolute left-3 text-slate-400 dark:text-slate-400 pointer-events-none">{leftAddon}</div>
           )}
 
           <input
@@ -72,9 +54,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           />
 
           {rightAddon && (
-            <div className="absolute right-3 text-slate-400 dark:text-slate-400 pointer-events-none">
-              {rightAddon}
-            </div>
+            <div className="absolute right-3 text-slate-400 dark:text-slate-400 pointer-events-none">{rightAddon}</div>
           )}
         </div>
 
@@ -83,9 +63,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {error}
           </p>
         )}
-        {!error && hint && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{hint}</p>
-        )}
+        {!error && hint && <p className="text-xs text-slate-500 dark:text-slate-400">{hint}</p>}
       </div>
     );
   }

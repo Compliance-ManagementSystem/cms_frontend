@@ -101,9 +101,7 @@ export const ComplianceRecordListPage: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   const [selectedEntity, setSelectedEntity] = useState(searchParams.get('entity') || '');
   const [selectedLocation, setSelectedLocation] = useState(searchParams.get('location') || '');
-  const [expiringWithinDays, setExpiringWithinDays] = useState(
-    Number(searchParams.get('expiringWithin')) || 0
-  );
+  const [expiringWithinDays, setExpiringWithinDays] = useState(Number(searchParams.get('expiringWithin')) || 0);
   const [selectedRule, setSelectedRule] = useState(searchParams.get('rule') || '');
   const [dueDateFrom, setDueDateFrom] = useState('');
   const [dueDateTo, setDueDateTo] = useState('');
@@ -176,12 +174,8 @@ export const ComplianceRecordListPage: React.FC = () => {
         limit: pagination.limit,
         search: debouncedSearch || undefined,
         status:
-          card?.statuses?.join(',') ||
-          selectedStatus ||
-          (expiringWithinDays ? 'approved,expiring_soon' : undefined),
-        expiryDateFrom: expiringWithinDays
-          ? new Date().toISOString()
-          : dueDateFrom || undefined,
+          card?.statuses?.join(',') || selectedStatus || (expiringWithinDays ? 'approved,expiring_soon' : undefined),
+        expiryDateFrom: expiringWithinDays ? new Date().toISOString() : dueDateFrom || undefined,
         expiryDateTo: expiringWithinDays
           ? new Date(Date.now() + expiringWithinDays * 24 * 60 * 60 * 1000).toISOString()
           : dueDateTo || undefined,
@@ -245,13 +239,11 @@ export const ComplianceRecordListPage: React.FC = () => {
     card.overdue
       ? metrics.overdue || 0
       : card.statuses
-      ? card.statuses.reduce((sum, st) => sum + (metrics[st] || 0), 0)
-      : metrics.total || 0;
+        ? card.statuses.reduce((sum, st) => sum + (metrics[st] || 0), 0)
+        : metrics.total || 0;
 
   // Location options follow the selected entity
-  const filterLocations = selectedEntity
-    ? locations.filter((l) => operatesAt(l, selectedEntity))
-    : locations;
+  const filterLocations = selectedEntity ? locations.filter((l) => operatesAt(l, selectedEntity)) : locations;
 
   const hasActiveFilters = !!(
     search ||
@@ -312,25 +304,65 @@ export const ComplianceRecordListPage: React.FC = () => {
   const renderStatusBadge = (status: ComplianceRecordStatus) => {
     switch (status) {
       case 'approved':
-        return <Badge variant="success" size="sm">APPROVED</Badge>;
+        return (
+          <Badge variant="success" size="sm">
+            APPROVED
+          </Badge>
+        );
       case 'submitted':
-        return <Badge variant="info" size="sm">SUBMITTED</Badge>;
+        return (
+          <Badge variant="info" size="sm">
+            SUBMITTED
+          </Badge>
+        );
       case 'under_review':
-        return <Badge variant="info" size="sm">UNDER REVIEW</Badge>;
+        return (
+          <Badge variant="info" size="sm">
+            UNDER REVIEW
+          </Badge>
+        );
       case 'correction':
-        return <Badge variant="warning" size="sm">NEEDS CORRECTION</Badge>;
+        return (
+          <Badge variant="warning" size="sm">
+            NEEDS CORRECTION
+          </Badge>
+        );
       case 'resubmitted':
-        return <Badge variant="info" size="sm">RESUBMITTED</Badge>;
+        return (
+          <Badge variant="info" size="sm">
+            RESUBMITTED
+          </Badge>
+        );
       case 'expiring_soon':
-        return <Badge variant="warning" size="sm">EXPIRING SOON</Badge>;
+        return (
+          <Badge variant="warning" size="sm">
+            EXPIRING SOON
+          </Badge>
+        );
       case 'expired':
-        return <Badge variant="danger" size="sm">EXPIRED</Badge>;
+        return (
+          <Badge variant="danger" size="sm">
+            EXPIRED
+          </Badge>
+        );
       case 'rejected':
-        return <Badge variant="danger" size="sm">REJECTED</Badge>;
+        return (
+          <Badge variant="danger" size="sm">
+            REJECTED
+          </Badge>
+        );
       case 'in_progress':
-        return <Badge variant="info" size="sm">APPLIED</Badge>;
+        return (
+          <Badge variant="info" size="sm">
+            APPLIED
+          </Badge>
+        );
       case 'not_applicable':
-        return <Badge variant="default" size="sm">NOT APPLICABLE</Badge>;
+        return (
+          <Badge variant="default" size="sm">
+            NOT APPLICABLE
+          </Badge>
+        );
       case 'pending':
       default:
         return (
@@ -399,10 +431,14 @@ export const ComplianceRecordListPage: React.FC = () => {
               {row.expiryDate ? new Date(row.expiryDate).toLocaleDateString() : '—'}
             </span>
             {tracked && days !== null && days < 0 && (
-              <Badge variant="danger" size="sm">Expired {Math.abs(days)}d ago</Badge>
+              <Badge variant="danger" size="sm">
+                Expired {Math.abs(days)}d ago
+              </Badge>
             )}
             {tracked && days !== null && days >= 0 && days <= 30 && (
-              <Badge variant="warning" size="sm">{days === 0 ? 'Expires today' : `Expires in ${days}d`}</Badge>
+              <Badge variant="warning" size="sm">
+                {days === 0 ? 'Expires today' : `Expires in ${days}d`}
+              </Badge>
             )}
           </div>
         );
@@ -467,7 +503,6 @@ export const ComplianceRecordListPage: React.FC = () => {
       : []),
   ];
 
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -478,7 +513,9 @@ export const ComplianceRecordListPage: React.FC = () => {
               <ClipboardCheck size={20} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Compliance Records</h1>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                Compliance Records
+              </h1>
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 Track entity and facility statutory obligations, manage documents, and process approvals
               </p>
@@ -498,11 +535,7 @@ export const ComplianceRecordListPage: React.FC = () => {
           {canCreate && (
             <>
               {FEATURES.recordManualCreate && (
-                <Button
-                  variant="primary"
-                  leftIcon={<Plus size={16} />}
-                  onClick={() => setIsCreateModalOpen(true)}
-                >
+                <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => setIsCreateModalOpen(true)}>
                   New Record
                 </Button>
               )}
@@ -512,7 +545,9 @@ export const ComplianceRecordListPage: React.FC = () => {
       </div>
 
       {/* Summary cards — click to filter */}
-      <div className={`grid grid-cols-2 sm:grid-cols-3 ${METRIC_CARDS.length > 6 ? 'xl:grid-cols-7' : 'xl:grid-cols-6'} gap-3`}>
+      <div
+        className={`grid grid-cols-2 sm:grid-cols-3 ${METRIC_CARDS.length > 6 ? 'xl:grid-cols-7' : 'xl:grid-cols-6'} gap-3`}
+      >
         {METRIC_CARDS.map((card) => {
           const isActive = card.key === activeCard;
           return (
@@ -631,9 +666,7 @@ export const ComplianceRecordListPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              Expires between
-            </label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Expires between</label>
             <div className="flex items-center gap-1.5">
               <input
                 type="date"
@@ -718,11 +751,7 @@ export const ComplianceRecordListPage: React.FC = () => {
             <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              onClick={handleCreateSubmit}
-              isLoading={isCreating}
-            >
+            <Button variant="primary" onClick={handleCreateSubmit} isLoading={isCreating}>
               Create Record
             </Button>
           </div>

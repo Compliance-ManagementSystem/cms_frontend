@@ -22,13 +22,7 @@ export type ComplianceRecordStatus =
   | 'in_progress'
   | 'not_applicable';
 
-export type WorkflowAction =
-  | 'Submit'
-  | 'Start Review'
-  | 'Approve'
-  | 'Reject'
-  | 'Request Correction'
-  | 'Resubmit';
+export type WorkflowAction = 'Submit' | 'Start Review' | 'Approve' | 'Reject' | 'Request Correction' | 'Resubmit';
 
 export interface WorkflowActionInfo {
   action: WorkflowAction;
@@ -425,22 +419,16 @@ export const complianceRecordService = {
   // Files are fetched through axios so the request carries the Bearer token;
   // a plain link or iframe src cannot authenticate against the API.
   fetchDocumentFile: async (id: string, options?: { version?: number; inline?: boolean }) => {
-    const res = await axiosInstance.get<Blob>(
-      `/documents/${id}/${options?.inline ? 'preview' : 'download'}`,
-      {
-        params: options?.version ? { version: options.version } : undefined,
-        responseType: 'blob',
-        timeout: 0,
-      }
-    );
+    const res = await axiosInstance.get<Blob>(`/documents/${id}/${options?.inline ? 'preview' : 'download'}`, {
+      params: options?.version ? { version: options.version } : undefined,
+      responseType: 'blob',
+      timeout: 0,
+    });
     return res.data;
   },
 
   // ── Workflow Endpoints ──────────────────────────────────────────────────────
-  executeWorkflowAction: async (
-    id: string,
-    payload: { action: WorkflowAction; comments?: string }
-  ) => {
+  executeWorkflowAction: async (id: string, payload: { action: WorkflowAction; comments?: string }) => {
     const res = await axiosInstance.post<{
       success: boolean;
       data: { record: ComplianceRecordItem; approval: ApprovalRecordItem };

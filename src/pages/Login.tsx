@@ -42,10 +42,7 @@ import { ROUTES } from '../constants/routes';
 import env from '@/config/env';
 
 const loginSchema = z.object({
-  email: z
-    .string()
-    .min(1, 'Email address is required')
-    .email('Please enter a valid email address'),
+  email: z.string().min(1, 'Email address is required').email('Please enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -304,7 +301,6 @@ export const Login: React.FC = () => {
 
       {/* Main 2-Column Responsive Layout */}
       <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-12 xl:gap-16 items-center z-10">
-        
         {/* ── Left Column: Branding, Value Prop & Graphic ──────────────── */}
         {/* Wide screens only: the sign-in card carries its own logo and name */}
         <div className="hidden lg:flex min-w-0 w-full flex-col justify-center gap-6">
@@ -315,9 +311,7 @@ export const Login: React.FC = () => {
                 <ShieldCheck className="w-7 h-7" strokeWidth={2.4} />
               </div>
               <div>
-                <span className="block text-2xl font-bold text-slate-900 tracking-tight leading-none">
-                  Compliance
-                </span>
+                <span className="block text-2xl font-bold text-slate-900 tracking-tight leading-none">Compliance</span>
                 <span className="block text-[11px] font-bold text-slate-500 tracking-[0.2em] uppercase mt-1">
                   MANAGEMENT SYSTEM
                 </span>
@@ -326,13 +320,13 @@ export const Login: React.FC = () => {
 
             {/* Hero Headline */}
             <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight leading-[1.15] mb-3">
-              Comprehensive Compliance Management{' '}
-              <span className="text-blue-600 block mt-1">for a Safer Tomorrow</span>
+              Comprehensive Compliance Management <span className="text-blue-600 block mt-1">for a Safer Tomorrow</span>
             </h1>
 
             {/* Description */}
             <p className="text-slate-600 text-base leading-relaxed mb-6 max-w-xl">
-              Manage regulatory compliance, track renewals, receive alerts and maintain audit trails &mdash; all in one secure platform.
+              Manage regulatory compliance, track renewals, receive alerts and maintain audit trails &mdash; all in one
+              secure platform.
             </p>
 
             {/* Feature Highlights List */}
@@ -403,15 +397,12 @@ export const Login: React.FC = () => {
         {/* ── Right Column: The Login Card ─────────────────────────────── */}
         <div className="min-w-0 w-full flex justify-center lg:justify-end">
           <div className="w-full max-w-[490px] bg-white rounded-[28px] shadow-2xl shadow-blue-900/10 border border-slate-100 p-6 sm:p-8 transition-all">
-            
             {/* Card Header Branding */}
             <div className="text-center mb-5">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/25 mb-3">
                 <ShieldCheck className="w-7 h-7" strokeWidth={2.4} />
               </div>
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-                Compliance Management System
-              </h2>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Compliance Management System</h2>
               <p className="text-sm text-slate-500 mt-1 font-normal">
                 Secure access to your enterprise compliance dashboard
               </p>
@@ -421,10 +412,7 @@ export const Login: React.FC = () => {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               {/* Email Address */}
               <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-semibold text-slate-800 mb-1.5"
-                >
+                <label htmlFor="email" className="block text-sm font-semibold text-slate-800 mb-1.5">
                   Email Address
                 </label>
                 <div className="relative flex items-center">
@@ -448,7 +436,11 @@ export const Login: React.FC = () => {
                   />
                 </div>
                 {errors.email && (
-                  <p id="email-error" role="alert" className="text-xs text-red-500 mt-1.5 flex items-center gap-1 font-medium">
+                  <p
+                    id="email-error"
+                    role="alert"
+                    className="text-xs text-red-500 mt-1.5 flex items-center gap-1 font-medium"
+                  >
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" />
                     {errors.email.message}
                   </p>
@@ -457,10 +449,7 @@ export const Login: React.FC = () => {
 
               {/* Password */}
               <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-semibold text-slate-800 mb-1.5"
-                >
+                <label htmlFor="password" className="block text-sm font-semibold text-slate-800 mb-1.5">
                   Password
                 </label>
                 <div className="relative flex items-center">
@@ -492,7 +481,11 @@ export const Login: React.FC = () => {
                   </button>
                 </div>
                 {errors.password && (
-                  <p id="password-error" role="alert" className="text-xs text-red-500 mt-1.5 flex items-center gap-1 font-medium">
+                  <p
+                    id="password-error"
+                    role="alert"
+                    className="text-xs text-red-500 mt-1.5 flex items-center gap-1 font-medium"
+                  >
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" />
                     {errors.password.message}
                   </p>
@@ -548,9 +541,7 @@ export const Login: React.FC = () => {
                 <div className="w-full border-t border-slate-200" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-3 text-slate-400 font-bold tracking-wider">
-                  OR
-                </span>
+                <span className="bg-white px-3 text-slate-400 font-bold tracking-wider">OR</span>
               </div>
             </div>
 
@@ -562,9 +553,7 @@ export const Login: React.FC = () => {
                     <FlaskConical className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-tight">
-                      Demo Accounts
-                    </h3>
+                    <h3 className="text-sm font-bold text-slate-900 leading-tight">Demo Accounts</h3>
                     <p className="text-xs text-slate-500 leading-tight mt-0.5">
                       Quick login to try the system as each user role
                     </p>
@@ -583,9 +572,7 @@ export const Login: React.FC = () => {
                         title={account.desc}
                         className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${
                           account.bgClass
-                        } ${
-                          isSelected ? 'ring-2 ring-blue-600 shadow-sm' : ''
-                        }`}
+                        } ${isSelected ? 'ring-2 ring-blue-600 shadow-sm' : ''}`}
                       >
                         <div className="flex items-center gap-1.5 mb-1 sm:mb-0 w-full">
                           <Icon className={`w-3.5 h-3.5 shrink-0 ${account.iconColor}`} />
@@ -605,9 +592,7 @@ export const Login: React.FC = () => {
 
             {/* Card Footer / Compliance reassurance */}
             <div className="mt-4 text-center text-xs text-slate-400 space-y-1">
-              <p className="font-semibold text-slate-500">
-                Compliance Management System &copy; 2026
-              </p>
+              <p className="font-semibold text-slate-500">Compliance Management System &copy; 2026</p>
               <p className="text-[11px] text-slate-400">
                 Role-Based Access Control &middot; Secure &middot; Compliant &middot; Audit Ready
               </p>
@@ -645,7 +630,8 @@ export const Login: React.FC = () => {
               </div>
             </div>
             <p className="text-sm text-slate-600 mb-4 leading-relaxed">
-              For regulatory compliance and audit security, credentials are managed directly by your organization's CMS Security Administrator.
+              For regulatory compliance and audit security, credentials are managed directly by your organization's CMS
+              Security Administrator.
             </p>
             <div className="bg-blue-50/70 border border-blue-100 rounded-2xl p-3 text-xs text-slate-700 mb-5 space-y-1">
               <p className="font-semibold text-blue-900">Need immediate assistance?</p>
@@ -672,5 +658,3 @@ export const Login: React.FC = () => {
 };
 
 export default Login;
-
-

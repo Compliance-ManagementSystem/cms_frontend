@@ -37,7 +37,10 @@ export const optionalPincode = trimmed()
 
 export const optionalGstin = trimmed()
   .toUpperCase()
-  .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Enter a valid 15-character GSTIN, e.g. 27AAAAA0000A1Z5')
+  .regex(
+    /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+    'Enter a valid 15-character GSTIN, e.g. 27AAAAA0000A1Z5'
+  )
   .or(z.literal(''));
 
 export const optionalPan = trimmed()
@@ -69,11 +72,8 @@ export const maxLength = (label: string, max: number) =>
   z.string().max(max, `${label} must be at most ${max} characters`);
 
 /** Adds an error when `later` is before `earlier` (both optional date strings). */
-export const dateOrder = <T extends Record<string, unknown>>(
-  earlierKey: keyof T & string,
-  laterKey: keyof T & string,
-  message: string
-) =>
+export const dateOrder =
+  <T extends Record<string, unknown>>(earlierKey: keyof T & string, laterKey: keyof T & string, message: string) =>
   (values: T, ctx: z.RefinementCtx) => {
     const earlier = values[earlierKey];
     const later = values[laterKey];

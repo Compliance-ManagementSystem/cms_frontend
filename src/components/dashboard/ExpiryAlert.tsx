@@ -47,10 +47,15 @@ const URGENCY: Record<Urgency, { label: string; dot: string; chip: string; edge:
   },
 };
 
-const urgencyOf = (days: number): Urgency => (days < 0 ? 'expired' : days <= 30 ? 'soon' : days <= 60 ? 'mid' : 'later');
+const urgencyOf = (days: number): Urgency =>
+  days < 0 ? 'expired' : days <= 30 ? 'soon' : days <= 60 ? 'mid' : 'later';
 
 const countdown = (days: number) =>
-  days < 0 ? `${-days} ${days === -1 ? 'day' : 'days'} ago` : days === 0 ? 'Today' : `${days} ${days === 1 ? 'day' : 'days'}`;
+  days < 0
+    ? `${-days} ${days === -1 ? 'day' : 'days'} ago`
+    : days === 0
+      ? 'Today'
+      : `${days} ${days === 1 ? 'day' : 'days'}`;
 
 export const ExpiryAlert: React.FC<{
   expiring: OperationsDashboardData['expiring'];
@@ -78,7 +83,10 @@ export const ExpiryAlert: React.FC<{
     <div className="mt-3 space-y-3">
       {/* Banner */}
       {expiring.next30 > 0 ? (
-        <div role="alert" className="flex items-start gap-3 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2.5 dark:border-orange-500/40 dark:bg-orange-500/10">
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2.5 dark:border-orange-500/40 dark:bg-orange-500/10"
+        >
           <span className="relative mt-1 flex h-2.5 w-2.5 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75 motion-reduce:hidden" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-500" />
@@ -114,7 +122,9 @@ export const ExpiryAlert: React.FC<{
               className={`text-left rounded-lg border border-slate-200 dark:border-slate-700/60 border-l-4 ${style.edge} px-2.5 py-2 transition hover:shadow-sm hover:-translate-y-0.5 motion-reduce:transform-none`}
             >
               <span className="flex items-center justify-between">
-                <span className="text-xl font-bold text-slate-900 dark:text-white tabular-nums">{bucket.value.toLocaleString()}</span>
+                <span className="text-xl font-bold text-slate-900 dark:text-white tabular-nums">
+                  {bucket.value.toLocaleString()}
+                </span>
                 <Icon size={15} className="text-slate-400 dark:text-slate-500" />
               </span>
               <span className="block text-[11px] text-slate-500 dark:text-slate-400">{style.label}</span>
@@ -175,7 +185,10 @@ export const ExpiryAlert: React.FC<{
                 >
                   <span className="flex items-start justify-between gap-2">
                     <span className="min-w-0">
-                      <span className="block text-xs font-medium text-slate-800 dark:text-slate-200 line-clamp-2" title={item.licence}>
+                      <span
+                        className="block text-xs font-medium text-slate-800 dark:text-slate-200 line-clamp-2"
+                        title={item.licence}
+                      >
                         {item.licence}
                       </span>
                       <span className="block text-[11px] text-slate-500 dark:text-slate-400 truncate">
@@ -183,13 +196,18 @@ export const ExpiryAlert: React.FC<{
                         {item.state ? ` · ${item.state}` : ''}
                       </span>
                     </span>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${style.chip}`}>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${style.chip}`}
+                    >
                       {countdown(item.days)}
                     </span>
                   </span>
                   {/* How much of the 90-day window has already passed */}
                   <span className="mt-1.5 block h-1 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                    <span className={`block h-full rounded-full ${style.dot}`} style={{ width: `${Math.max(elapsed * 100, 4)}%` }} />
+                    <span
+                      className={`block h-full rounded-full ${style.dot}`}
+                      style={{ width: `${Math.max(elapsed * 100, 4)}%` }}
+                    />
                   </span>
                 </button>
               </li>
@@ -204,7 +222,11 @@ export const ExpiryAlert: React.FC<{
       {expiring.next90 > items.length && (
         <p className="text-[11px] text-slate-500 dark:text-slate-400">
           Showing the soonest {items.length} of {expiring.next90}.{' '}
-          <button type="button" onClick={() => navigate(links.within(90))} className="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+          <button
+            type="button"
+            onClick={() => navigate(links.within(90))}
+            className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+          >
             See all
           </button>
         </p>

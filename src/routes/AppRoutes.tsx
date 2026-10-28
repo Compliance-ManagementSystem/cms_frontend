@@ -6,28 +6,28 @@ import ProtectedRoute from '@/routes/ProtectedRoute';
 import { ROUTES } from '@/constants/routes';
 
 // ── Lazy-loaded pages ──────────────────────────────────────────────────────────
-const Dashboard    = React.lazy(() => import('@/pages/Dashboard'));
+const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
 // Full-screen 3D map; three.js only loads when this page is opened
 const ApprovalsMap3DPage = React.lazy(() => import('@/pages/map3d/ApprovalsMap3DPage'));
-const Login        = React.lazy(() => import('@/pages/Login'));
+const Login = React.lazy(() => import('@/pages/Login'));
 const Unauthorized = React.lazy(() => import('@/pages/Unauthorized'));
-const NotFound     = React.lazy(() => import('@/pages/NotFound'));
+const NotFound = React.lazy(() => import('@/pages/NotFound'));
 
 // Phase 4 – Administration
-const AdminUsers       = React.lazy(() => import('@/pages/admin/UsersPage'));
+const AdminUsers = React.lazy(() => import('@/pages/admin/UsersPage'));
 // const AdminRoles       = React.lazy(() => import('@/pages/admin/RolesPage'));
 
 // Phase 5 – Entity Management
-const EntityListPage   = React.lazy(() => import('@/pages/entities/EntityListPage'));
+const EntityListPage = React.lazy(() => import('@/pages/entities/EntityListPage'));
 const EntityCreatePage = React.lazy(() => import('@/pages/entities/EntityCreatePage'));
 const EntityDetailPage = React.lazy(() => import('@/pages/entities/EntityDetailPage'));
-const EntityEditPage   = React.lazy(() => import('@/pages/entities/EntityEditPage'));
+const EntityEditPage = React.lazy(() => import('@/pages/entities/EntityEditPage'));
 
 // Phase 6 – Location Master
-const LocationListPage   = React.lazy(() => import('@/pages/locations/LocationListPage'));
+const LocationListPage = React.lazy(() => import('@/pages/locations/LocationListPage'));
 const LocationCreatePage = React.lazy(() => import('@/pages/locations/LocationCreatePage'));
 const LocationDetailPage = React.lazy(() => import('@/pages/locations/LocationDetailPage'));
-const LocationEditPage   = React.lazy(() => import('@/pages/locations/LocationEditPage'));
+const LocationEditPage = React.lazy(() => import('@/pages/locations/LocationEditPage'));
 
 // Phase 7 – Compliance Rule Engine
 // const ComplianceRuleListPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleListPage'));
@@ -36,11 +36,11 @@ const LocationEditPage   = React.lazy(() => import('@/pages/locations/LocationEd
 // const ComplianceRuleEditPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleEditPage'));
 
 // Phase 8 – Compliance Records & Document Management
-const ComplianceRecordListPage   = React.lazy(() => import('@/pages/compliance/ComplianceRecordListPage'));
+const ComplianceRecordListPage = React.lazy(() => import('@/pages/compliance/ComplianceRecordListPage'));
 const ComplianceRecordDetailPage = React.lazy(() => import('@/pages/compliance/ComplianceRecordDetailPage'));
 
 // Phase 10 – Tasks
-const TaskListPage      = React.lazy(() => import('@/pages/tasks/TaskListPage'));
+const TaskListPage = React.lazy(() => import('@/pages/tasks/TaskListPage'));
 
 // Phase 13 – Audit Trail
 const AuditLogsPage = React.lazy(() =>
@@ -123,10 +123,7 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path={ROUTES.ADMIN_ROLES}
-          element={<Navigate to={ROUTES.DASHBOARD} replace />}
-        />
+        <Route path={ROUTES.ADMIN_ROLES} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
 
         {/* Phase 5: Entities — Restricted to Super Admin, Admin, Entity Admin */}
         <Route
@@ -174,7 +171,16 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.LOCATIONS}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin', 'location_manager', 'compliance_officer', 'viewer']}>
+            <ProtectedRoute
+              allowedRoles={[
+                'super_admin',
+                'admin',
+                'entity_admin',
+                'location_manager',
+                'compliance_officer',
+                'viewer',
+              ]}
+            >
               <Suspense fallback={<PageLoader />}>
                 <LocationListPage />
               </Suspense>
@@ -194,7 +200,16 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.LOCATION_DETAILS}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin', 'location_manager', 'compliance_officer', 'viewer']}>
+            <ProtectedRoute
+              allowedRoles={[
+                'super_admin',
+                'admin',
+                'entity_admin',
+                'location_manager',
+                'compliance_officer',
+                'viewer',
+              ]}
+            >
               <Suspense fallback={<PageLoader />}>
                 <LocationDetailPage />
               </Suspense>
@@ -213,32 +228,26 @@ const AppRoutes: React.FC = () => {
         />
 
         {/* Phase 7 – Compliance Rule Engine */}
-        <Route
-          path={ROUTES.COMPLIANCE_RULES}
-          element={<Navigate to={ROUTES.DASHBOARD} replace />}
-        />
-        <Route
-          path={ROUTES.COMPLIANCE_RULE_CREATE}
-          element={<Navigate to={ROUTES.DASHBOARD} replace />}
-        />
-        <Route
-          path={ROUTES.COMPLIANCE_RULE_DETAILS}
-          element={<Navigate to={ROUTES.DASHBOARD} replace />}
-        />
-        <Route
-          path={ROUTES.COMPLIANCE_RULE_EDIT}
-          element={<Navigate to={ROUTES.DASHBOARD} replace />}
-        />
+        <Route path={ROUTES.COMPLIANCE_RULES} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+        <Route path={ROUTES.COMPLIANCE_RULE_CREATE} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+        <Route path={ROUTES.COMPLIANCE_RULE_DETAILS} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+        <Route path={ROUTES.COMPLIANCE_RULE_EDIT} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
 
         {/* Phase 8 – Compliance Records Lifecycle */}
-        <Route
-          path={ROUTES.COMPLIANCE}
-          element={<Navigate to={ROUTES.COMPLIANCE_RECORDS} replace />}
-        />
+        <Route path={ROUTES.COMPLIANCE} element={<Navigate to={ROUTES.COMPLIANCE_RECORDS} replace />} />
         <Route
           path={ROUTES.COMPLIANCE_RECORDS}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin', 'location_manager', 'compliance_officer', 'viewer']}>
+            <ProtectedRoute
+              allowedRoles={[
+                'super_admin',
+                'admin',
+                'entity_admin',
+                'location_manager',
+                'compliance_officer',
+                'viewer',
+              ]}
+            >
               <Suspense fallback={<PageLoader />}>
                 <ComplianceRecordListPage />
               </Suspense>
@@ -248,7 +257,16 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.COMPLIANCE_RECORD_DETAILS}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin', 'location_manager', 'compliance_officer', 'viewer']}>
+            <ProtectedRoute
+              allowedRoles={[
+                'super_admin',
+                'admin',
+                'entity_admin',
+                'location_manager',
+                'compliance_officer',
+                'viewer',
+              ]}
+            >
               <Suspense fallback={<PageLoader />}>
                 <ComplianceRecordDetailPage />
               </Suspense>
@@ -293,10 +311,7 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path={ROUTES.AUDIT}
-          element={<Navigate to={ROUTES.AUDIT_LOGS} replace />}
-        />
+        <Route path={ROUTES.AUDIT} element={<Navigate to={ROUTES.AUDIT_LOGS} replace />} />
       </Route>
 
       {/* 404 Not Found */}

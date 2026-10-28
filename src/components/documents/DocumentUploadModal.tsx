@@ -126,7 +126,9 @@ const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
             }}
             className={FILE_CLASS}
           />
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">PDF, image, Word, Excel, text or CSV, up to {MAX_UPLOAD_MB} MB</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            PDF, image, Word, Excel, text or CSV, up to {MAX_UPLOAD_MB} MB
+          </p>
         </div>
 
         <Input
@@ -151,7 +153,12 @@ const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
           </div>
           <div>
             <label className={LABEL_CLASS}>Expiry Date</label>
-            <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className={FIELD_CLASS} />
+            <input
+              type="date"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+              className={FIELD_CLASS}
+            />
           </div>
         </div>
       </form>

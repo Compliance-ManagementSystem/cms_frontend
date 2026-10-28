@@ -43,9 +43,7 @@ const CardHeader: React.FC<CardHeaderProps> = ({ title, description, action, ico
       )}
       <div>
         <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
-        {description && (
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{description}</p>
-        )}
+        {description && <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{description}</p>}
       </div>
     </div>
     {action && <div className="flex-shrink-0">{action}</div>}
@@ -71,12 +69,11 @@ const CardStat: React.FC<CardStatProps> = ({ label, value, change, icon, iconBg 
             change.direction === 'up'
               ? 'text-green-600 dark:text-green-400'
               : change.direction === 'down'
-              ? 'text-red-600 dark:text-red-400'
-              : 'text-slate-500 dark:text-slate-400'
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-slate-500 dark:text-slate-400'
           }`}
         >
-          {change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : '→'}{' '}
-          {change.value}
+          {change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : '→'} {change.value}
         </p>
       )}
     </div>
@@ -89,22 +86,13 @@ type CardComponent = React.FC<CardProps> & {
   Stat: React.FC<CardStatProps>;
 };
 
-const Card: CardComponent = ({
-  children,
-  className = '',
-  hover = false,
-  glass = false,
-  padding = 'md',
-  id,
-}) => {
+const Card: CardComponent = ({ children, className = '', hover = false, glass = false, padding = 'md', id }) => {
   return (
     <div
       id={id}
       className={[
         'rounded-xl border border-slate-200 dark:border-slate-800',
-        glass
-          ? 'glass'
-          : 'bg-white dark:bg-slate-900/60 backdrop-blur-sm shadow-sm dark:shadow-none',
+        glass ? 'glass' : 'bg-white dark:bg-slate-900/60 backdrop-blur-sm shadow-sm dark:shadow-none',
         hover
           ? 'hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition-all duration-200 cursor-pointer'
           : '',

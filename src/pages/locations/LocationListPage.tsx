@@ -1,16 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  MapPin,
-  Plus,
-  Search,
-  Edit2,
-  Trash2,
-  Building2,
-  RefreshCw,
-  AlertTriangle,
-  Download,
-} from 'lucide-react';
+import { MapPin, Plus, Search, Edit2, Trash2, Building2, RefreshCw, AlertTriangle, Download } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -44,8 +34,8 @@ const scoreStyle = (percentage: number) =>
   percentage >= 80
     ? { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
     : percentage >= 60
-    ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
-    : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
+      ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+      : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
 
 const healthText = (health: LocationHealth) =>
   [
@@ -305,7 +295,10 @@ export const LocationListPage: React.FC = () => {
             <span className="truncate max-w-[130px]">{row.entity.name}</span>
             {/* Other companies operating at a shared unit */}
             {coEntityCodes(row) && (
-              <span className="font-normal text-slate-500 dark:text-slate-400 whitespace-nowrap" title={`Shared with ${coEntityCodes(row)}`}>
+              <span
+                className="font-normal text-slate-500 dark:text-slate-400 whitespace-nowrap"
+                title={`Shared with ${coEntityCodes(row)}`}
+              >
                 + {coEntityCodes(row)}
               </span>
             )}
@@ -330,7 +323,9 @@ export const LocationListPage: React.FC = () => {
       header: 'City & State',
       cell: (row) => (
         <div className="text-xs whitespace-nowrap">
-          <div className="font-medium text-slate-800 dark:text-slate-200">{row.address?.city || row.address?.district || '—'}</div>
+          <div className="font-medium text-slate-800 dark:text-slate-200">
+            {row.address?.city || row.address?.district || '—'}
+          </div>
           <div className="text-slate-500 dark:text-slate-400">{row.address?.state || ''}</div>
         </div>
       ),
@@ -481,7 +476,9 @@ export const LocationListPage: React.FC = () => {
               }`}
             >
               <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{card.label}</div>
-              <div className={`text-xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}>
+              <div
+                className={`text-xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}
+              >
                 {card.value}
               </div>
             </button>
@@ -609,7 +606,9 @@ export const LocationListPage: React.FC = () => {
         isLoading={isLoading}
         onRowClick={(row) => navigate(`/locations/${row._id}`)}
         emptyMessage={
-          hasActiveFilters ? 'No locations match these filters.' : 'No locations yet. Add the first unit, clinic or office.'
+          hasActiveFilters
+            ? 'No locations match these filters.'
+            : 'No locations yet. Add the first unit, clinic or office.'
         }
         pagination={
           pagination.total > pagination.limit
@@ -643,8 +642,8 @@ export const LocationListPage: React.FC = () => {
         <div className="flex items-start gap-3 p-3.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-sm text-rose-800 dark:text-rose-200">
           <AlertTriangle size={18} className="flex-shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
           <p>
-            Delete <strong>{locationToDelete?.name}</strong> ({locationToDelete?.locationCode || locationToDelete?.code})?
-            This cannot be undone. A location that still has compliance records, tasks, documents, licences or
+            Delete <strong>{locationToDelete?.name}</strong> ({locationToDelete?.locationCode || locationToDelete?.code}
+            )? This cannot be undone. A location that still has compliance records, tasks, documents, licences or
             sub-units cannot be deleted; set it to inactive instead.
           </p>
         </div>

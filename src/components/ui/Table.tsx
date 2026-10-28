@@ -65,9 +65,7 @@ function Table<T>({
     return null;
   };
 
-  const totalPages = pagination
-    ? Math.ceil(pagination.total / pagination.limit)
-    : 1;
+  const totalPages = pagination ? Math.ceil(pagination.total / pagination.limit) : 1;
 
   return (
     <div className="flex flex-col gap-0 rounded-xl border border-slate-200 dark:border-slate-700/60 overflow-hidden bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none">
@@ -94,15 +92,10 @@ function Table<T>({
           </thead>
           <tbody>
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <SkeletonRow key={i} cols={columns.length} />
-              ))
+              Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} cols={columns.length} />)
             ) : data.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-slate-500"
-                >
+                <td colSpan={columns.length} className="px-4 py-12 text-center text-slate-500">
                   {emptyMessage}
                 </td>
               </tr>

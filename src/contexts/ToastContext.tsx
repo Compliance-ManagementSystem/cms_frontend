@@ -11,28 +11,15 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
-export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const success = useCallback(
-    (message: string, options?: ToastOptions) => toast.success(message, options),
-    []
-  );
+export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const success = useCallback((message: string, options?: ToastOptions) => toast.success(message, options), []);
 
-  const error = useCallback(
-    (message: string, options?: ToastOptions) => toast.error(message, options),
-    []
-  );
+  const error = useCallback((message: string, options?: ToastOptions) => toast.error(message, options), []);
 
-  const info = useCallback(
-    (message: string, options?: ToastOptions) =>
-      toast(message, { icon: 'ℹ️', ...options }),
-    []
-  );
+  const info = useCallback((message: string, options?: ToastOptions) => toast(message, { icon: 'ℹ️', ...options }), []);
 
   const warning = useCallback(
-    (message: string, options?: ToastOptions) =>
-      toast(message, { icon: '⚠️', ...options }),
+    (message: string, options?: ToastOptions) => toast(message, { icon: '⚠️', ...options }),
     []
   );
 

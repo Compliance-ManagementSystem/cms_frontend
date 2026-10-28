@@ -16,14 +16,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import {
-  LayoutDashboard,
-  RefreshCw,
-  ChevronRight,
-  Globe2,
-  AlertTriangle,
-  ArrowUpRight,
-} from 'lucide-react';
+import { LayoutDashboard, RefreshCw, ChevronRight, Globe2, AlertTriangle, ArrowUpRight } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -63,8 +56,8 @@ const scoreStyle = (percentage: number) =>
   percentage >= 80
     ? { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
     : percentage >= 60
-    ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
-    : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
+      ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+      : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
 
 // Legend text stays in neutral ink; the swatch beside it carries the colour
 const legendLabel = (value: string) => <span className="text-slate-600 dark:text-slate-300">{value}</span>;
@@ -190,16 +183,15 @@ export const Dashboard: React.FC = () => {
           onSelect: (row: any) => setFilters((prev) => ({ ...prev, entity: row.entityId, location: undefined })),
         }
       : level === 'entity'
-      ? {
-          title: 'Compliance by Location',
-          xKey: 'code',
-          rows: charts.locationWiseCompliance,
-          onSelect: (row: any) => setFilters((prev) => ({ ...prev, location: row.locationId })),
-        }
-      : null;
+        ? {
+            title: 'Compliance by Location',
+            xKey: 'code',
+            rows: charts.locationWiseCompliance,
+            onSelect: (row: any) => setFilters((prev) => ({ ...prev, location: row.locationId })),
+          }
+        : null;
 
-  const selectState = (state: string) =>
-    setFilters((prev) => ({ ...prev, state, location: undefined }));
+  const selectState = (state: string) => setFilters((prev) => ({ ...prev, state, location: undefined }));
 
   // Weakest states first, beside the map
   const statesByScore = [...charts.stateWiseCompliance].sort((a, b) => a.percentage - b.percentage);
@@ -353,11 +345,18 @@ export const Dashboard: React.FC = () => {
               <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                 Compliance Dashboard
               </h1>
-              {rating && <Badge variant={rating.variant} size="md">{rating.label}</Badge>}
+              {rating && (
+                <Badge variant={rating.variant} size="md">
+                  {rating.label}
+                </Badge>
+              )}
             </div>
 
             {/* Breadcrumb — each level returns to that view */}
-            <nav aria-label="Dashboard level" className="flex items-center flex-wrap gap-1.5 text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+            <nav
+              aria-label="Dashboard level"
+              className="flex items-center flex-wrap gap-1.5 text-sm text-slate-600 dark:text-slate-400 mt-0.5"
+            >
               <button
                 type="button"
                 onClick={() => setFilters((prev) => ({ category: prev.category }))}
@@ -501,9 +500,7 @@ export const Dashboard: React.FC = () => {
             </>
           ) : (
             <>
-              <div className={`text-2xl font-bold mt-1 ${scoreStyle(score).text}`}>
-                {score}%
-              </div>
+              <div className={`text-2xl font-bold mt-1 ${scoreStyle(score).text}`}>{score}%</div>
               <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
                 <div className={`h-full rounded-full ${scoreStyle(score).bar}`} style={{ width: `${score}%` }} />
               </div>
@@ -522,7 +519,9 @@ export const Dashboard: React.FC = () => {
             className="text-left p-4 rounded-xl border bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm dark:shadow-none transition-colors"
           >
             <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{card.label}</div>
-            <div className={`text-2xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}>
+            <div
+              className={`text-2xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}
+            >
               {card.value}
             </div>
             <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{card.hint}</div>
@@ -544,7 +543,11 @@ export const Dashboard: React.FC = () => {
               <li key={alert.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="flex items-start gap-3 min-w-0">
                   <Badge variant={alert.severity === 'critical' ? 'danger' : 'warning'} size="sm">
-                    {alert.type === 'expired_compliance' ? 'Expired' : alert.type === 'overdue_task' ? 'Overdue task' : 'Critical task'}
+                    {alert.type === 'expired_compliance'
+                      ? 'Expired'
+                      : alert.type === 'overdue_task'
+                        ? 'Overdue task'
+                        : 'Critical task'}
                   </Badge>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate" title={alert.title}>
@@ -708,7 +711,10 @@ export const Dashboard: React.FC = () => {
                       className="w-full flex items-center justify-between gap-3 px-1 py-1 rounded text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50"
                     >
                       <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                        <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: chart.bucket[slice.bucket] }} />
+                        <span
+                          className="w-2.5 h-2.5 rounded-sm"
+                          style={{ backgroundColor: chart.bucket[slice.bucket] }}
+                        />
                         {slice.name}
                       </span>
                       <span className="font-semibold text-slate-900 dark:text-slate-100">
@@ -807,7 +813,11 @@ export const Dashboard: React.FC = () => {
           <div className="mt-3" style={{ height: Math.max(200, charts.taskWorkload.length * 40 + 70) }}>
             {charts.taskWorkload.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={charts.taskWorkload} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                <BarChart
+                  data={charts.taskWorkload}
+                  layout="vertical"
+                  margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} opacity={0.25} horizontal={false} />
                   <XAxis type="number" stroke={chart.axis} fontSize={11} allowDecimals={false} />
                   <YAxis type="category" dataKey="name" stroke={chart.axis} fontSize={11} width={130} />
@@ -882,9 +892,7 @@ export const Dashboard: React.FC = () => {
         <div className="space-y-3">
           <div>
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Locations</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Select a location to view its dashboard
-            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Select a location to view its dashboard</p>
           </div>
           <Table<LocationComplianceItem>
             columns={locationColumns}

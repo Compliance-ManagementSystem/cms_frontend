@@ -10,8 +10,6 @@ const FieldError: React.FC<{ message?: string }> = ({ message }) =>
 
 /** Border classes for a native field: red when it has an error. */
 export const fieldBorder = (error?: string) =>
-  error
-    ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
-    : 'border-slate-300 dark:border-slate-700';
+  error ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-700';
 
 export default FieldError;

@@ -20,12 +20,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import {
-  auditService,
-  AuditLogItem,
-  AuditFilters,
-  AuditFilterOptions,
-} from '@/services/auditService';
+import { auditService, AuditLogItem, AuditFilters, AuditFilterOptions } from '@/services/auditService';
 import { useToast } from '@/hooks/useToast';
 
 export const AuditLogsPage: React.FC = () => {
@@ -146,7 +141,8 @@ export const AuditLogsPage: React.FC = () => {
             Audit Trail Registry
           </h1>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-            Cryptographically sealed, append-only ledger tracking all administrative actions, data mutations, and statutory transitions.
+            Cryptographically sealed, append-only ledger tracking all administrative actions, data mutations, and
+            statutory transitions.
           </p>
         </div>
 
@@ -211,7 +207,9 @@ export const AuditLogsPage: React.FC = () => {
 
           {/* Module Filter */}
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">Module</label>
+            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">
+              Module
+            </label>
             <select
               value={filters.module || ''}
               onChange={(e) => handleFilterChange('module', e.target.value)}
@@ -228,7 +226,9 @@ export const AuditLogsPage: React.FC = () => {
 
           {/* Action Filter */}
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">Action</label>
+            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">
+              Action
+            </label>
             <select
               value={filters.action || ''}
               onChange={(e) => handleFilterChange('action', e.target.value)}
@@ -245,7 +245,9 @@ export const AuditLogsPage: React.FC = () => {
 
           {/* User Filter */}
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">Actor User</label>
+            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">
+              Actor User
+            </label>
             <select
               value={filters.userId || ''}
               onChange={(e) => handleFilterChange('userId', e.target.value)}
@@ -262,7 +264,9 @@ export const AuditLogsPage: React.FC = () => {
 
           {/* Record ID */}
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">Record ID</label>
+            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">
+              Record ID
+            </label>
             <input
               type="text"
               placeholder="e.g. 651..."
@@ -274,7 +278,9 @@ export const AuditLogsPage: React.FC = () => {
 
           {/* Date Range Start */}
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">From Date</label>
+            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">
+              From Date
+            </label>
             <input
               type="date"
               value={filters.startDate || ''}
@@ -285,7 +291,9 @@ export const AuditLogsPage: React.FC = () => {
 
           {/* Date Range End */}
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">To Date</label>
+            <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 mb-1">
+              To Date
+            </label>
             <input
               type="date"
               value={filters.endDate || ''}
@@ -358,7 +366,9 @@ export const AuditLogsPage: React.FC = () => {
                     </td>
 
                     <td className="py-3.5 px-4 max-w-md">
-                      <p className="text-slate-800 dark:text-slate-200 line-clamp-2 leading-relaxed">{log.description}</p>
+                      <p className="text-slate-800 dark:text-slate-200 line-clamp-2 leading-relaxed">
+                        {log.description}
+                      </p>
                     </td>
 
                     {/* <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono text-[11px]">
@@ -386,7 +396,8 @@ export const AuditLogsPage: React.FC = () => {
           <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
             <div>
               Showing page <span className="text-slate-900 dark:text-slate-200 font-bold">{pagination.page}</span> of{' '}
-              <span className="text-slate-900 dark:text-slate-200 font-bold">{pagination.totalPages}</span> ({pagination.total} total logs)
+              <span className="text-slate-900 dark:text-slate-200 font-bold">{pagination.totalPages}</span> (
+              {pagination.total} total logs)
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -469,14 +480,20 @@ export const AuditLogsPage: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase">Actor</span>
-                  <p className="text-xs font-medium text-slate-900 dark:text-slate-200 mt-0.5">{selectedLog.user?.name}</p>
+                  <p className="text-xs font-medium text-slate-900 dark:text-slate-200 mt-0.5">
+                    {selectedLog.user?.name}
+                  </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">{selectedLog.user?.email}</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase">Resource</span>
-                  <p className="text-xs font-medium text-slate-900 dark:text-slate-200 mt-0.5">{selectedLog.entityType}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">ID: {selectedLog.recordId}</p>
+                  <p className="text-xs font-medium text-slate-900 dark:text-slate-200 mt-0.5">
+                    {selectedLog.entityType}
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                    ID: {selectedLog.recordId}
+                  </p>
                 </div>
 
                 {/* <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
@@ -486,7 +503,10 @@ export const AuditLogsPage: React.FC = () => {
 
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase">Client Agent</span>
-                  <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 truncate" title={selectedLog.userAgent}>
+                  <p
+                    className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 truncate"
+                    title={selectedLog.userAgent}
+                  >
                     {selectedLog.userAgent}
                   </p>
                 </div>
@@ -563,7 +583,11 @@ export const AuditLogsPage: React.FC = () => {
                         onClick={() => handleCopyJson(selectedLog.previousValue, 'prev')}
                         className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white flex items-center gap-1 transition-colors"
                       >
-                        {copiedKey === 'prev' ? <Check size={12} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={12} />}
+                        {copiedKey === 'prev' ? (
+                          <Check size={12} className="text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                          <Copy size={12} />
+                        )}
                         <span>Copy</span>
                       </button>
                     </div>
@@ -582,7 +606,11 @@ export const AuditLogsPage: React.FC = () => {
                         onClick={() => handleCopyJson(selectedLog.newValue, 'new')}
                         className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white flex items-center gap-1 transition-colors"
                       >
-                        {copiedKey === 'new' ? <Check size={12} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={12} />}
+                        {copiedKey === 'new' ? (
+                          <Check size={12} className="text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                          <Copy size={12} />
+                        )}
                         <span>Copy</span>
                       </button>
                     </div>

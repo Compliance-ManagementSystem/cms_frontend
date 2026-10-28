@@ -92,7 +92,15 @@ const Ring: React.FC<{
         />
       )}
       {/* Wider than the ring, so a thin ring is still easy to point at */}
-      <circle cx={100} cy={100} r={radius} fill="none" stroke="transparent" strokeWidth={RING_STROKE + 5} pointerEvents="stroke" />
+      <circle
+        cx={100}
+        cy={100}
+        r={radius}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={RING_STROKE + 5}
+        pointerEvents="stroke"
+      />
     </g>
   );
 };
@@ -141,7 +149,9 @@ export const StatusRings: React.FC<{
           <span className="block text-2xl font-bold text-slate-900 dark:text-slate-100">
             {focus ? focus.value.toLocaleString() : Math.round(shownTotal).toLocaleString()}
           </span>
-          <span className="block text-[11px] text-slate-500 dark:text-slate-400">{focus ? focus.label : centreLabel}</span>
+          <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+            {focus ? focus.label : centreLabel}
+          </span>
         </div>
       </div>
 
@@ -174,7 +184,12 @@ export const StatusGauge: React.FC<{
   return (
     <>
       <div className="h-40 mt-2">
-        <svg viewBox="0 0 200 120" className="h-full w-full" role="img" aria-label={`${pct(measured?.value ?? 0, total)}% ${label}`}>
+        <svg
+          viewBox="0 0 200 120"
+          className="h-full w-full"
+          role="img"
+          aria-label={`${pct(measured?.value ?? 0, total)}% ${label}`}
+        >
           <path d={GAUGE_ARC} fill="none" stroke={chart.noData} strokeWidth={GAUGE_STROKE} strokeLinecap="round" />
           {shown > 0 && (
             <path
@@ -186,7 +201,14 @@ export const StatusGauge: React.FC<{
               strokeDasharray={`${GAUGE_LENGTH * Math.min(shown, 1)} ${GAUGE_LENGTH}`}
             />
           )}
-          <text x={100} y={86} textAnchor="middle" fontSize={32} fontWeight={700} className="fill-slate-900 dark:fill-slate-100">
+          <text
+            x={100}
+            y={86}
+            textAnchor="middle"
+            fontSize={32}
+            fontWeight={700}
+            className="fill-slate-900 dark:fill-slate-100"
+          >
             {Math.round(shown * 100)}%
           </text>
           <text x={100} y={101} textAnchor="middle" fontSize={10} className="fill-slate-500 dark:fill-slate-400">

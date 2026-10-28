@@ -155,10 +155,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ open, onClose }) => {
   );
 
   const allowedSources = useMemo(
-    () =>
-      SEARCH_SOURCES.filter((source) =>
-        visiblePages.some((page) => page.path === source.sidebarPath)
-      ),
+    () => SEARCH_SOURCES.filter((source) => visiblePages.some((page) => page.path === source.sidebarPath)),
     [visiblePages]
   );
 
@@ -214,9 +211,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ open, onClose }) => {
 
   // Keep the highlighted row in view while navigating with arrow keys
   useEffect(() => {
-    listRef.current
-      ?.querySelector(`[data-index="${activeIndex}"]`)
-      ?.scrollIntoView({ block: 'nearest' });
+    listRef.current?.querySelector(`[data-index="${activeIndex}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
 
   const selectResult = (result: SearchResult) => {
@@ -317,13 +312,9 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ open, onClose }) => {
                       <Icon size={15} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-medium text-slate-100 truncate">
-                        {result.title}
-                      </span>
+                      <span className="block text-xs font-medium text-slate-100 truncate">{result.title}</span>
                       {result.subtitle && (
-                        <span className="block text-[11px] text-slate-400 truncate">
-                          {result.subtitle}
-                        </span>
+                        <span className="block text-[11px] text-slate-400 truncate">{result.subtitle}</span>
                       )}
                     </span>
                     {active && <CornerDownLeft size={14} className="text-slate-500 flex-shrink-0" />}

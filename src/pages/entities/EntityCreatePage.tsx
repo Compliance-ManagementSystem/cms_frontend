@@ -48,7 +48,9 @@ export const EntityCreatePage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Add Entity</h1>
-            <p className="text-sm text-slate-600 dark:text-slate-400">A legal entity that owns locations and compliance records</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              A legal entity that owns locations and compliance records
+            </p>
           </div>
         </div>
 
@@ -56,7 +58,13 @@ export const EntityCreatePage: React.FC = () => {
           <Button variant="outline" onClick={goBack} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" form={ENTITY_FORM_ID} variant="primary" isLoading={isSubmitting} leftIcon={<Save size={16} />}>
+          <Button
+            type="submit"
+            form={ENTITY_FORM_ID}
+            variant="primary"
+            isLoading={isSubmitting}
+            leftIcon={<Save size={16} />}
+          >
             Create Entity
           </Button>
         </div>

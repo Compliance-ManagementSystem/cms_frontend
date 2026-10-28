@@ -7,7 +7,12 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "composite": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node"],
+    // `tsc -b` must emit for a referenced project. Keep that output out of the
+    // project root: a vite.config.js there would be loaded instead of vite.config.ts.
+    "outDir": "./node_modules/.tmp/tsconfig.node",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
   },
   "include": ["vite.config.ts"]
 }

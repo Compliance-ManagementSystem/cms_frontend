@@ -1,12 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import {
-  ShieldCheck,
-  Menu,
-  Lock,
-  LogOut,
-  X,
-} from 'lucide-react';
+import { ShieldCheck, Menu, Lock, LogOut, X } from 'lucide-react';
 import { SIDEBAR_GROUPS, SidebarItem } from '@/constants/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -17,12 +11,7 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({
-  collapsed,
-  onToggle,
-  mobileOpen = false,
-  onCloseMobile,
-}) => {
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpen = false, onCloseMobile }) => {
   const location = useLocation();
   const { hasRole, hasPermission, logout } = useAuth();
 
@@ -74,9 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <ShieldCheck size={20} className="text-white" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-100 leading-tight truncate">
-              Compliance
-            </p>
+            <p className="text-sm font-bold text-slate-100 leading-tight truncate">Compliance</p>
             <p className="text-[10px] text-slate-500 font-medium tracking-wider uppercase truncate">
               Management System
             </p>
@@ -157,9 +144,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           <Icon size={18} className="text-slate-500 flex-shrink-0" />
                           {!collapsed && (
                             <>
-                              <span className="text-sm font-medium text-slate-500 truncate flex-1">
-                                {item.label}
-                              </span>
+                              <span className="text-sm font-medium text-slate-500 truncate flex-1">{item.label}</span>
                               <Lock size={12} className="text-slate-600 flex-shrink-0" />
                             </>
                           )}
@@ -209,11 +194,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           ].join(' ')}
                         />
 
-                        {!collapsed && (
-                          <span className="text-sm font-medium truncate flex-1">
-                            {item.label}
-                          </span>
-                        )}
+                        {!collapsed && <span className="text-sm font-medium truncate flex-1">{item.label}</span>}
 
                         {!collapsed && item.badge && item.badge > 0 && (
                           <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
@@ -256,9 +237,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             ].join(' ')}
           >
             <LogOut size={18} className="flex-shrink-0 text-rose-400 group-hover:text-rose-300 transition-colors" />
-            {!collapsed && (
-              <span className="text-sm font-medium">Sign Out</span>
-            )}
+            {!collapsed && <span className="text-sm font-medium">Sign Out</span>}
           </button>
           {collapsed && (
             <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-800 border border-slate-700 text-rose-300 text-xs font-medium rounded-lg shadow-xl whitespace-nowrap z-50 pointer-events-none top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden lg:block">

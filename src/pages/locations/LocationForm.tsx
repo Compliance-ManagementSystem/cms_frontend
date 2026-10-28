@@ -78,12 +78,20 @@ const locationSchema = z
   })
   .superRefine((values, ctx) => {
     if (values.closingDate && values.openingDate && values.closingDate < values.openingDate) {
-      ctx.addIssue({ code: 'custom', path: ['closingDate'], message: 'The closing date cannot be before the opening date' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['closingDate'],
+        message: 'The closing date cannot be before the opening date',
+      });
     }
     // Rows left without an entity are dropped on submit
     const chosen = values.coEntities.map((co) => co.entity).filter(Boolean);
     if (chosen.includes(values.entity)) {
-      ctx.addIssue({ code: 'custom', path: ['coEntities'], message: 'A co-entity must be different from the owning entity' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['coEntities'],
+        message: 'A co-entity must be different from the owning entity',
+      });
     } else if (new Set(chosen).size !== chosen.length) {
       ctx.addIssue({ code: 'custom', path: ['coEntities'], message: 'The same co-entity is listed more than once' });
     }
@@ -291,7 +299,8 @@ const LocationForm: React.FC<LocationFormProps> = ({
             <FieldError message={errors.entity} />
             {isEditing && (
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                A location can only move to another entity while it has no records, tasks, documents, licences or sub-units.
+                A location can only move to another entity while it has no records, tasks, documents, licences or
+                sub-units.
               </p>
             )}
           </div>
@@ -465,7 +474,8 @@ const LocationForm: React.FC<LocationFormProps> = ({
                     {/* Keep a saved co-entity selectable even if it is no longer active */}
                     {co.entity && !entities.some((ent) => ent._id === co.entity) && (
                       <option value={co.entity}>
-                        {initial?.coEntities?.find((saved) => saved.entity?._id === co.entity)?.entity?.name || co.entity}
+                        {initial?.coEntities?.find((saved) => saved.entity?._id === co.entity)?.entity?.name ||
+                          co.entity}
                       </option>
                     )}
                     {entities
@@ -578,7 +588,9 @@ const LocationForm: React.FC<LocationFormProps> = ({
               >
                 <option value="">Select state</option>
                 {/* Keep a saved state that is not in the master list */}
-                {form.address.state && !selectedState && <option value={form.address.state}>{form.address.state}</option>}
+                {form.address.state && !selectedState && (
+                  <option value={form.address.state}>{form.address.state}</option>
+                )}
                 {states.map((s) => (
                   <option key={s._id} value={s.label}>
                     {s.label}

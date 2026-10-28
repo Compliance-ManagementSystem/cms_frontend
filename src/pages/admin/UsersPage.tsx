@@ -26,7 +26,15 @@ import { useToast } from '@/hooks/useToast';
 import { adminService, UserItem, RoleItem } from '@/services/adminService';
 import { z } from 'zod';
 import FieldError from '@/components/ui/FieldError';
-import { useFormErrors, getServerFieldErrors, required, email, optionalPhone, password, maxLength } from '@/utils/validation';
+import {
+  useFormErrors,
+  getServerFieldErrors,
+  required,
+  email,
+  optionalPhone,
+  password,
+  maxLength,
+} from '@/utils/validation';
 
 const userFields = {
   firstName: required('First name').pipe(maxLength('First name', 50)),
@@ -84,7 +92,10 @@ const UsersPage: React.FC = () => {
 
   // Fetch Roles for dropdown
   useEffect(() => {
-    adminService.getRoles().then((data) => setRoles(data)).catch(() => {});
+    adminService
+      .getRoles()
+      .then((data) => setRoles(data))
+      .catch(() => {});
   }, []);
 
   // Fetch Users
@@ -252,7 +263,9 @@ const UsersPage: React.FC = () => {
       cell: (user) => (
         <div className="flex items-center gap-1.5">
           <Shield size={14} className="text-indigo-600 dark:text-indigo-400" />
-          <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{user.role?.name || 'Unassigned'}</span>
+          <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
+            {user.role?.name || 'Unassigned'}
+          </span>
         </div>
       ),
     },
@@ -285,8 +298,7 @@ const UsersPage: React.FC = () => {
       key: 'status',
       header: 'Status',
       cell: (user) => {
-        const variant =
-          user.status === 'active' ? 'success' : user.status === 'inactive' ? 'warning' : 'danger';
+        const variant = user.status === 'active' ? 'success' : user.status === 'inactive' ? 'warning' : 'danger';
         return (
           <Badge variant={variant} size="sm" dot>
             {user.status}
@@ -305,7 +317,11 @@ const UsersPage: React.FC = () => {
             size="sm"
             onClick={() => handleToggleStatus(user)}
             title={user.status === 'active' ? 'Deactivate user' : 'Reactivate user'}
-            className={user.status === 'active' ? 'text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300' : 'text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300'}
+            className={
+              user.status === 'active'
+                ? 'text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300'
+                : 'text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300'
+            }
           >
             {user.status === 'active' ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
           </Button>
@@ -347,12 +363,7 @@ const UsersPage: React.FC = () => {
             Manage system identities, authentication credentials, assigned roles, and access status.
           </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={handleOpenCreate}
-          className="flex items-center gap-2"
-          id="btn-create-user"
-        >
+        <Button variant="primary" onClick={handleOpenCreate} className="flex items-center gap-2" id="btn-create-user">
           <UserPlus size={16} /> Add User
         </Button>
       </div>
@@ -543,7 +554,9 @@ const UsersPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1.5">Account Status</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1.5">
+                Account Status
+              </label>
               <select
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
                 value={formData.status}
@@ -650,7 +663,9 @@ const UsersPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1.5">Account Status</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1.5">
+                Account Status
+              </label>
               <select
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
                 value={formData.status}

@@ -1,15 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  ShieldCheck,
-  ShieldAlert,
-  Plus,
-  Users,
-  KeyRound,
-  Edit3,
-  Trash2,
-  RefreshCw,
-  Search,
-} from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Plus, Users, KeyRound, Edit3, Trash2, RefreshCw, Search } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -82,16 +72,12 @@ const RolesPage: React.FC = () => {
         updated = [...prev.permissions, { resource, actions: [action] }];
       } else {
         const hasAction = existing.actions.includes(action);
-        const newActions = hasAction
-          ? existing.actions.filter((a) => a !== action)
-          : [...existing.actions, action];
+        const newActions = hasAction ? existing.actions.filter((a) => a !== action) : [...existing.actions, action];
 
         if (newActions.length === 0) {
           updated = prev.permissions.filter((p) => p.resource !== resource);
         } else {
-          updated = prev.permissions.map((p) =>
-            p.resource === resource ? { ...p, actions: newActions } : p
-          );
+          updated = prev.permissions.map((p) => (p.resource === resource ? { ...p, actions: newActions } : p));
         }
       }
 
@@ -215,12 +201,7 @@ const RolesPage: React.FC = () => {
             Configure canonical system roles and create fine-grained custom roles with tailored permission policies.
           </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={handleOpenCreate}
-          className="flex items-center gap-2"
-          id="btn-create-role"
-        >
+        <Button variant="primary" onClick={handleOpenCreate} className="flex items-center gap-2" id="btn-create-role">
           <Plus size={16} /> Create Custom Role
         </Button>
       </div>
@@ -237,7 +218,13 @@ const RolesPage: React.FC = () => {
             id="search-roles-input"
           />
         </div>
-        <Button variant="ghost" size="sm" onClick={fetchRoles} title="Refresh roles" className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchRoles}
+          title="Refresh roles"
+          className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+        >
           <RefreshCw size={15} />
         </Button>
       </Card>
@@ -246,20 +233,28 @@ const RolesPage: React.FC = () => {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-44 rounded-xl bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 animate-pulse" />
+            <div
+              key={i}
+              className="h-44 rounded-xl bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 animate-pulse"
+            />
           ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRoles.map((role) => (
-            <Card key={role._id} className="flex flex-col justify-between hover:border-slate-400 dark:hover:border-slate-600 transition-all">
+            <Card
+              key={role._id}
+              className="flex flex-col justify-between hover:border-slate-400 dark:hover:border-slate-600 transition-all"
+            >
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div>
                     <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       {role.name}
                     </h3>
-                    <code className="text-xs text-indigo-600 dark:text-indigo-400 font-mono mt-0.5 block">{role.code}</code>
+                    <code className="text-xs text-indigo-600 dark:text-indigo-400 font-mono mt-0.5 block">
+                      {role.code}
+                    </code>
                   </div>
                   <Badge variant={role.isSystem ? 'info' : 'default'} size="sm">
                     {role.isSystem ? 'System Role' : 'Custom Role'}
@@ -279,7 +274,10 @@ const RolesPage: React.FC = () => {
                   </span>
                   <span className="flex items-center gap-1">
                     <KeyRound size={13} className="text-slate-500" />
-                    <strong className="text-slate-800 dark:text-slate-200">{role.permissionCount || (role.code === 'super_admin' ? 'All (*)' : 0)}</strong> perms
+                    <strong className="text-slate-800 dark:text-slate-200">
+                      {role.permissionCount || (role.code === 'super_admin' ? 'All (*)' : 0)}
+                    </strong>{' '}
+                    perms
                   </span>
                 </div>
 
@@ -352,16 +350,24 @@ const RolesPage: React.FC = () => {
           />
 
           <div>
-            <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Permission Capabilities Matrix</h4>
+            <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">
+              Permission Capabilities Matrix
+            </h4>
             <div className="border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden divide-y divide-slate-200 dark:divide-slate-800 shadow-sm dark:shadow-none">
               {AVAILABLE_RESOURCES.map((res) => (
-                <div key={res.id} className="p-3 bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div
+                  key={res.id}
+                  className="p-3 bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                >
                   <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 w-48">{res.name}</span>
                   <div className="flex items-center gap-3 flex-wrap">
                     {res.actions.map((act) => {
                       const checked = isActionChecked(res.id, act);
                       return (
-                        <label key={act} className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer select-none">
+                        <label
+                          key={act}
+                          className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer select-none"
+                        >
                           <input
                             type="checkbox"
                             className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
@@ -412,16 +418,24 @@ const RolesPage: React.FC = () => {
           />
 
           <div>
-            <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Permission Capabilities Matrix</h4>
+            <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">
+              Permission Capabilities Matrix
+            </h4>
             <div className="border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden divide-y divide-slate-200 dark:divide-slate-800 shadow-sm dark:shadow-none">
               {AVAILABLE_RESOURCES.map((res) => (
-                <div key={res.id} className="p-3 bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div
+                  key={res.id}
+                  className="p-3 bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                >
                   <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 w-48">{res.name}</span>
                   <div className="flex items-center gap-3 flex-wrap">
                     {res.actions.map((act) => {
                       const checked = isActionChecked(res.id, act);
                       return (
-                        <label key={act} className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer select-none">
+                        <label
+                          key={act}
+                          className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer select-none"
+                        >
                           <input
                             type="checkbox"
                             className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
@@ -459,12 +473,15 @@ const RolesPage: React.FC = () => {
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Are you sure you want to delete the custom role <strong className="text-slate-900 dark:text-slate-100">{selectedRole?.name}</strong>?
+            Are you sure you want to delete the custom role{' '}
+            <strong className="text-slate-900 dark:text-slate-100">{selectedRole?.name}</strong>?
           </p>
           {(selectedRole?.userCount || 0) > 0 && (
             <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
               <ShieldAlert size={16} />
-              <span>Warning: This role is currently assigned to {selectedRole?.userCount} user(s). Reassign them first.</span>
+              <span>
+                Warning: This role is currently assigned to {selectedRole?.userCount} user(s). Reassign them first.
+              </span>
             </div>
           )}
           <div className="flex items-center justify-end gap-3 mt-2">

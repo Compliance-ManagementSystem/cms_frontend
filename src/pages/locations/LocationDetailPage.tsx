@@ -65,9 +65,7 @@ export const LocationDetailPage: React.FC = () => {
   }, [fetchLocationDetails]);
 
   const handleViewDocument = (documentId: string) => {
-    openDocumentInNewTab(documentId).catch((err) =>
-      toast.error(err.message || 'Failed to open document')
-    );
+    openDocumentInNewTab(documentId).catch((err) => toast.error(err.message || 'Failed to open document'));
   };
 
   if (isLoading) {
@@ -116,12 +114,10 @@ export const LocationDetailPage: React.FC = () => {
     health.percentage >= 80
       ? { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
       : health.percentage >= 60
-      ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
-      : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
+        ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+        : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
 
-  const statusLabel = location.status
-    ? location.status.charAt(0).toUpperCase() + location.status.slice(1)
-    : 'Active';
+  const statusLabel = location.status ? location.status.charAt(0).toUpperCase() + location.status.slice(1) : 'Active';
 
   return (
     <div className="space-y-6 pb-12">
@@ -179,14 +175,12 @@ export const LocationDetailPage: React.FC = () => {
             </div>
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{location.name}</h1>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                  {location.name}
+                </h1>
                 <Badge
                   variant={
-                    location.status === 'active'
-                      ? 'success'
-                      : location.status === 'inactive'
-                      ? 'warning'
-                      : 'default'
+                    location.status === 'active' ? 'success' : location.status === 'inactive' ? 'warning' : 'default'
                   }
                   size="sm"
                   dot
@@ -201,7 +195,9 @@ export const LocationDetailPage: React.FC = () => {
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-1 font-mono">
                   <span className="text-slate-400 dark:text-slate-500">CODE:</span>
-                  <span className="text-emerald-600 dark:text-emerald-300 font-semibold">{location.locationCode || location.code}</span>
+                  <span className="text-emerald-600 dark:text-emerald-300 font-semibold">
+                    {location.locationCode || location.code}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Building2 size={13} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
@@ -249,7 +245,10 @@ export const LocationDetailPage: React.FC = () => {
                   </span>
                 </span>
                 <span className="block w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
-                  <span className={`block h-full rounded-full ${scoreStyle.bar}`} style={{ width: `${health.percentage}%` }} />
+                  <span
+                    className={`block h-full rounded-full ${scoreStyle.bar}`}
+                    style={{ width: `${health.percentage}%` }}
+                  />
                 </span>
                 <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1.5">
                   {[
@@ -309,17 +308,23 @@ export const LocationDetailPage: React.FC = () => {
               />
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mt-3">
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Unit Name</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Unit Name
+                  </dt>
                   <dd className="mt-1 font-medium text-slate-900 dark:text-slate-200">{location.name}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Location Code</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Location Code
+                  </dt>
                   <dd className="mt-1 font-mono text-emerald-600 dark:text-emerald-300 font-semibold">
                     {location.locationCode || location.code}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Classification</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Classification
+                  </dt>
                   <dd className="mt-1">
                     <Badge variant="info" size="sm">
                       {location.locationType?.label || location.locationType?.code || 'Location'}
@@ -327,7 +332,9 @@ export const LocationDetailPage: React.FC = () => {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Opening Date</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Opening Date
+                  </dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">
                     {location.openingDate
                       ? new Date(location.openingDate).toLocaleDateString()
@@ -338,27 +345,35 @@ export const LocationDetailPage: React.FC = () => {
                 </div>
                 {location.closingDate && (
                   <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Closing Date</dt>
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Closing Date
+                    </dt>
                     <dd className="mt-1 text-slate-900 dark:text-slate-200">
                       {new Date(location.closingDate).toLocaleDateString()}
                     </dd>
                   </div>
                 )}
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Area Type</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Area Type
+                  </dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">
                     {location.areaType ? AREA_TYPE_LABELS[location.areaType] : '—'}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Operating Model</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Operating Model
+                  </dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">
                     {location.operatingModel ? OPERATING_MODEL_LABELS[location.operatingModel] : '—'}
                   </dd>
                 </div>
                 {(location.coEntities || []).map((co) => (
                   <div key={co.entity?._id}>
-                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Also Operated By</dt>
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Also Operated By
+                    </dt>
                     <dd className="mt-1 text-slate-900 dark:text-slate-200">
                       {co.entity?.name || '—'}
                       {co.openingDate ? ` (since ${new Date(co.openingDate).toLocaleDateString()})` : ''}
@@ -366,7 +381,9 @@ export const LocationDetailPage: React.FC = () => {
                   </div>
                 ))}
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Description</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Description
+                  </dt>
                   <dd className="mt-1 text-slate-700 dark:text-slate-300 leading-relaxed">
                     {location.description || 'No specific description provided for this operational unit.'}
                   </dd>
@@ -381,7 +398,9 @@ export const LocationDetailPage: React.FC = () => {
                 icon={<MapPin size={18} className="text-emerald-600 dark:text-emerald-400" />}
               />
               <div className="text-sm text-slate-700 dark:text-slate-300 space-y-1.5 mt-3">
-                <p className="font-semibold text-slate-900 dark:text-slate-100">{location.address?.line1 || 'No street address specified'}</p>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">
+                  {location.address?.line1 || 'No street address specified'}
+                </p>
                 {location.address?.line2 && <p>{location.address.line2}</p>}
                 <p>
                   {location.address?.city}
@@ -439,14 +458,10 @@ export const LocationDetailPage: React.FC = () => {
                       Designated Unit Manager
                     </span>
                     <span className="font-semibold text-slate-900 dark:text-slate-100 block">
-                      {location.manager
-                        ? `${location.manager.firstName} ${location.manager.lastName}`
-                        : 'Unassigned'}
+                      {location.manager ? `${location.manager.firstName} ${location.manager.lastName}` : 'Unassigned'}
                     </span>
                     {location.manager?.email && (
-                      <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                        {location.manager.email}
-                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 block">{location.manager.email}</span>
                     )}
                   </div>
                   {canUpdate && (
@@ -531,10 +546,10 @@ export const LocationDetailPage: React.FC = () => {
                               rec.status === 'approved'
                                 ? 'success'
                                 : rec.status === 'expired' || rec.status === 'rejected'
-                                ? 'expired'
-                                : rec.status === 'not_applicable'
-                                ? 'default'
-                                : 'pending'
+                                  ? 'expired'
+                                  : rec.status === 'not_applicable'
+                                    ? 'default'
+                                    : 'pending'
                             }
                             size="sm"
                             dot
@@ -542,8 +557,8 @@ export const LocationDetailPage: React.FC = () => {
                             {rec.status === 'pending'
                               ? 'TO BE APPLIED'
                               : rec.status === 'in_progress'
-                              ? 'APPLIED'
-                              : rec.status.replace(/_/g, ' ').toUpperCase()}
+                                ? 'APPLIED'
+                                : rec.status.replace(/_/g, ' ').toUpperCase()}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -583,12 +598,7 @@ export const LocationDetailPage: React.FC = () => {
                 </p>
               </div>
               {canUploadDocument && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setIsUploadOpen(true)}
-                  leftIcon={<Plus size={15} />}
-                >
+                <Button variant="primary" size="sm" onClick={() => setIsUploadOpen(true)} leftIcon={<Plus size={15} />}>
                   Upload Document
                 </Button>
               )}
@@ -622,7 +632,9 @@ export const LocationDetailPage: React.FC = () => {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                          {doc.expiryDate ? `Expires: ${new Date(doc.expiryDate).toLocaleDateString()}` : 'Permanent / N/A'}
+                          {doc.expiryDate
+                            ? `Expires: ${new Date(doc.expiryDate).toLocaleDateString()}`
+                            : 'Permanent / N/A'}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <Badge variant={doc.status === 'active' ? 'success' : 'default'} size="sm" dot>
@@ -699,9 +711,7 @@ export const LocationDetailPage: React.FC = () => {
                       <tr key={task._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
                         <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-200">{task.title}</td>
                         <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
-                          {task.assignedTo
-                            ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}`
-                            : 'Unassigned'}
+                          {task.assignedTo ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}` : 'Unassigned'}
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
                           {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}
@@ -709,11 +719,7 @@ export const LocationDetailPage: React.FC = () => {
                         <td className="px-4 py-3 text-center">
                           <Badge
                             variant={
-                              task.priority === 'urgent'
-                                ? 'danger'
-                                : task.priority === 'high'
-                                ? 'warning'
-                                : 'default'
+                              task.priority === 'urgent' ? 'danger' : task.priority === 'high' ? 'warning' : 'default'
                             }
                             size="sm"
                           >
@@ -721,11 +727,7 @@ export const LocationDetailPage: React.FC = () => {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <Badge
-                            variant={task.status === 'completed' ? 'success' : 'pending'}
-                            size="sm"
-                            dot
-                          >
+                          <Badge variant={task.status === 'completed' ? 'success' : 'pending'} size="sm" dot>
                             {task.status.toUpperCase()}
                           </Badge>
                         </td>
@@ -782,10 +784,10 @@ export const LocationDetailPage: React.FC = () => {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
-                          <div className="font-medium text-slate-900 dark:text-slate-200">{log.actorEmail || 'System'}</div>
-                          {log.actorRole && (
-                            <div className="text-slate-500 text-[11px]">{log.actorRole}</div>
-                          )}
+                          <div className="font-medium text-slate-900 dark:text-slate-200">
+                            {log.actorEmail || 'System'}
+                          </div>
+                          {log.actorRole && <div className="text-slate-500 text-[11px]">{log.actorRole}</div>}
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{log.description}</td>
                       </tr>

@@ -130,7 +130,13 @@ export const createIndiaScene = (container: HTMLElement, options: SceneOptions):
 
   const floor = new THREE.Mesh(
     new THREE.CircleGeometry(150, 72),
-    new THREE.MeshStandardMaterial({ color: 0x07101c, metalness: 0.4, roughness: 0.55, transparent: true, opacity: 0.85 })
+    new THREE.MeshStandardMaterial({
+      color: 0x07101c,
+      metalness: 0.4,
+      roughness: 0.55,
+      transparent: true,
+      opacity: 0.85,
+    })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.1;
@@ -240,7 +246,8 @@ export const createIndiaScene = (container: HTMLElement, options: SceneOptions):
   const restingHeight = (id: string) => {
     const active = activeStates.get(id);
     return active
-      ? MIN_ACTIVE_HEIGHT + ((MAX_ACTIVE_HEIGHT - MIN_ACTIVE_HEIGHT) * Math.min(100, Math.max(0, active.clearancePct))) / 100
+      ? MIN_ACTIVE_HEIGHT +
+          ((MAX_ACTIVE_HEIGHT - MIN_ACTIVE_HEIGHT) * Math.min(100, Math.max(0, active.clearancePct))) / 100
       : FLAT_HEIGHT;
   };
 

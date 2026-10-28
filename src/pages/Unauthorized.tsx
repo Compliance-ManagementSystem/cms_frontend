@@ -18,9 +18,7 @@ export const Unauthorized: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const state = location.state as
-    | { reason?: string; required?: string; from?: any }
-    | undefined;
+  const state = location.state as { reason?: string; required?: string; from?: any } | undefined;
 
   const handleLogout = async () => {
     await logout();
@@ -76,11 +74,7 @@ export const Unauthorized: React.FC = () => {
             Dashboard
           </Button>
 
-          <Button
-            variant="danger"
-            className="flex-1 justify-center"
-            onClick={handleLogout}
-          >
+          <Button variant="danger" className="flex-1 justify-center" onClick={handleLogout}>
             <LogOut className="w-4 h-4 mr-2" />
             Switch User
           </Button>

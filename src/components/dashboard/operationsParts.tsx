@@ -8,7 +8,12 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Building2, CheckCircle2, XCircle, Clock, Settings2, ShieldCheck, type LucideIcon } from 'lucide-react';
-import type { LicenceBucket, LicenceCounts, OperationsDashboardData, OperationsFilters } from '@/services/dashboardService';
+import type {
+  LicenceBucket,
+  LicenceCounts,
+  OperationsDashboardData,
+  OperationsFilters,
+} from '@/services/dashboardService';
 import { useChartTheme } from '@/components/charts/chartTheme';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import { ROUTES } from '@/constants/routes';
@@ -98,7 +103,11 @@ export interface StatCardData {
 }
 
 /** Top-row figure that counts up, with a meter for its share where it has one */
-export const StatCard: React.FC<{ card: StatCardData; animate: boolean; delay: number }> = ({ card, animate, delay }) => {
+export const StatCard: React.FC<{ card: StatCardData; animate: boolean; delay: number }> = ({
+  card,
+  animate,
+  delay,
+}) => {
   const navigate = useNavigate();
   const Icon = card.icon;
   const value = useAnimatedNumber(card.value, animate, delay);
@@ -121,7 +130,9 @@ export const StatCard: React.FC<{ card: StatCardData; animate: boolean; delay: n
             {Math.round(value).toLocaleString()}
           </span>
           {card.share !== undefined && (
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums">{Math.round(share)}%</span>
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums">
+              {Math.round(share)}%
+            </span>
           )}
         </span>
         <span className="block text-[11px] leading-tight text-slate-500 dark:text-slate-400">{card.hint}</span>
@@ -171,7 +182,8 @@ export const ShareRows: React.FC<{
             <span className="font-normal text-slate-500 dark:text-slate-400"> · {row.hint}</span>
           </span>
           <span className="font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-            {row.counts.approvedPct ?? 0}%<span className="font-normal text-slate-500 dark:text-slate-400"> approved</span>
+            {row.counts.approvedPct ?? 0}%
+            <span className="font-normal text-slate-500 dark:text-slate-400"> approved</span>
           </span>
         </div>
         <StatusStrip counts={row.counts} buckets={buckets} className="mt-1.5 h-3 rounded" />
@@ -201,7 +213,10 @@ export const YearColumnsChart: React.FC<{
     row.counts.total > 0 ? (row.counts[bucket] / row.counts.total) * 100 : 0;
   const dated = rows.filter((row) => row.key !== 'No date');
   const undated = rows.filter((row) => row.key === 'No date');
-  const best = dated.reduce<(typeof rows)[number] | null>((top, row) => (!top || (row.counts.approvedPct ?? 0) > (top.counts.approvedPct ?? 0) ? row : top), null);
+  const best = dated.reduce<(typeof rows)[number] | null>(
+    (top, row) => (!top || (row.counts.approvedPct ?? 0) > (top.counts.approvedPct ?? 0) ? row : top),
+    null
+  );
   const newest = dated[dated.length - 1];
   const behind = dated.filter((row) => (row.counts.approvedPct ?? 0) < target).length;
   const targetLine = chart.dark ? '#f8fafc' : '#0f172a';
@@ -225,10 +240,17 @@ export const YearColumnsChart: React.FC<{
         onMouseLeave={() => setHovered(null)}
         style={{ opacity: dim ? 0.4 : 1, transition: 'opacity 150ms' }}
       >
-        <span className={`mb-2 h-6 inline-flex items-center rounded-full px-2 text-xs font-extrabold tabular-nums ${badge(pct)}`}>{pct}%</span>
+        <span
+          className={`mb-2 h-6 inline-flex items-center rounded-full px-2 text-xs font-extrabold tabular-nums ${badge(pct)}`}
+        >
+          {pct}%
+        </span>
         <div
           className="relative w-full max-w-[58px] h-52 rounded-2xl overflow-hidden flex flex-col-reverse gap-[2px] bg-slate-100 dark:bg-slate-800 transition-transform duration-200"
-          style={{ transform: hovered === row.key ? 'translateY(-3px)' : 'none', boxShadow: hovered === row.key ? '0 8px 18px -8px rgba(15,23,42,0.35)' : 'none' }}
+          style={{
+            transform: hovered === row.key ? 'translateY(-3px)' : 'none',
+            boxShadow: hovered === row.key ? '0 8px 18px -8px rgba(15,23,42,0.35)' : 'none',
+          }}
         >
           {buckets
             .filter((bucket) => row.counts[bucket] > 0)
@@ -250,7 +272,9 @@ export const YearColumnsChart: React.FC<{
               );
             })}
         </div>
-        <span className="mt-2 text-xs font-bold text-slate-700 dark:text-slate-200">{row.label === 'No date' ? 'No date' : row.label}</span>
+        <span className="mt-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+          {row.label === 'No date' ? 'No date' : row.label}
+        </span>
         <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-full">{units}</span>
 
         {hovered === row.key && (
@@ -280,19 +304,27 @@ export const YearColumnsChart: React.FC<{
       {best && newest && (
         <div className="mt-3 grid grid-cols-3 gap-2">
           <div className="rounded-xl px-3 py-2 bg-emerald-50 dark:bg-emerald-500/10">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Best year</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+              Best year
+            </p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
-              {best.counts.approvedPct ?? 0}%<span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> · {best.label}</span>
+              {best.counts.approvedPct ?? 0}%
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> · {best.label}</span>
             </p>
           </div>
           <div className="rounded-xl px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Newest units</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+              Newest units
+            </p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
-              {newest.counts.approvedPct ?? 0}%<span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> · {newest.label}</span>
+              {newest.counts.approvedPct ?? 0}%
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> · {newest.label}</span>
             </p>
           </div>
           <div className="rounded-xl px-3 py-2 bg-rose-50 dark:bg-rose-500/10">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-400">Below {target}%</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-400">
+              Below {target}%
+            </p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
               {behind}
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> of {dated.length} years</span>
@@ -307,7 +339,10 @@ export const YearColumnsChart: React.FC<{
           className="absolute inset-x-0 z-10 pointer-events-none border-t-2 border-dashed"
           style={{ top: 32 + 208 * (1 - target / 100), borderColor: targetLine, opacity: 0.55 }}
         >
-          <span className="absolute -top-2.5 right-0 rounded px-1 text-[10px] font-bold bg-white dark:bg-slate-900" style={{ color: targetLine }}>
+          <span
+            className="absolute -top-2.5 right-0 rounded px-1 text-[10px] font-bold bg-white dark:bg-slate-900"
+            style={{ color: targetLine }}
+          >
             {target}%
           </span>
         </div>
@@ -414,7 +449,15 @@ export const LicenceTypeChart: React.FC<{
         <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 36, left: 0, bottom: 0 }}>
           <CartesianGrid horizontal={false} stroke={chart.grid} strokeOpacity={0.25} />
           <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
-          <YAxis type="category" dataKey="name" width={yAxisWidth} tick={axisTick} tickLine={false} axisLine={false} interval={0} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={yAxisWidth}
+            tick={axisTick}
+            tickLine={false}
+            axisLine={false}
+            interval={0}
+          />
           <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.grid, fillOpacity: 0.12 }} />
           {buckets.map((bucket, index) => (
             <Bar

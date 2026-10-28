@@ -93,8 +93,8 @@ export const EntityDetailPage: React.FC = () => {
     health.percentage >= 80
       ? { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
       : health.percentage >= 60
-      ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
-      : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
+        ? { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+        : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
 
   const locationCount = data.locationCount ?? locations.length;
 
@@ -146,7 +146,10 @@ export const EntityDetailPage: React.FC = () => {
       </div>
 
       {/* Entity Profile Banner */}
-      <Card padding="lg" className="border-indigo-100 dark:border-indigo-900/40 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 dark:from-slate-900 dark:via-indigo-950/20 dark:to-slate-900 shadow-sm dark:shadow-none">
+      <Card
+        padding="lg"
+        className="border-indigo-100 dark:border-indigo-900/40 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 dark:from-slate-900 dark:via-indigo-950/20 dark:to-slate-900 shadow-sm dark:shadow-none"
+      >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-600/20 border border-indigo-200 dark:border-indigo-500/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-2xl shadow-sm dark:shadow-inner">
@@ -157,11 +160,7 @@ export const EntityDetailPage: React.FC = () => {
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{entity.name}</h1>
                 <Badge
                   variant={
-                    entity.status === 'active'
-                      ? 'success'
-                      : entity.status === 'inactive'
-                      ? 'warning'
-                      : 'default'
+                    entity.status === 'active' ? 'success' : entity.status === 'inactive' ? 'warning' : 'default'
                   }
                   size="sm"
                   dot
@@ -211,7 +210,10 @@ export const EntityDetailPage: React.FC = () => {
                   </span>
                 </span>
                 <span className="block w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
-                  <span className={`block h-full rounded-full ${scoreStyle.bar}`} style={{ width: `${health.percentage}%` }} />
+                  <span
+                    className={`block h-full rounded-full ${scoreStyle.bar}`}
+                    style={{ width: `${health.percentage}%` }}
+                  />
                 </span>
                 <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1.5">
                   {[
@@ -273,17 +275,23 @@ export const EntityDetailPage: React.FC = () => {
               />
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Legal Name</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Legal Name
+                  </dt>
                   <dd className="mt-1 font-medium text-slate-900 dark:text-slate-200">{entity.name}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Entity Code</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Entity Code
+                  </dt>
                   <dd className="mt-1 font-mono text-indigo-600 dark:text-indigo-300 font-semibold">
                     {entity.entityCode || entity.code}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Classification</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Classification
+                  </dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">
                     <Badge variant="info" size="sm">
                       {entity.entityType?.label || entity.entityType?.code}
@@ -291,7 +299,9 @@ export const EntityDetailPage: React.FC = () => {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Assigned Owner</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Assigned Owner
+                  </dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">
                     {entity.owner ? (
                       <span className="flex items-center gap-1.5 font-medium">
@@ -304,7 +314,9 @@ export const EntityDetailPage: React.FC = () => {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Industry</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Industry
+                  </dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">
                     {entity.industry ? (
                       <Badge variant="default" size="sm">
@@ -334,20 +346,30 @@ export const EntityDetailPage: React.FC = () => {
               />
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">GSTIN</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    GSTIN
+                  </dt>
                   <dd className="mt-1 font-mono text-slate-900 dark:text-slate-200">{entity.gstin || '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">PAN</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    PAN
+                  </dt>
                   <dd className="mt-1 font-mono text-slate-900 dark:text-slate-200">{entity.pan || '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">CIN</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    CIN
+                  </dt>
                   <dd className="mt-1 font-mono text-slate-900 dark:text-slate-200">{entity.cin || '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Registration No.</dt>
-                  <dd className="mt-1 font-mono text-slate-900 dark:text-slate-200">{entity.registrationNumber || '—'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Registration No.
+                  </dt>
+                  <dd className="mt-1 font-mono text-slate-900 dark:text-slate-200">
+                    {entity.registrationNumber || '—'}
+                  </dd>
                 </div>
               </dl>
             </Card>
@@ -360,11 +382,15 @@ export const EntityDetailPage: React.FC = () => {
               />
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Contact Person</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Contact Person
+                  </dt>
                   <dd className="mt-1 font-medium text-slate-900 dark:text-slate-200">{entity.contactPerson || '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Email Address</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Email Address
+                  </dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200">
                     <a
                       href={`mailto:${entity.contactEmail}`}
@@ -376,7 +402,9 @@ export const EntityDetailPage: React.FC = () => {
                   </dd>
                 </div>
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Phone Number</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Phone Number
+                  </dt>
                   <dd className="mt-1 text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
                     <Phone size={14} className="text-slate-400 dark:text-slate-500" />
                     {entity.contactPhone}
@@ -536,11 +564,7 @@ export const EntityDetailPage: React.FC = () => {
                         <div className="text-xs text-slate-500 dark:text-slate-400">{loc.address?.state || ''}</div>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Badge
-                          variant={loc.status === 'active' ? 'success' : 'default'}
-                          size="sm"
-                          dot
-                        >
+                        <Badge variant={loc.status === 'active' ? 'success' : 'default'} size="sm" dot>
                           {loc.status.charAt(0).toUpperCase() + loc.status.slice(1)}
                         </Badge>
                       </td>
@@ -575,23 +599,43 @@ export const EntityDetailPage: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <Card padding="sm" className="text-center shadow-sm dark:shadow-none">
               <span className="text-xs text-slate-500 dark:text-slate-400">Total Obligations</span>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{complianceStats?.total || 0}</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+                {complianceStats?.total || 0}
+              </p>
             </Card>
-            <Card padding="sm" className="text-center bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/30 shadow-sm dark:shadow-none">
+            <Card
+              padding="sm"
+              className="text-center bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/30 shadow-sm dark:shadow-none"
+            >
               <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Compliant / Approved</span>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{complianceStats?.approved || 0}</p>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">
+                {complianceStats?.approved || 0}
+              </p>
             </Card>
-            <Card padding="sm" className="text-center bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30 shadow-sm dark:shadow-none">
+            <Card
+              padding="sm"
+              className="text-center bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30 shadow-sm dark:shadow-none"
+            >
               <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Pending Review</span>
-              <p className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-1">{complianceStats?.pending || 0}</p>
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-1">
+                {complianceStats?.pending || 0}
+              </p>
             </Card>
-            <Card padding="sm" className="text-center bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800/30 shadow-sm dark:shadow-none">
+            <Card
+              padding="sm"
+              className="text-center bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800/30 shadow-sm dark:shadow-none"
+            >
               <span className="text-xs text-red-700 dark:text-red-400 font-medium">Expired / Overdue</span>
               <p className="text-2xl font-bold text-red-700 dark:text-red-400 mt-1">{complianceStats?.expired || 0}</p>
             </Card>
-            <Card padding="sm" className="text-center bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/30 shadow-sm dark:shadow-none">
+            <Card
+              padding="sm"
+              className="text-center bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/30 shadow-sm dark:shadow-none"
+            >
               <span className="text-xs text-rose-700 dark:text-rose-400 font-medium">Rejected</span>
-              <p className="text-2xl font-bold text-rose-700 dark:text-rose-400 mt-1">{complianceStats?.rejected || 0}</p>
+              <p className="text-2xl font-bold text-rose-700 dark:text-rose-400 mt-1">
+                {complianceStats?.rejected || 0}
+              </p>
             </Card>
           </div>
 
@@ -641,10 +685,10 @@ export const EntityDetailPage: React.FC = () => {
                             rec.status === 'approved'
                               ? 'success'
                               : rec.status === 'expired' || rec.status === 'rejected'
-                              ? 'expired'
-                              : rec.status === 'not_applicable'
-                              ? 'default'
-                              : 'pending'
+                                ? 'expired'
+                                : rec.status === 'not_applicable'
+                                  ? 'default'
+                                  : 'pending'
                           }
                           size="sm"
                           dot
@@ -670,7 +714,9 @@ export const EntityDetailPage: React.FC = () => {
             <div className="flex items-start gap-3">
               <FileText size={20} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-indigo-900 dark:text-indigo-200">
-                <span className="font-semibold block mb-0.5">Statutory & Compliance Documents ({documents.length})</span>
+                <span className="font-semibold block mb-0.5">
+                  Statutory & Compliance Documents ({documents.length})
+                </span>
                 Official documents, registration certificates, and licenses archived for <strong>{entity.name}</strong>.
               </div>
             </div>
@@ -726,11 +772,7 @@ export const EntityDetailPage: React.FC = () => {
                           : 'No expiry date recorded'}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Badge
-                          variant={doc.status === 'active' ? 'success' : 'default'}
-                          size="sm"
-                          dot
-                        >
+                        <Badge variant={doc.status === 'active' ? 'success' : 'default'} size="sm" dot>
                           {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
                         </Badge>
                       </td>
@@ -809,11 +851,11 @@ export const EntityDetailPage: React.FC = () => {
                   tasks.map((task) => (
                     <tr key={task._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-200">{task.title}</td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{task.location?.name || 'Entity-wide'}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                        {task.location?.name || 'Entity-wide'}
+                      </td>
                       <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
-                        {task.assignedTo
-                          ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}`
-                          : 'Unassigned'}
+                        {task.assignedTo ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}` : 'Unassigned'}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
                         {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}
@@ -821,11 +863,7 @@ export const EntityDetailPage: React.FC = () => {
                       <td className="px-4 py-3 text-center">
                         <Badge
                           variant={
-                            task.priority === 'urgent'
-                              ? 'danger'
-                              : task.priority === 'high'
-                              ? 'warning'
-                              : 'default'
+                            task.priority === 'urgent' ? 'danger' : task.priority === 'high' ? 'warning' : 'default'
                           }
                           size="sm"
                         >
@@ -833,11 +871,7 @@ export const EntityDetailPage: React.FC = () => {
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Badge
-                          variant={task.status === 'completed' ? 'success' : 'pending'}
-                          size="sm"
-                          dot
-                        >
+                        <Badge variant={task.status === 'completed' ? 'success' : 'pending'} size="sm" dot>
                           {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
                         </Badge>
                       </td>
@@ -884,10 +918,10 @@ export const EntityDetailPage: React.FC = () => {
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
-                        <div className="font-medium text-slate-900 dark:text-slate-200">{log.actorEmail || 'System'}</div>
-                        {log.actorRole && (
-                          <div className="text-slate-500 text-[11px]">{log.actorRole}</div>
-                        )}
+                        <div className="font-medium text-slate-900 dark:text-slate-200">
+                          {log.actorEmail || 'System'}
+                        </div>
+                        {log.actorRole && <div className="text-slate-500 text-[11px]">{log.actorRole}</div>}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{log.description}</td>
                     </tr>

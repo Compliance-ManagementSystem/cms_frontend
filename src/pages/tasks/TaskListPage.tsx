@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  CheckSquare,
-  Plus,
-  Search,
-  Calendar,
-  Building2,
-  MapPin,
-  Link2,
-} from 'lucide-react';
+import { CheckSquare, Plus, Search, Calendar, Building2, MapPin, Link2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -69,7 +61,8 @@ const SELECT_CLASS =
 const LABEL_CLASS = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1';
 
 /** A form field's classes, with a red border when it has an error */
-const fieldClass = (error?: string) => SELECT_CLASS.replace('border-slate-300 dark:border-slate-700', fieldBorder(error));
+const fieldClass = (error?: string) =>
+  SELECT_CLASS.replace('border-slate-300 dark:border-slate-700', fieldBorder(error));
 
 const EMPTY_FORM = {
   title: '',
@@ -193,7 +186,18 @@ export const TaskListPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [mineOnly, activeCard, page, debouncedSearch, statusFilter, priorityFilter, locationFilter, entityFilter, sort, toast]);
+  }, [
+    mineOnly,
+    activeCard,
+    page,
+    debouncedSearch,
+    statusFilter,
+    priorityFilter,
+    locationFilter,
+    entityFilter,
+    sort,
+    toast,
+  ]);
 
   const refreshAll = useCallback(() => {
     fetchTasks();
@@ -373,7 +377,9 @@ export const TaskListPage: React.FC = () => {
               {new Date(task.dueDate).toLocaleDateString()}
             </span>
             {isPastDue(task) && (
-              <Badge variant="danger" size="sm">{formatOverdue(task.dueDate)}</Badge>
+              <Badge variant="danger" size="sm">
+                {formatOverdue(task.dueDate)}
+              </Badge>
             )}
           </div>
         ) : (
@@ -411,10 +417,14 @@ export const TaskListPage: React.FC = () => {
 
         <div className="flex items-center gap-3">
           {canCreate && (
-            <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => {
+            <Button
+              variant="primary"
+              leftIcon={<Plus size={16} />}
+              onClick={() => {
                 setErrors({});
                 setCreateModalOpen(true);
-              }}>
+              }}
+            >
               Create Task
             </Button>
           )}
@@ -585,13 +595,11 @@ export const TaskListPage: React.FC = () => {
           hasActiveFilters
             ? 'No tasks match these filters.'
             : mineOnly
-            ? 'Nothing is assigned to you right now.'
-            : 'No tasks yet. Tasks appear here when created or raised by scheduled compliance checks.'
+              ? 'Nothing is assigned to you right now.'
+              : 'No tasks yet. Tasks appear here when created or raised by scheduled compliance checks.'
         }
         pagination={
-          totalCount > PAGE_SIZE
-            ? { page, limit: PAGE_SIZE, total: totalCount, onPageChange: setPage }
-            : undefined
+          totalCount > PAGE_SIZE ? { page, limit: PAGE_SIZE, total: totalCount, onPageChange: setPage } : undefined
         }
       />
 

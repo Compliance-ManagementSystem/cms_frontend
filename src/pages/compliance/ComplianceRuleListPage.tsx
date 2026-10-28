@@ -36,7 +36,11 @@ const listNames = (items: MasterDataItem[] | undefined, all: string) =>
 
 // Rules saved by older versions may have no cycle
 const cycleText = (days?: number) =>
-  days === undefined || days === null ? 'Cycle not set' : days === 0 ? 'One-time' : `Every ${days} day${days === 1 ? '' : 's'}`;
+  days === undefined || days === null
+    ? 'Cycle not set'
+    : days === 0
+      ? 'One-time'
+      : `Every ${days} day${days === 1 ? '' : 's'}`;
 
 export const ComplianceRuleListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -71,7 +75,9 @@ export const ComplianceRuleListPage: React.FC = () => {
   useEffect(() => {
     Promise.all([
       lookupService.getMasterData({ category: 'compliance_category' }).catch(() => ({ items: [] as MasterDataItem[] })),
-      lookupService.getMasterData({ category: 'compliance_frequency' }).catch(() => ({ items: [] as MasterDataItem[] })),
+      lookupService
+        .getMasterData({ category: 'compliance_frequency' })
+        .catch(() => ({ items: [] as MasterDataItem[] })),
     ]).then(([catRes, freqRes]) => {
       setCategories(catRes.items || []);
       setFrequencies(freqRes.items || []);
@@ -190,7 +196,8 @@ export const ComplianceRuleListPage: React.FC = () => {
       }
 
       const cell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
-      const names = (items?: MasterDataItem[]) => (items?.length ? items.map((i) => i.label || i.code).join('; ') : 'All');
+      const names = (items?: MasterDataItem[]) =>
+        items?.length ? items.map((i) => i.label || i.code).join('; ') : 'All';
       const headers = [
         'Code',
         'Name',
@@ -212,7 +219,7 @@ export const ComplianceRuleListPage: React.FC = () => {
           r.name || '',
           r.category?.label || r.category?.code || '',
           r.frequency?.label || r.frequency?.code || '',
-          r.renewalCycle === 0 ? 'One-time' : r.renewalCycle ?? '',
+          r.renewalCycle === 0 ? 'One-time' : (r.renewalCycle ?? ''),
           r.mandatory ? 'Yes' : 'No',
           r.priority || 'medium',
           r.status || 'active',
@@ -438,7 +445,11 @@ export const ComplianceRuleListPage: React.FC = () => {
             Refresh
           </Button>
           {canCreate && (
-            <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => navigate(ROUTES.COMPLIANCE_RULE_CREATE)}>
+            <Button
+              variant="primary"
+              leftIcon={<Plus size={16} />}
+              onClick={() => navigate(ROUTES.COMPLIANCE_RULE_CREATE)}
+            >
               Create Rule
             </Button>
           )}
@@ -462,7 +473,9 @@ export const ComplianceRuleListPage: React.FC = () => {
               }`}
             >
               <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{card.label}</div>
-              <div className={`text-xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}>
+              <div
+                className={`text-xl font-bold mt-1 ${card.value > 0 ? card.color : 'text-slate-400 dark:text-slate-600'}`}
+              >
                 {card.value}
               </div>
             </button>
@@ -556,8 +569,8 @@ export const ComplianceRuleListPage: React.FC = () => {
           hasActiveFilters
             ? 'No rules match these filters.'
             : canCreate
-            ? 'No compliance rules yet. Create the first one to start tracking obligations.'
-            : 'No compliance rules yet.'
+              ? 'No compliance rules yet. Create the first one to start tracking obligations.'
+              : 'No compliance rules yet.'
         }
         pagination={
           pagination.total > pagination.limit

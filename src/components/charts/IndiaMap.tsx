@@ -12,7 +12,11 @@ interface MapLocation {
 
 const map = indiaMap as unknown as { viewBox: string; locations: MapLocation[] };
 
-const normalise = (name: string) => name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z]/g, '');
+const normalise = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z]/g, '');
 
 // Names used in addresses that differ from the map's labels. The outlines predate
 // the 2019–2020 reorganisation, so Ladakh and the merged Dadra/Daman territory
@@ -126,8 +130,8 @@ const IndiaMap: React.FC<IndiaMapProps> = ({ data, onSelect, selected, measure =
               </p>
               {measure.breakdown ? (
                 <p className="text-slate-500 dark:text-slate-400">
-                  {hoveredData.compliant} compliant · {hoveredData.expiringSoon} expiring · {hoveredData.pending} pending ·{' '}
-                  {hoveredData.expired} expired
+                  {hoveredData.compliant} compliant · {hoveredData.expiringSoon} expiring · {hoveredData.pending}{' '}
+                  pending · {hoveredData.expired} expired
                 </p>
               ) : (
                 <p className="text-slate-500 dark:text-slate-400">

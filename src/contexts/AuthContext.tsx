@@ -5,21 +5,9 @@
  * and capability checks (hasRole, hasPermission, can) across the frontend.
  */
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-} from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
-import type {
-  AuthUser,
-  AuthContextType,
-  LoginResponseData,
-  RoleCode,
-} from '../types/auth';
+import type { AuthUser, AuthContextType, LoginResponseData, RoleCode } from '../types/auth';
 
 const TOKEN_KEY = 'cms_access_token';
 const REFRESH_TOKEN_KEY = 'cms_refresh_token';
@@ -50,38 +38,31 @@ const refreshSession = () => {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem(TOKEN_KEY)
-  );
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [permissions, setPermissions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Synchronize token into axiosInstance default headers
-  const setAuthTokens = useCallback(
-    (accessToken: string | null, refreshToken?: string | null) => {
-      setToken(accessToken);
-      if (accessToken) {
-        localStorage.setItem(TOKEN_KEY, accessToken);
-        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-      } else {
-        localStorage.removeItem(TOKEN_KEY);
-        delete axiosInstance.defaults.headers.common['Authorization'];
-      }
+  const setAuthTokens = useCallback((accessToken: string | null, refreshToken?: string | null) => {
+    setToken(accessToken);
+    if (accessToken) {
+      localStorage.setItem(TOKEN_KEY, accessToken);
+      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+      delete axiosInstance.defaults.headers.common['Authorization'];
+    }
 
-      if (refreshToken !== undefined) {
-        if (refreshToken) {
-          localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-        } else {
-          localStorage.removeItem(REFRESH_TOKEN_KEY);
-        }
+    if (refreshToken !== undefined) {
+      if (refreshToken) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      } else {
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
       }
-    },
-    []
-  );
+    }
+  }, []);
 
   // Logout action
   const logout = useCallback(async () => {
@@ -121,7 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             return;
           }
         }
-      } catch (err) {
+      } catch {
         // Token might have expired, attempt refresh
       }
 
@@ -184,8 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
           if (storedRefreshToken) {
             try {
-              const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
-                await refreshSession();
+              const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await refreshSession();
               setAuthTokens(newAccessToken, newRefreshToken);
             } catch {
               // Refresh failed — purge auth state
@@ -198,8 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
             // Retry outside the try so a failure of the retried request itself
             // is not mistaken for a failed refresh
-            originalRequest.headers['Authorization'] =
-              `Bearer ${localStorage.getItem(TOKEN_KEY)}`;
+            originalRequest.headers['Authorization'] = `Bearer ${localStorage.getItem(TOKEN_KEY)}`;
             return axiosInstance(originalRequest);
           }
         }
@@ -288,9 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     [user, token, isLoading, permissions, login, logout, hasRole, hasPermission, can]
   );
 
-  return (
-    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = (): AuthContextType => {

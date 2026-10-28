@@ -82,13 +82,25 @@ export const LocationEditPage: React.FC = () => {
           <Button variant="outline" onClick={goBack} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" form={LOCATION_FORM_ID} variant="primary" isLoading={isSubmitting} leftIcon={<Save size={16} />}>
+          <Button
+            type="submit"
+            form={LOCATION_FORM_ID}
+            variant="primary"
+            isLoading={isSubmitting}
+            leftIcon={<Save size={16} />}
+          >
             Save Changes
           </Button>
         </div>
       </div>
 
-      <LocationForm initial={location} isSubmitting={isSubmitting} onSubmit={handleSubmit} serverErrors={serverErrors} onCancel={goBack} />
+      <LocationForm
+        initial={location}
+        isSubmitting={isSubmitting}
+        onSubmit={handleSubmit}
+        serverErrors={serverErrors}
+        onCancel={goBack}
+      />
     </div>
   );
 };

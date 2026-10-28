@@ -170,7 +170,7 @@ export interface CreateEntityPayload {
   status?: 'active' | 'inactive' | 'archived';
 }
 
-export interface UpdateEntityPayload extends Partial<CreateEntityPayload> {}
+export type UpdateEntityPayload = Partial<CreateEntityPayload>;
 
 // ── Service Methods ───────────────────────────────────────────────────────────
 

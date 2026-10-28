@@ -7,13 +7,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   const serverOrigin = env.VITE_SOCKET_URL;
-  const clientPort   = Number(env.VITE_CLIENT_PORT);
+  const clientPort = Number(env.VITE_CLIENT_PORT);
 
   return {
-    plugins: [
-      tailwindcss(),
-      react(),
-    ],
+    plugins: [tailwindcss(), react()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
@@ -32,7 +29,8 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
-      sourcemap: true,
+      // No source maps in production: they would publish the original source code
+      sourcemap: false,
       rollupOptions: {
         output: {
           manualChunks: {

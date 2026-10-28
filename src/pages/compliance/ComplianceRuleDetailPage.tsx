@@ -27,7 +27,13 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
-import { complianceRuleService, ComplianceRuleItem, RuleAuditLog, RuleCoverage, RuleEvaluationResult } from '@/services/complianceRuleService';
+import {
+  complianceRuleService,
+  ComplianceRuleItem,
+  RuleAuditLog,
+  RuleCoverage,
+  RuleEvaluationResult,
+} from '@/services/complianceRuleService';
 import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem, operatesAt } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
@@ -48,9 +54,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchParams] = useSearchParams();
   const canCreateRecords = can('compliance_record', 'create');
-  const [activeTab, setActiveTab] = useState<'overview' | 'coverage' | 'documents' | 'notifications' | 'history' | 'simulator'>(
-    searchParams.get('tab') === 'coverage' ? 'coverage' : 'overview'
-  );
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'coverage' | 'documents' | 'notifications' | 'history' | 'simulator'
+  >(searchParams.get('tab') === 'coverage' ? 'coverage' : 'overview');
 
   // Coverage: locations the rule applies to
   const [coverage, setCoverage] = useState<RuleCoverage | null>(null);
@@ -72,7 +78,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
   const [evaluationResult, setEvaluationResult] = useState<RuleEvaluationResult | null>(null);
-  const [evaluationTarget, setEvaluationTarget] = useState<{ entity?: EntityItem; location?: LocationItem } | null>(null);
+  const [evaluationTarget, setEvaluationTarget] = useState<{ entity?: EntityItem; location?: LocationItem } | null>(
+    null
+  );
 
   // Fetch Rule Details
   const fetchRule = async () => {
@@ -138,9 +146,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
   }, []);
 
   // Filter locations based on selected entity
-  const filteredLocations = selectedEntityId
-    ? locations.filter((loc) => operatesAt(loc, selectedEntityId))
-    : locations;
+  const filteredLocations = selectedEntityId ? locations.filter((loc) => operatesAt(loc, selectedEntityId)) : locations;
 
   // Toggle active/inactive
   const handleToggleStatus = async () => {
@@ -255,7 +261,13 @@ export const ComplianceRuleDetailPage: React.FC = () => {
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   return (
@@ -283,7 +295,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 {rule.mandatory ? 'Mandatory' : 'Recommended'}
               </Badge>
               {rule.approvalLevels > 1 && (
-                <Badge variant="warning" size="sm">{rule.approvalLevels} approvals required</Badge>
+                <Badge variant="warning" size="sm">
+                  {rule.approvalLevels} approvals required
+                </Badge>
               )}
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
@@ -341,11 +355,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
             </Button>
           )}
           {canDelete && (
-            <Button
-              variant="danger"
-              leftIcon={<Trash2 size={15} />}
-              onClick={() => setIsDeleteModalOpen(true)}
-            >
+            <Button variant="danger" leftIcon={<Trash2 size={15} />} onClick={() => setIsDeleteModalOpen(true)}>
               Delete
             </Button>
           )}
@@ -357,7 +367,11 @@ export const ComplianceRuleDetailPage: React.FC = () => {
         {[
           { key: 'overview', label: 'Overview', icon: <Scale size={15} /> },
           { key: 'coverage', label: `Coverage (${coverage?.summary.applicable ?? 0})`, icon: <MapPin size={15} /> },
-          { key: 'documents', label: `Documents (${rule.requiredDocuments?.length || 0})`, icon: <FileText size={15} /> },
+          {
+            key: 'documents',
+            label: `Documents (${rule.requiredDocuments?.length || 0})`,
+            icon: <FileText size={15} />,
+          },
           { key: 'notifications', label: 'Reminders', icon: <Bell size={15} /> },
           { key: 'history', label: 'History', icon: <History size={15} /> },
           { key: 'simulator', label: 'Test Applicability', icon: <Play size={15} /> },
@@ -402,8 +416,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 {rule.renewalCycle === undefined || rule.renewalCycle === null
                   ? 'Renewal cycle not set'
                   : rule.renewalCycle === 0
-                  ? 'One-time; an approved record does not expire'
-                  : `An approved record expires after ${rule.renewalCycle} day${rule.renewalCycle === 1 ? '' : 's'}`}
+                    ? 'One-time; an approved record does not expire'
+                    : `An approved record expires after ${rule.renewalCycle} day${rule.renewalCycle === 1 ? '' : 's'}`}
               </div>
             </Card>
 
@@ -411,17 +425,15 @@ export const ComplianceRuleDetailPage: React.FC = () => {
               <div className="text-xs text-slate-500 dark:text-slate-400">Priority</div>
               <div className="mt-1">
                 <Badge
-                  variant={
-                    rule.priority === 'critical' ? 'danger'
-                    : rule.priority === 'high' ? 'warning'
-                    : 'info'
-                  }
+                  variant={rule.priority === 'critical' ? 'danger' : rule.priority === 'high' ? 'warning' : 'info'}
                   size="md"
                 >
                   {rule.priority.charAt(0).toUpperCase() + rule.priority.slice(1)}
                 </Badge>
               </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Tasks for this rule are at least this urgent</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Tasks for this rule are at least this urgent
+              </div>
             </Card>
 
             <Card className="p-4">
@@ -443,7 +455,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
             </p>
             {rule.legalReference && (
               <div className="pt-2 text-xs text-slate-500 dark:text-slate-400">
-                <strong>Legal Reference:</strong> <span className="text-indigo-600 dark:text-indigo-300">{rule.legalReference}</span>
+                <strong>Legal Reference:</strong>{' '}
+                <span className="text-indigo-600 dark:text-indigo-300">{rule.legalReference}</span>
               </div>
             )}
           </Card>
@@ -454,7 +467,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
               <Building2 size={18} className="text-emerald-600 dark:text-emerald-400" />
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Where it applies</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">A location must match all three; see the Coverage tab for the list</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  A location must match all three; see the Coverage tab for the list
+                </p>
               </div>
             </div>
 
@@ -466,7 +481,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                     <Building2 size={14} className="text-indigo-600 dark:text-indigo-400" />
                     Entity types
                   </span>
-                  <span className="text-xs text-slate-500">{rule.applicableEntityTypes?.length === 0 ? 'All' : rule.applicableEntityTypes?.length}</span>
+                  <span className="text-xs text-slate-500">
+                    {rule.applicableEntityTypes?.length === 0 ? 'All' : rule.applicableEntityTypes?.length}
+                  </span>
                 </div>
                 {rule.applicableEntityTypes?.length === 0 ? (
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg text-xs text-emerald-700 dark:text-emerald-300">
@@ -475,7 +492,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {rule.applicableEntityTypes.map((et: any) => (
-                      <Badge key={et._id || et.code} variant="info" size="sm">{et.label || et.code}</Badge>
+                      <Badge key={et._id || et.code} variant="info" size="sm">
+                        {et.label || et.code}
+                      </Badge>
                     ))}
                   </div>
                 )}
@@ -488,7 +507,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                     <MapPin size={14} className="text-emerald-600 dark:text-emerald-400" />
                     Location types
                   </span>
-                  <span className="text-xs text-slate-500">{rule.applicableLocationTypes?.length === 0 ? 'All' : rule.applicableLocationTypes?.length}</span>
+                  <span className="text-xs text-slate-500">
+                    {rule.applicableLocationTypes?.length === 0 ? 'All' : rule.applicableLocationTypes?.length}
+                  </span>
                 </div>
                 {rule.applicableLocationTypes?.length === 0 ? (
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg text-xs text-emerald-700 dark:text-emerald-300">
@@ -497,7 +518,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {rule.applicableLocationTypes.map((lt: any) => (
-                      <Badge key={lt._id || lt.code} variant="success" size="sm">{lt.label || lt.code}</Badge>
+                      <Badge key={lt._id || lt.code} variant="success" size="sm">
+                        {lt.label || lt.code}
+                      </Badge>
                     ))}
                   </div>
                 )}
@@ -510,7 +533,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                     <MapPin size={14} className="text-amber-600 dark:text-amber-400" />
                     States
                   </span>
-                  <span className="text-xs text-slate-500">{rule.applicableStates?.length === 0 ? 'All' : rule.applicableStates?.length}</span>
+                  <span className="text-xs text-slate-500">
+                    {rule.applicableStates?.length === 0 ? 'All' : rule.applicableStates?.length}
+                  </span>
                 </div>
                 {rule.applicableStates?.length === 0 ? (
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg text-xs text-emerald-700 dark:text-emerald-300">
@@ -519,7 +544,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 ) : (
                   <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
                     {rule.applicableStates.map((st: string) => (
-                      <Badge key={st} variant="warning" size="sm">{st}</Badge>
+                      <Badge key={st} variant="warning" size="sm">
+                        {st}
+                      </Badge>
                     ))}
                   </div>
                 )}
@@ -535,9 +562,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                   <User size={12} /> Created By
                 </div>
                 <div className="font-medium text-slate-700 dark:text-slate-300">
-                  {rule.createdBy
-                    ? `${rule.createdBy.firstName} ${rule.createdBy.lastName}`
-                    : '—'}
+                  {rule.createdBy ? `${rule.createdBy.firstName} ${rule.createdBy.lastName}` : '—'}
                 </div>
               </div>
               <div>
@@ -551,9 +576,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                   <User size={12} /> Last Updated By
                 </div>
                 <div className="font-medium text-slate-700 dark:text-slate-300">
-                  {rule.updatedBy
-                    ? `${rule.updatedBy.firstName} ${rule.updatedBy.lastName}`
-                    : '—'}
+                  {rule.updatedBy ? `${rule.updatedBy.firstName} ${rule.updatedBy.lastName}` : '—'}
                 </div>
               </div>
               <div>
@@ -573,9 +596,13 @@ export const ComplianceRuleDetailPage: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
               <h3 className="text-base font-semibold text-slate-900 dark:text-white">Statutory Required Documents</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Documents and certificates mandatory for verifying compliance</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Documents and certificates mandatory for verifying compliance
+              </p>
             </div>
-            <Badge variant="info" size="md">{rule.requiredDocuments?.length || 0} Configured</Badge>
+            <Badge variant="info" size="md">
+              {rule.requiredDocuments?.length || 0} Configured
+            </Badge>
           </div>
 
           {!rule.requiredDocuments || rule.requiredDocuments.length === 0 ? (
@@ -604,9 +631,13 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                   </div>
                   <div>
                     {doc.isMandatory ? (
-                      <Badge variant="danger" size="sm">Mandatory Evidence</Badge>
+                      <Badge variant="danger" size="sm">
+                        Mandatory Evidence
+                      </Badge>
                     ) : (
-                      <Badge variant="default" size="sm">Optional</Badge>
+                      <Badge variant="default" size="sm">
+                        Optional
+                      </Badge>
                     )}
                   </div>
                 </div>
@@ -622,8 +653,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
           <div>
             <h3 className="text-base font-semibold text-slate-900 dark:text-white">Expiry reminders</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              When a record under this rule nears expiry, a renewal task and a notification go to the person
-              responsible for it: the record's assignee, else the location manager, else the entity owner.
+              When a record under this rule nears expiry, a renewal task and a notification go to the person responsible
+              for it: the record's assignee, else the location manager, else the entity owner.
             </p>
           </div>
           {reminderDays.length > 0 ? (
@@ -655,12 +686,12 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 {!coverage
                   ? 'Coverage could not be loaded.'
                   : coverage.summary.applicable === 0
-                  ? `None of the ${coverage.summary.totalLocations} active locations match this rule's criteria.`
-                  : `${coverage.summary.applicable} of ${coverage.summary.totalLocations} active locations match. ${
-                      coverage.summary.missing === 0
-                        ? 'Each one has a compliance record.'
-                        : `${coverage.summary.missing} ${coverage.summary.missing === 1 ? 'has' : 'have'} no compliance record yet.`
-                    }`}
+                    ? `None of the ${coverage.summary.totalLocations} active locations match this rule's criteria.`
+                    : `${coverage.summary.applicable} of ${coverage.summary.totalLocations} active locations match. ${
+                        coverage.summary.missing === 0
+                          ? 'Each one has a compliance record.'
+                          : `${coverage.summary.missing} ${coverage.summary.missing === 1 ? 'has' : 'have'} no compliance record yet.`
+                      }`}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -709,7 +740,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                         <div className="text-xs font-mono text-slate-500 dark:text-slate-400">{location.code}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{location.entity.name}</td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{location.locationType?.label || '—'}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                        {location.locationType?.label || '—'}
+                      </td>
                       <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                         {[location.city, location.state].filter(Boolean).join(', ') || '—'}
                       </td>
@@ -728,7 +761,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                             </Badge>
                           </button>
                         ) : (
-                          <Badge variant="warning" size="sm">No record</Badge>
+                          <Badge variant="warning" size="sm">
+                            No record
+                          </Badge>
                         )}
                       </td>
                     </tr>
@@ -745,7 +780,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
         <Card className="p-6 space-y-4">
           <div>
             <h3 className="text-base font-semibold text-slate-900 dark:text-white">Change history</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">The most recent changes made to this rule.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              The most recent changes made to this rule.
+            </p>
           </div>
           {history.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">No changes recorded yet.</p>
@@ -766,7 +803,9 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                         {formatDate(log.timestamp || log.createdAt)}
                       </td>
                       <td className="px-4 py-3 text-xs">
-                        <div className="font-medium text-slate-900 dark:text-slate-200">{log.actorEmail || 'System'}</div>
+                        <div className="font-medium text-slate-900 dark:text-slate-200">
+                          {log.actorEmail || 'System'}
+                        </div>
                         {log.actorRole && <div className="text-slate-500 dark:text-slate-400">{log.actorRole}</div>}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{log.description}</td>
@@ -821,7 +860,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                 <option value="">-- Choose Entity --</option>
                 {entities.map((e) => (
                   <option key={e._id} value={e._id}>
-                    {e.name} ({e.entityType?.label || e.entityType?.code || 'Entity'}) - {e.address?.state || 'No State'}
+                    {e.name} ({e.entityType?.label || e.entityType?.code || 'Entity'}) -{' '}
+                    {e.address?.state || 'No State'}
                   </option>
                 ))}
               </select>
@@ -893,10 +933,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                     <h4 className="text-base font-bold">
                       {evaluationResult.isApplicable ? 'RULE IS APPLICABLE' : 'RULE IS NOT APPLICABLE'}
                     </h4>
-                    <Badge
-                      variant={evaluationResult.isApplicable ? 'success' : 'danger'}
-                      size="sm"
-                    >
+                    <Badge variant={evaluationResult.isApplicable ? 'success' : 'danger'} size="sm">
                       {evaluationResult.isApplicable ? 'Mandatory Trigger' : 'Scope Mismatch'}
                     </Badge>
                   </div>
@@ -914,7 +951,10 @@ export const ComplianceRuleDetailPage: React.FC = () => {
                   { label: 'Location Type Match', pass: evaluationResult.matches.locationTypeMatch },
                   { label: 'Geographic State Match', pass: evaluationResult.matches.stateMatch },
                 ].map(({ label, pass }) => (
-                  <div key={label} className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-lg">
+                  <div
+                    key={label}
+                    className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-lg"
+                  >
                     <div className="text-[11px] text-slate-500 dark:text-slate-400">{label}</div>
                     <div className="flex items-center gap-1.5 mt-1 font-semibold text-xs">
                       {pass ? (
@@ -958,18 +998,10 @@ export const ComplianceRuleDetailPage: React.FC = () => {
         size="md"
         footer={
           <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteModalOpen(false)}
-              disabled={isDeleting}
-            >
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isDeleting}>
               Cancel
             </Button>
-            <Button
-              variant="danger"
-              onClick={confirmDelete}
-              isLoading={isDeleting}
-            >
+            <Button variant="danger" onClick={confirmDelete} isLoading={isDeleting}>
               Delete Rule
             </Button>
           </div>
@@ -981,15 +1013,17 @@ export const ComplianceRuleDetailPage: React.FC = () => {
             <div>
               <p className="font-semibold text-rose-900 dark:text-rose-200">Confirm Deletion</p>
               <p className="mt-1 text-xs text-rose-700 dark:text-rose-300/80">
-                Are you sure you want to permanently delete rule <strong>"{rule.name}"</strong>?
-                Any location or entity evaluation will no longer trigger this rule.
+                Are you sure you want to permanently delete rule <strong>"{rule.name}"</strong>? Any location or entity
+                evaluation will no longer trigger this rule.
               </p>
             </div>
           </div>
           {isActive && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 text-amber-700 dark:text-amber-300 text-xs">
               <Archive size={14} className="flex-shrink-0" />
-              <span>This rule is currently <strong>active</strong>. Consider deactivating it instead of deleting.</span>
+              <span>
+                This rule is currently <strong>active</strong>. Consider deactivating it instead of deleting.
+              </span>
             </div>
           )}
         </div>
@@ -1013,8 +1047,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
         }
       >
         <p className="text-sm text-slate-700 dark:text-slate-300">
-          Archive <strong>{rule.name}</strong>? It stops creating new compliance records. Records it already drives
-          stay as they are, and you can restore the rule later.
+          Archive <strong>{rule.name}</strong>? It stops creating new compliance records. Records it already drives stay
+          as they are, and you can restore the rule later.
         </p>
       </Modal>
     </div>

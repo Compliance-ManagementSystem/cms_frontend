@@ -12,4 +12,3 @@ export const taskFormSchema = z.object({
 export const createTaskSchema = taskFormSchema.extend({
   entity: z.string().min(1, 'Select an entity'),
 });
-

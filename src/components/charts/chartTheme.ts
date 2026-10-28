@@ -64,9 +64,7 @@ export const useChartTheme = () => {
     series: dark ? '#6366f1' : '#4f46e5',
     critical: '#e11d48',
     /** Low → high score; the low end recedes towards the surface in each theme */
-    scoreBands: dark
-      ? ['#184f95', '#256abf', '#5598e7', '#b7d3f6']
-      : ['#b7d3f6', '#6da7ec', '#2a78d6', '#104281'],
+    scoreBands: dark ? ['#184f95', '#256abf', '#5598e7', '#b7d3f6'] : ['#b7d3f6', '#6da7ec', '#2a78d6', '#104281'],
     noData: dark ? '#1e293b' : '#e2e8f0',
     mapStroke: dark ? '#0b1120' : '#ffffff',
     mapHoverStroke: dark ? '#f8fafc' : '#0f172a',

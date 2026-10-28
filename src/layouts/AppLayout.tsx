@@ -41,16 +41,10 @@ const AppLayout: React.FC = () => {
         ].join(' ')}
       >
         {/* Navbar */}
-        <Navbar
-          sidebarCollapsed={sidebarCollapsed}
-          onOpenMobileSidebar={openMobileSidebar}
-        />
+        <Navbar sidebarCollapsed={sidebarCollapsed} onOpenMobileSidebar={openMobileSidebar} />
 
         {/* Page content */}
-        <main
-          id="main-content"
-          className="flex-1 mt-16 p-4 sm:p-6 page-enter min-w-0 overflow-x-hidden"
-        >
+        <main id="main-content" className="flex-1 mt-16 p-4 sm:p-6 page-enter min-w-0 overflow-x-hidden">
           {/* A crashing page keeps the sidebar and navbar usable; navigating clears it */}
           <ErrorBoundary resetKey={location.pathname}>
             <Outlet />

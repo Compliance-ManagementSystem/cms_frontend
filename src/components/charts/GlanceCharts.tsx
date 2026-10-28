@@ -91,7 +91,9 @@ const PercentCircle: React.FC<{ item: PercentItem; animate: boolean; delay: numb
       >
         {Math.round(shown)}%
       </span>
-      <span className="text-xs font-medium text-slate-800 dark:text-slate-200 text-center leading-tight">{item.label}</span>
+      <span className="text-xs font-medium text-slate-800 dark:text-slate-200 text-center leading-tight">
+        {item.label}
+      </span>
       <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">{item.sub}</span>
     </button>
   );
@@ -139,7 +141,12 @@ export const SegmentedRing: React.FC<{ item: PercentItem; animate: boolean; dela
 
   return (
     <div className="flex flex-col items-center">
-      <svg viewBox="0 0 120 120" className="w-28 h-28" role="img" aria-label={`${item.label}: ${item.pct}% approved, ${item.sub}`}>
+      <svg
+        viewBox="0 0 120 120"
+        className="w-28 h-28"
+        role="img"
+        aria-label={`${item.label}: ${item.pct}% approved, ${item.sub}`}
+      >
         {Array.from({ length: SEGMENTS }, (_, index) => (
           <path
             key={index}
@@ -147,7 +154,14 @@ export const SegmentedRing: React.FC<{ item: PercentItem; animate: boolean; dela
             fill={index < filled ? chart.scoreBands[band] : chart.noData}
           />
         ))}
-        <text x={60} y={66} textAnchor="middle" fontSize={20} fontWeight={700} className="fill-slate-900 dark:fill-slate-100">
+        <text
+          x={60}
+          y={66}
+          textAnchor="middle"
+          fontSize={20}
+          fontWeight={700}
+          className="fill-slate-900 dark:fill-slate-100"
+        >
           {Math.round(shown)}%
         </text>
       </svg>
@@ -215,10 +229,25 @@ export const Speedometer: React.FC<{ label: string; pct: number; sub: string; an
           );
         })}
         {/* Needle */}
-        <line x1={100} y1={100} x2={needle.x} y2={needle.y} stroke={chart.dark ? '#f8fafc' : '#0f172a'} strokeWidth={2.5} strokeLinecap="round" />
+        <line
+          x1={100}
+          y1={100}
+          x2={needle.x}
+          y2={needle.y}
+          stroke={chart.dark ? '#f8fafc' : '#0f172a'}
+          strokeWidth={2.5}
+          strokeLinecap="round"
+        />
         <circle cx={100} cy={100} r={5} fill={chart.dark ? '#f8fafc' : '#0f172a'} />
         {/* Below the pivot, clear of the needle */}
-        <text x={100} y={128} textAnchor="middle" fontSize={20} fontWeight={700} className="fill-slate-900 dark:fill-slate-100">
+        <text
+          x={100}
+          y={128}
+          textAnchor="middle"
+          fontSize={20}
+          fontWeight={700}
+          className="fill-slate-900 dark:fill-slate-100"
+        >
           {Math.round(shown)}%
         </text>
       </svg>
@@ -261,7 +290,10 @@ export const BigPercentTile: React.FC<{
       disabled={!onClick}
       title={`${label}: ${pct}%`}
       className="relative overflow-hidden text-left rounded-xl shadow-sm transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-md motion-reduce:transform-none min-h-[180px]"
-      style={{ backgroundColor: `color-mix(in srgb, ${color} ${dark ? 18 : 12}%, transparent)`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 30%, transparent)` }}
+      style={{
+        backgroundColor: `color-mix(in srgb, ${color} ${dark ? 18 : 12}%, transparent)`,
+        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 30%, transparent)`,
+      }}
     >
       {/* The empty part: coloured text on the tint */}
       <span className="absolute inset-0 p-4 flex flex-col justify-between" style={{ color: ink }}>
@@ -280,11 +312,7 @@ export const BigPercentTile: React.FC<{
       </span>
       {/* A soft highlight along the fill line */}
       {level > 0 && level < 100 && (
-        <span
-          aria-hidden
-          className="absolute inset-x-0 h-px bg-white/60"
-          style={{ bottom: `${level}%` }}
-        />
+        <span aria-hidden className="absolute inset-x-0 h-px bg-white/60" style={{ bottom: `${level}%` }} />
       )}
     </button>
   );
@@ -325,7 +353,12 @@ export const RaceTrack: React.FC<{
   return (
     <>
       <div className="mt-2 flex flex-col sm:flex-row items-center gap-6">
-        <svg viewBox={`0 0 ${size} ${size}`} className="w-full max-w-[320px] shrink-0" role="img" aria-label={`States against a ${target}% target`}>
+        <svg
+          viewBox={`0 0 ${size} ${size}`}
+          className="w-full max-w-[320px] shrink-0"
+          role="img"
+          aria-label={`States against a ${target}% target`}
+        >
           {tracks.map((row, index) => (
             <Track
               key={row.key}
@@ -339,7 +372,15 @@ export const RaceTrack: React.FC<{
               onHover={setHovered}
             />
           ))}
-          <line x1={lineFrom.x} y1={lineFrom.y} x2={lineTo.x} y2={lineTo.y} stroke={targetLine} strokeWidth={2} strokeDasharray="3 3" />
+          <line
+            x1={lineFrom.x}
+            y1={lineFrom.y}
+            x2={lineTo.x}
+            y2={lineTo.y}
+            stroke={targetLine}
+            strokeWidth={2}
+            strokeDasharray="3 3"
+          />
           <text x={labelAt.x} y={labelAt.y} fill={targetLine} fontSize={11} fontWeight={700} textAnchor="middle">
             {target}%
           </text>
@@ -455,13 +496,20 @@ const Track: React.FC<{
         fontWeight={row.selected ? 800 : 600}
         fill={chart.axis}
       >
-        {row.label} <tspan fontWeight={800} fill={chart.dark ? '#f8fafc' : '#0f172a'}>{row.pct}%</tspan>
+        {row.label}{' '}
+        <tspan fontWeight={800} fill={chart.dark ? '#f8fafc' : '#0f172a'}>
+          {row.pct}%
+        </tspan>
       </text>
     </g>
   );
 };
 
-const GapRow: React.FC<{ row: PercentItem; target: number; onHover: (key: string | null) => void }> = ({ row, target, onHover }) => {
+const GapRow: React.FC<{ row: PercentItem; target: number; onHover: (key: string | null) => void }> = ({
+  row,
+  target,
+  onHover,
+}) => {
   const chart = useChartTheme();
   return (
     <li>
@@ -473,10 +521,15 @@ const GapRow: React.FC<{ row: PercentItem; target: number; onHover: (key: string
         onMouseLeave={() => onHover(null)}
         className="w-full flex items-center gap-2 text-xs rounded px-1.5 py-1 enabled:hover:bg-slate-50 dark:enabled:hover:bg-slate-800/50"
       >
-        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: chart.scoreBands[scoreBandIndex(row.pct)] }} />
+        <span
+          className="w-2.5 h-2.5 rounded-full shrink-0"
+          style={{ backgroundColor: chart.scoreBands[scoreBandIndex(row.pct)] }}
+        />
         <span className="truncate text-left text-slate-700 dark:text-slate-300">{row.label}</span>
         <span className="ml-auto tabular-nums font-semibold text-slate-900 dark:text-slate-100">{row.pct}%</span>
-        <span className="w-14 text-right tabular-nums text-slate-400 dark:text-slate-500">{target - row.pct} to go</span>
+        <span className="w-14 text-right tabular-nums text-slate-400 dark:text-slate-500">
+          {target - row.pct} to go
+        </span>
       </button>
     </li>
   );
@@ -524,12 +577,17 @@ export const MonthlyTrend: React.FC<{
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
                     <p className="font-semibold text-slate-800 dark:text-slate-200">{payload[0].payload.month}</p>
                     <p className="text-slate-500 dark:text-slate-400">
-                      Opened: <span className="font-semibold text-slate-900 dark:text-slate-100">{payload[0].payload.current}</span>
+                      Opened:{' '}
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
+                        {payload[0].payload.current}
+                      </span>
                     </p>
                     {payload[0].payload.previous !== null && (
                       <p className="text-slate-500 dark:text-slate-400">
                         A year before:{' '}
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{payload[0].payload.previous}</span>
+                        <span className="font-semibold text-slate-900 dark:text-slate-100">
+                          {payload[0].payload.previous}
+                        </span>
                       </p>
                     )}
                   </div>
@@ -590,7 +648,10 @@ export const GrowthCurve: React.FC<{
 
   // A tick each January, labelled with the year; short histories fall back to an even spread
   const januaries = rows.filter((row) => row.month.startsWith('Jan')).map((row) => row.month);
-  const ticks = januaries.length >= 2 ? januaries : rows.filter((_, index) => index % Math.ceil(rows.length / 5) === 0).map((row) => row.month);
+  const ticks =
+    januaries.length >= 2
+      ? januaries
+      : rows.filter((_, index) => index % Math.ceil(rows.length / 5) === 0).map((row) => row.month);
   const tickLabel = (month: string) => (januaries.length >= 2 ? `20${month.slice(-2)}` : month);
 
   return (
@@ -598,7 +659,9 @@ export const GrowthCurve: React.FC<{
       {/* The headline: where it stands, and how fast it is moving */}
       <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
         <div>
-          <p className="text-3xl font-extrabold leading-none text-slate-900 dark:text-slate-100 tabular-nums">{last.total}</p>
+          <p className="text-3xl font-extrabold leading-none text-slate-900 dark:text-slate-100 tabular-nums">
+            {last.total}
+          </p>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">units opened so far</p>
         </div>
         {lastYear > 0 && (
@@ -625,7 +688,14 @@ export const GrowthCurve: React.FC<{
               </filter>
             </defs>
             <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.18} strokeDasharray="3 4" />
-            <XAxis dataKey="month" ticks={ticks} tickFormatter={tickLabel} tick={axisTick} tickLine={false} axisLine={false} />
+            <XAxis
+              dataKey="month"
+              ticks={ticks}
+              tickFormatter={tickLabel}
+              tick={axisTick}
+              tickLine={false}
+              axisLine={false}
+            />
             <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} tickCount={4} />
             <Tooltip
               cursor={{ stroke: chart.series, strokeOpacity: 0.4, strokeDasharray: '4 4' }}
@@ -636,10 +706,12 @@ export const GrowthCurve: React.FC<{
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
                     <p className="font-semibold text-slate-800 dark:text-slate-200">{point.month}</p>
                     <p className="text-slate-500 dark:text-slate-400">
-                      Opened so far: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.total}</span>
+                      Opened so far:{' '}
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{point.total}</span>
                     </p>
                     <p className="text-slate-500 dark:text-slate-400">
-                      Opened that month: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.opened}</span>
+                      Opened that month:{' '}
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{point.opened}</span>
                     </p>
                   </div>
                 );
@@ -668,7 +740,14 @@ export const GrowthCurve: React.FC<{
                 fill={chart.surface}
                 stroke={chart.series}
                 strokeWidth={2}
-                label={{ value: `${mark}`, position: 'left', offset: 8, fill: chart.axis, fontSize: 10, fontWeight: 700 }}
+                label={{
+                  value: `${mark}`,
+                  position: 'left',
+                  offset: 8,
+                  fill: chart.axis,
+                  fontSize: 10,
+                  fontWeight: 700,
+                }}
               />
             ))}
             {/* The latest figure, with a slow pulse */}
@@ -694,7 +773,8 @@ export const GrowthCurve: React.FC<{
       </div>
 
       <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-        Busiest month: <span className="font-semibold text-slate-700 dark:text-slate-300">{busiest.month}</span>, {busiest.opened} opened
+        Busiest month: <span className="font-semibold text-slate-700 dark:text-slate-300">{busiest.month}</span>,{' '}
+        {busiest.opened} opened
       </p>
     </>
   );
@@ -726,7 +806,9 @@ export const YearlyOpenings: React.FC<{
     <>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <div className="rounded-xl px-3 py-2 bg-amber-50 dark:bg-amber-500/10">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">Best year</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+            Best year
+          </p>
           <p className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
             {peak.opened}
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400"> in {peak.year}</span>
@@ -740,7 +822,9 @@ export const YearlyOpenings: React.FC<{
           <p className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
             {latest.opened}
             {latest.change !== null && latest.change !== 0 && (
-              <span className={`text-xs font-semibold ${latest.change > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+              <span
+                className={`text-xs font-semibold ${latest.change > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+              >
                 {' '}
                 {latest.change > 0 ? '↑' : '↓'} {Math.abs(latest.change)} vs {data[lastIndex - 1].year}
               </span>
@@ -787,12 +871,15 @@ export const YearlyOpenings: React.FC<{
                       {partial && point.year === latest.year ? ' (so far)' : ''}
                     </p>
                     <p className="text-slate-500 dark:text-slate-400">
-                      Units opened: <span className="font-semibold text-slate-900 dark:text-slate-100">{point.opened}</span>
+                      Units opened:{' '}
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{point.opened}</span>
                     </p>
                     {point.change !== null && (
                       <p className="text-slate-500 dark:text-slate-400">
                         Change on the year before:{' '}
-                        <span className={`font-semibold ${point.change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        <span
+                          className={`font-semibold ${point.change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+                        >
                           {point.change >= 0 ? '+' : '−'}
                           {Math.abs(point.change)}
                         </span>
@@ -803,7 +890,14 @@ export const YearlyOpenings: React.FC<{
               }}
             />
             {/* The fill runs under the whole line, finished years and the current one alike */}
-            <Area type="monotone" dataKey="opened" stroke="none" fill="url(#yearlyFill)" isAnimationActive={animate} animationDuration={1200} />
+            <Area
+              type="monotone"
+              dataKey="opened"
+              stroke="none"
+              fill="url(#yearlyFill)"
+              isAnimationActive={animate}
+              animationDuration={1200}
+            />
             <Area
               type="monotone"
               dataKey="done"
@@ -821,8 +915,22 @@ export const YearlyOpenings: React.FC<{
                 const isPeak = payload.year === peak.year;
                 return (
                   <g key={index}>
-                    <circle cx={cx} cy={cy} r={isPeak ? 7 : 5} fill={isPeak ? peakColor : chart.series} stroke={chart.surface} strokeWidth={2.5} />
-                    <text x={cx} y={cy - 14} textAnchor="middle" fill={isPeak ? peakColor : chart.axis} fontSize={isPeak ? 14 : 12} fontWeight={800}>
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={isPeak ? 7 : 5}
+                      fill={isPeak ? peakColor : chart.series}
+                      stroke={chart.surface}
+                      strokeWidth={2.5}
+                    />
+                    <text
+                      x={cx}
+                      y={cy - 14}
+                      textAnchor="middle"
+                      fill={isPeak ? peakColor : chart.axis}
+                      fontSize={isPeak ? 14 : 12}
+                      fontWeight={800}
+                    >
                       {isPeak ? `★ ${payload.opened}` : payload.opened}
                     </text>
                   </g>
@@ -882,7 +990,11 @@ export const YearlyOpenings: React.FC<{
           </span>
         ))}
       </div>
-      {partial && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">* {latest.year} is still running; the dashed stretch is the year so far.</p>}
+      {partial && (
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+          * {latest.year} is still running; the dashed stretch is the year so far.
+        </p>
+      )}
     </>
   );
 };
@@ -973,7 +1085,10 @@ export const DistrictTreemap: React.FC<{
                     <p className="font-semibold text-slate-800 dark:text-slate-200">{payload[0].payload.name}</p>
                     <p className="text-slate-500 dark:text-slate-400">{payload[0].payload.state}</p>
                     <p className="text-slate-500 dark:text-slate-400">
-                      Units: <span className="font-semibold text-slate-900 dark:text-slate-100">{payload[0].payload.size}</span>
+                      Units:{' '}
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
+                        {payload[0].payload.size}
+                      </span>
                     </p>
                   </div>
                 ) : null
@@ -1032,7 +1147,9 @@ export const LicenceRadar: React.FC<{
     underwayPct: share(row.counts.approved + row.counts.applied, row.counts.total),
     target,
   }));
-  const weakest = [...data].sort((a, b) => a.approvedPct - b.approvedPct || b.counts.total - a.counts.total).slice(0, 5);
+  const weakest = [...data]
+    .sort((a, b) => a.approvedPct - b.approvedPct || b.counts.total - a.counts.total)
+    .slice(0, 5);
 
   return (
     <div className="mt-2 grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6 items-center">
@@ -1072,7 +1189,14 @@ export const LicenceRadar: React.FC<{
                         {payload.value}
                       </text>
                       {row && (
-                        <text x={x} y={y + 13} textAnchor={textAnchor} fill={chart.licence.approved} fontSize={11} fontWeight={800}>
+                        <text
+                          x={x}
+                          y={y + 13}
+                          textAnchor={textAnchor}
+                          fill={chart.licence.approved}
+                          fontSize={11}
+                          fontWeight={800}
+                        >
                           {row.approvedPct}%
                         </text>
                       )}
@@ -1107,7 +1231,14 @@ export const LicenceRadar: React.FC<{
                 strokeWidth={2.5}
                 fill="url(#licenceRadarApproved)"
                 dot={{ r: 4, fill: chart.licence.approved, stroke: chart.surface, strokeWidth: 2 }}
-                activeDot={{ r: 6, stroke: chart.surface, strokeWidth: 2, onClick: (_: any, point: any) => onOpen('approved', point.payload.ruleId) } as any}
+                activeDot={
+                  {
+                    r: 6,
+                    stroke: chart.surface,
+                    strokeWidth: 2,
+                    onClick: (_: any, point: any) => onOpen('approved', point.payload.ruleId),
+                  } as any
+                }
                 isAnimationActive={animate}
                 animationDuration={1000}
               />
@@ -1137,7 +1268,9 @@ export const LicenceRadar: React.FC<{
 
       {/* The dents, spelled out: each segment opens those records */}
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Needs the most work</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+          Needs the most work
+        </p>
         <ul className="space-y-3">
           {weakest.map((row) => (
             <li key={row.ruleId}>
@@ -1159,14 +1292,21 @@ export const LicenceRadar: React.FC<{
                       onClick={() => onOpen(bucket, row.ruleId)}
                       title={`${RADAR_BUCKET_LABELS[bucket]}: ${row.counts[bucket]} of ${row.counts.total}. Click to open.`}
                       className="h-full hover:opacity-80"
-                      style={{ flexGrow: row.counts[bucket], flexBasis: 0, minWidth: 4, backgroundColor: chart.licence[bucket] }}
+                      style={{
+                        flexGrow: row.counts[bucket],
+                        flexBasis: 0,
+                        minWidth: 4,
+                        backgroundColor: chart.licence[bucket],
+                      }}
                     />
                   ))}
               </div>
             </li>
           ))}
         </ul>
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">Click a licence on the radar, or a colour here, to open those records.</p>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
+          Click a licence on the radar, or a colour here, to open those records.
+        </p>
       </div>
     </div>
   );
@@ -1181,7 +1321,9 @@ const toSquares = (values: number[]): number[] => {
   const exact = values.map((value) => (value / total) * 100);
   const squares = exact.map((share, index) => (values[index] > 0 ? Math.max(1, Math.floor(share)) : 0));
   let left = 100 - squares.reduce((sum, count) => sum + count, 0);
-  const order = exact.map((share, index) => ({ index, rest: share - Math.floor(share) })).sort((a, b) => b.rest - a.rest);
+  const order = exact
+    .map((share, index) => ({ index, rest: share - Math.floor(share) }))
+    .sort((a, b) => b.rest - a.rest);
   for (let i = 0; left > 0; i = (i + 1) % order.length) {
     if (values[order[i].index] > 0) {
       squares[order[i].index] += 1;
@@ -1219,7 +1361,11 @@ export const Waffle: React.FC<{
 
   return (
     <div className="mt-3 flex flex-col sm:flex-row gap-5 items-center sm:items-start">
-      <div className="grid grid-cols-10 gap-[3px] w-full max-w-[200px] shrink-0" role="img" aria-label={`Share of ${total} ${noun}`}>
+      <div
+        className="grid grid-cols-10 gap-[3px] w-full max-w-[200px] shrink-0"
+        role="img"
+        aria-label={`Share of ${total} ${noun}`}
+      >
         {cells.map((cell, position) => (
           <span
             key={position}
@@ -1345,11 +1491,36 @@ export const HalfDonut: React.FC<{
 
 // Short names for bubbles too small for the full one
 const STATE_CODES: Record<string, string> = {
-  'Andhra Pradesh': 'AP', 'Arunachal Pradesh': 'AR', Assam: 'AS', Bihar: 'BR', Chhattisgarh: 'CG', Goa: 'GA',
-  Gujarat: 'GJ', Haryana: 'HR', 'Himachal Pradesh': 'HP', Jharkhand: 'JH', Karnataka: 'KA', Kerala: 'KL',
-  'Madhya Pradesh': 'MP', Maharashtra: 'MH', Manipur: 'MN', Meghalaya: 'ML', Mizoram: 'MZ', Nagaland: 'NL',
-  Odisha: 'OD', Punjab: 'PB', Rajasthan: 'RJ', Sikkim: 'SK', 'Tamil Nadu': 'TN', Telangana: 'TG', Tripura: 'TR',
-  'Uttar Pradesh': 'UP', Uttarakhand: 'UK', 'West Bengal': 'WB', Delhi: 'DL', 'Jammu and Kashmir': 'JK',
+  'Andhra Pradesh': 'AP',
+  'Arunachal Pradesh': 'AR',
+  Assam: 'AS',
+  Bihar: 'BR',
+  Chhattisgarh: 'CG',
+  Goa: 'GA',
+  Gujarat: 'GJ',
+  Haryana: 'HR',
+  'Himachal Pradesh': 'HP',
+  Jharkhand: 'JH',
+  Karnataka: 'KA',
+  Kerala: 'KL',
+  'Madhya Pradesh': 'MP',
+  Maharashtra: 'MH',
+  Manipur: 'MN',
+  Meghalaya: 'ML',
+  Mizoram: 'MZ',
+  Nagaland: 'NL',
+  Odisha: 'OD',
+  Punjab: 'PB',
+  Rajasthan: 'RJ',
+  Sikkim: 'SK',
+  'Tamil Nadu': 'TN',
+  Telangana: 'TG',
+  Tripura: 'TR',
+  'Uttar Pradesh': 'UP',
+  Uttarakhand: 'UK',
+  'West Bengal': 'WB',
+  Delhi: 'DL',
+  'Jammu and Kashmir': 'JK',
 };
 
 const BUBBLE_GAP = 6;
@@ -1436,7 +1607,13 @@ export const StateBubbles: React.FC<{
   const focus = items.find((row) => row.key === hovered);
 
   const toggle = (key: string) =>
-    setHidden((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : prev.length + 1 >= series.length ? prev : [...prev, key]));
+    setHidden((prev) =>
+      prev.includes(key)
+        ? prev.filter((item) => item !== key)
+        : prev.length + 1 >= series.length
+          ? prev
+          : [...prev, key]
+    );
 
   return (
     <>
@@ -1456,7 +1633,10 @@ export const StateBubbles: React.FC<{
                   : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color, opacity: off ? 0.35 : 1 }} />
+              <span
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: item.color, opacity: off ? 0.35 : 1 }}
+              />
               {item.label}
             </button>
           );
@@ -1464,7 +1644,12 @@ export const StateBubbles: React.FC<{
       </div>
 
       <div className="relative mt-2">
-        <svg viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`} className="w-full max-h-[340px]" role="img" aria-label="Units by state">
+        <svg
+          viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`}
+          className="w-full max-h-[340px]"
+          role="img"
+          aria-label="Units by state"
+        >
           <defs>
             <radialGradient id="stateBubbleFill" cx="35%" cy="30%" r="75%">
               <stop offset="0%" stopColor={chart.dark ? '#334155' : '#ffffff'} />
@@ -1516,7 +1701,13 @@ export const StateBubbles: React.FC<{
                   offset += length;
                   return arc;
                 })}
-                <text textAnchor="middle" y={big ? -2 : 4} fontSize={big ? Math.min(r * 0.42, 34) : 13} fontWeight={800} fill={ink}>
+                <text
+                  textAnchor="middle"
+                  y={big ? -2 : 4}
+                  fontSize={big ? Math.min(r * 0.42, 34) : 13}
+                  fontWeight={800}
+                  fill={ink}
+                >
                   {row.total}
                 </text>
                 <text
@@ -1546,7 +1737,10 @@ export const StateBubbles: React.FC<{
                   <span className="text-slate-500 dark:text-slate-400">{item.label}:</span>
                   <span className="ml-auto font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
                     {value}
-                    <span className="font-normal text-slate-500 dark:text-slate-400"> ({Math.round((value / focus.total) * 100)}%)</span>
+                    <span className="font-normal text-slate-500 dark:text-slate-400">
+                      {' '}
+                      ({Math.round((value / focus.total) * 100)}%)
+                    </span>
                   </span>
                 </p>
               );
@@ -1614,7 +1808,9 @@ export const StateRose: React.FC<{
         {
           key: '__other',
           label: `${rest.length} other states`,
-          values: Object.fromEntries(series.map((item) => [item.key, rest.reduce((acc, row) => acc + (row.values[item.key] || 0), 0)])),
+          values: Object.fromEntries(
+            series.map((item) => [item.key, rest.reduce((acc, row) => acc + (row.values[item.key] || 0), 0)])
+          ),
           total: rest.reduce((acc, row) => acc + row.total, 0),
         },
       ]
@@ -1633,7 +1829,13 @@ export const StateRose: React.FC<{
   const c = ROSE_SIZE / 2;
 
   const focus = petals.find((row) => row.key === hovered);
-  const shown = focus ?? { label: 'All states', values: Object.fromEntries(series.map((item) => [item.key, petals.reduce((acc, row) => acc + (row.values[item.key] || 0), 0)])), total: grand };
+  const shown = focus ?? {
+    label: 'All states',
+    values: Object.fromEntries(
+      series.map((item) => [item.key, petals.reduce((acc, row) => acc + (row.values[item.key] || 0), 0)])
+    ),
+    total: grand,
+  };
 
   return (
     <div className="mt-3 grid grid-cols-1 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6 items-center">
@@ -1655,8 +1857,24 @@ export const StateRose: React.FC<{
         {/* Rings for scale at a quarter, half, three quarters and all of the largest state, numbered just left of 12 o'clock, clear of the largest petal */}
         {[0.25, 0.5, 0.75, 1].map((share) => (
           <g key={share}>
-            <circle cx={c} cy={c} r={radius(max * share)} fill="none" stroke={chart.grid} strokeOpacity={0.55} strokeWidth={1} strokeDasharray="3 4" />
-            <text x={c - 4} y={c - radius(max * share) - 3} textAnchor="end" fontSize={9} fontWeight={600} fill={chart.axis}>
+            <circle
+              cx={c}
+              cy={c}
+              r={radius(max * share)}
+              fill="none"
+              stroke={chart.grid}
+              strokeOpacity={0.55}
+              strokeWidth={1}
+              strokeDasharray="3 4"
+            />
+            <text
+              x={c - 4}
+              y={c - radius(max * share) - 3}
+              textAnchor="end"
+              fontSize={9}
+              fontWeight={600}
+              fill={chart.axis}
+            >
               {Math.round(max * share).toLocaleString()}
             </text>
           </g>
@@ -1686,7 +1904,9 @@ export const StateRose: React.FC<{
               style={{ opacity: dim ? 0.3 : 1, transition: 'opacity 150ms' }}
             >
               <title>
-                {other ? rest.map((item) => `${item.label}: ${item.total}`).join('\n') : `${row.label}: ${row.total} licences. Click to filter.`}
+                {other
+                  ? rest.map((item) => `${item.label}: ${item.total}`).join('\n')
+                  : `${row.label}: ${row.total} licences. Click to filter.`}
               </title>
               <g
                 style={{
@@ -1712,9 +1932,19 @@ export const StateRose: React.FC<{
                     />
                   );
                 })}
-                {selected === row.key && <path d={wedge(a0, a1, ROSE_HOLE, outer)} fill="none" stroke={ink} strokeWidth={2.5} />}
+                {selected === row.key && (
+                  <path d={wedge(a0, a1, ROSE_HOLE, outer)} fill="none" stroke={ink} strokeWidth={2.5} />
+                )}
               </g>
-              <text x={lx} y={ly} textAnchor={anchor} dy="-0.15em" fontSize={11} fontWeight={700} fill={other ? chart.axis : ink}>
+              <text
+                x={lx}
+                y={ly}
+                textAnchor={anchor}
+                dy="-0.15em"
+                fontSize={11}
+                fontWeight={700}
+                fill={other ? chart.axis : ink}
+              >
                 {row.label}
               </text>
               <text x={lx} y={ly} textAnchor={anchor} dy="1em" fontSize={10} fill={chart.axis}>
@@ -1736,7 +1966,9 @@ export const StateRose: React.FC<{
 
       {/* The breakdown beside it: all states, or the one under the pointer */}
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{shown.label}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          {shown.label}
+        </p>
         <p className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
           {shown.total.toLocaleString()}
           <span className="text-sm font-semibold text-slate-500 dark:text-slate-400"> licences</span>
@@ -1750,19 +1982,24 @@ export const StateRose: React.FC<{
                 <div className="flex items-center gap-2 text-xs">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                   <span className="text-slate-700 dark:text-slate-300">{item.label}</span>
-                  <span className="ml-auto font-semibold tabular-nums text-slate-900 dark:text-slate-100">{value.toLocaleString()}</span>
+                  <span className="ml-auto font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+                    {value.toLocaleString()}
+                  </span>
                   <span className="w-9 text-right tabular-nums text-slate-400 dark:text-slate-500">{share}%</span>
                 </div>
                 <div className="mt-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                  <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${share}%`, backgroundColor: item.color }} />
+                  <div
+                    className="h-full rounded-full transition-[width] duration-300"
+                    style={{ width: `${share}%`, backgroundColor: item.color }}
+                  />
                 </div>
               </li>
             );
           })}
         </ul>
         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-4">
-          Each petal is a state: longer means more licences, and the colours run from approved at the centre outwards. Point at a petal for its
-          figures; click to filter.
+          Each petal is a state: longer means more licences, and the colours run from approved at the centre outwards.
+          Point at a petal for its figures; click to filter.
         </p>
       </div>
     </div>

@@ -39,7 +39,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       },
     ],
   },
- 
+
   {
     title: 'Master Data',
     items: [
@@ -108,7 +108,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       },
     ],
   },
-   {
+  {
     title: 'Administration',
     roles: ['super_admin', 'admin'],
     items: [

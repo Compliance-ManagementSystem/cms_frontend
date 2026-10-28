@@ -108,7 +108,9 @@ const Panel: React.FC<{
 );
 
 const EmptyState: React.FC<{ children: React.ReactNode; height?: string }> = ({ children, height = 'h-56' }) => (
-  <div className={`${height} flex items-center justify-center text-center text-sm text-slate-500 dark:text-slate-400 px-4`}>
+  <div
+    className={`${height} flex items-center justify-center text-center text-sm text-slate-500 dark:text-slate-400 px-4`}
+  >
     {children}
   </div>
 );
@@ -143,7 +145,9 @@ const LicenceGrid: React.FC<{
           <tbody>
             {grid.rows.map((row) => (
               <tr key={row.state}>
-                <th className="text-left font-medium text-slate-700 dark:text-slate-300 pr-2 whitespace-nowrap">{row.state}</th>
+                <th className="text-left font-medium text-slate-700 dark:text-slate-300 pr-2 whitespace-nowrap">
+                  {row.state}
+                </th>
                 {grid.licences.map((licence) => {
                   const cell = row.cells[licence.ruleId];
                   if (!cell) {
@@ -234,7 +238,8 @@ export const Dashboard: React.FC = () => {
         dashboardService
           .getDashboardStats({ state: filters.state, entity: filters.entity })
           .then((stats) => {
-            if (id === requestId.current) setTaskCounts({ open: stats.kpis.openTasks, overdue: stats.kpis.overdueTasks });
+            if (id === requestId.current)
+              setTaskCounts({ open: stats.kpis.openTasks, overdue: stats.kpis.overdueTasks });
           })
           .catch(() => setTaskCounts(null));
 
@@ -342,12 +347,15 @@ export const Dashboard: React.FC = () => {
   const scopeParams = { entity: filters.entity, state: filters.state };
   const recordsLink = (bucket: LicenceBucket, extra: Record<string, string | undefined> = {}) =>
     withQuery(ROUTES.COMPLIANCE_RECORDS, { status: LICENCE_STATUS_PARAM[bucket], entity: filters.entity, ...extra });
-  const unitsLink = (status?: string, opening?: string) => withQuery(ROUTES.LOCATIONS, { ...scopeParams, status, opening });
+  const unitsLink = (status?: string, opening?: string) =>
+    withQuery(ROUTES.LOCATIONS, { ...scopeParams, status, opening });
 
-  const licenceLegend = LICENCE_ORDER.filter((bucket) => bucket !== 'expired' || licences.expired > 0).map((bucket) => ({
-    label: LICENCE_LABELS[bucket],
-    color: chart.licence[bucket],
-  }));
+  const licenceLegend = LICENCE_ORDER.filter((bucket) => bucket !== 'expired' || licences.expired > 0).map(
+    (bucket) => ({
+      label: LICENCE_LABELS[bucket],
+      color: chart.licence[bucket],
+    })
+  );
   const shownLicenceBuckets = LICENCE_ORDER.filter((bucket) => bucket !== 'expired' || licences.expired > 0);
 
   // ── Top cards ────────────────────────────────────────────────────────────────
@@ -374,7 +382,12 @@ export const Dashboard: React.FC = () => {
     label: UNIT_LABELS[bucket],
     value: units[bucket],
     color: chart.unit[bucket],
-    to: bucket === 'open' ? unitsLink('active', 'opened') : bucket === 'closed' ? unitsLink('inactive') : unitsLink('active', 'upcoming'),
+    to:
+      bucket === 'open'
+        ? unitsLink('active', 'opened')
+        : bucket === 'closed'
+          ? unitsLink('inactive')
+          : unitsLink('active', 'upcoming'),
   }));
   const licenceSlices: StatusSlice[] = shownLicenceBuckets.map((bucket) => ({
     key: bucket,
@@ -519,7 +532,12 @@ export const Dashboard: React.FC = () => {
               ))}
             </select>
           )}
-          <Button variant="outline" leftIcon={<RefreshCw size={15} />} isLoading={isLoading} onClick={() => fetchOverview()}>
+          <Button
+            variant="outline"
+            leftIcon={<RefreshCw size={15} />}
+            isLoading={isLoading}
+            onClick={() => fetchOverview()}
+          >
             Refresh
           </Button>
         </div>
@@ -598,7 +616,11 @@ export const Dashboard: React.FC = () => {
 
               {/* Every state's share approved, as circles */}
               {statePercents.length > 0 && (
-                <Panel className="flex-1" title="Licences Approved by State" subtitle="Largest first. Click a state to filter the dashboard.">
+                <Panel
+                  className="flex-1"
+                  title="Licences Approved by State"
+                  subtitle="Largest first. Click a state to filter the dashboard."
+                >
                   <PercentCircles items={statePercents} animate={motion} />
                 </Panel>
               )}
@@ -621,11 +643,17 @@ export const Dashboard: React.FC = () => {
                         <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                           {company.units} {company.units === 1 ? 'unit' : 'units'}
                         </span>
-                        <StatusStrip counts={company.counts} buckets={shownLicenceBuckets} className="mt-2 h-2 w-full rounded-full" />
+                        <StatusStrip
+                          counts={company.counts}
+                          buckets={shownLicenceBuckets}
+                          className="mt-2 h-2 w-full rounded-full"
+                        />
                       </div>
                     ))}
                   </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-4">A unit shared by two companies is counted for both.</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-4">
+                    A unit shared by two companies is counted for both.
+                  </p>
                 </>
               )}
             </Panel>
@@ -644,7 +672,11 @@ export const Dashboard: React.FC = () => {
                 <RaceTrack rows={statePercents} target={APPROVAL_TARGET} animate={motion} />
               )}
             </Panel>
-            <Panel title="Units Opened per Month" subtitle="The last 12 months, against the same month a year before" className="lg:col-span-5">
+            <Panel
+              title="Units Opened per Month"
+              subtitle="The last 12 months, against the same month a year before"
+              className="lg:col-span-5"
+            >
               {monthlyOpenings.length === 0 ? (
                 <EmptyState>No opening dates entered for this view.</EmptyState>
               ) : (
@@ -691,7 +723,11 @@ export const Dashboard: React.FC = () => {
             >
               <StateBubbles
                 rows={stateUnitRows}
-                series={UNIT_ORDER.map((bucket) => ({ key: bucket, label: UNIT_LABELS[bucket], color: chart.unit[bucket] }))}
+                series={UNIT_ORDER.map((bucket) => ({
+                  key: bucket,
+                  label: UNIT_LABELS[bucket],
+                  color: chart.unit[bucket],
+                }))}
                 animate={motion}
                 selected={filters.state}
                 onSelect={toggleState}
@@ -854,7 +890,9 @@ export const Dashboard: React.FC = () => {
               ) : (
                 <LicenceGrid
                   grid={data.licenceGrid}
-                  onOpen={(ruleId) => navigate(withQuery(ROUTES.COMPLIANCE_RECORDS, { rule: ruleId, entity: filters.entity }))}
+                  onOpen={(ruleId) =>
+                    navigate(withQuery(ROUTES.COMPLIANCE_RECORDS, { rule: ruleId, entity: filters.entity }))
+                  }
                 />
               )}
             </Panel>
@@ -862,7 +900,11 @@ export const Dashboard: React.FC = () => {
 
           {/* Row 6: growth by year, and whether newer units are behind */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <Panel title="Units Opened per Year" subtitle="By opening date, closed units included" className="lg:col-span-5">
+            <Panel
+              title="Units Opened per Year"
+              subtitle="By opening date, closed units included"
+              className="lg:col-span-5"
+            >
               {data.openingsByYear.length === 0 ? (
                 <EmptyState>No opening dates entered for this view.</EmptyState>
               ) : (
@@ -880,7 +922,12 @@ export const Dashboard: React.FC = () => {
               ) : (
                 <>
                   <Legend items={licenceLegend} />
-                  <YearColumnsChart rows={yearRows} buckets={shownLicenceBuckets} animate={motion} target={APPROVAL_TARGET} />
+                  <YearColumnsChart
+                    rows={yearRows}
+                    buckets={shownLicenceBuckets}
+                    animate={motion}
+                    target={APPROVAL_TARGET}
+                  />
                 </>
               )}
             </Panel>
@@ -905,15 +952,17 @@ export const Dashboard: React.FC = () => {
                         className="w-full flex items-center justify-between gap-3 py-2 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded"
                       >
                         <span className="min-w-0">
-                          <span className="block font-semibold text-slate-900 dark:text-slate-100 truncate">{unit.name}</span>
+                          <span className="block font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            {unit.name}
+                          </span>
                           <span className="block text-slate-500 dark:text-slate-400 truncate">
                             {unit.code} · {unit.state}
                           </span>
                         </span>
                         <span className="shrink-0 inline-flex items-center gap-2 text-slate-700 dark:text-slate-300">
                           <span>
-                            <span className="font-semibold text-slate-900 dark:text-slate-100">{unit.open}</span> of {unit.total}{' '}
-                            pending
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">{unit.open}</span> of{' '}
+                            {unit.total} pending
                           </span>
                           <ChevronRight size={14} className="text-slate-400" />
                         </span>
@@ -947,7 +996,12 @@ export const Dashboard: React.FC = () => {
                       <span className="block text-slate-800 dark:text-slate-200">{entry.description}</span>
                       <span className="block text-slate-500 dark:text-slate-400 mt-0.5">
                         {entry.by} ·{' '}
-                        {new Date(entry.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(entry.at).toLocaleString([], {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </span>
                     </li>
                   ))}

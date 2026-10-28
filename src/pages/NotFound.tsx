@@ -11,9 +11,7 @@ const NotFound: React.FC = () => {
         <AlertTriangle size={48} className="text-red-400" />
       </div>
       <h1 className="text-6xl font-black text-slate-700 mb-2">404</h1>
-      <h2 className="text-xl font-semibold text-slate-300 mb-2">
-        Page Not Found
-      </h2>
+      <h2 className="text-xl font-semibold text-slate-300 mb-2">Page Not Found</h2>
       <p className="text-slate-500 text-sm max-w-sm mb-8">
         The page you're looking for doesn't exist or has been moved.
       </p>

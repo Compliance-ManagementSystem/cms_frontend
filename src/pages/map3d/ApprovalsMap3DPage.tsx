@@ -161,7 +161,10 @@ const MapPage: React.FC = () => {
   useEffect(() => {
     sceneRef.current?.setActive(
       new Map<string, ActiveState>(
-        mapped.map((row) => [row.mapId, { color: toHex(chart.scoreBands[scoreBandIndex(row.pct)]), clearancePct: row.pct }])
+        mapped.map((row) => [
+          row.mapId,
+          { color: toHex(chart.scoreBands[scoreBandIndex(row.pct)]), clearancePct: row.pct },
+        ])
       )
     );
   }, [mapped, chart.scoreBands]);
@@ -309,9 +312,13 @@ const MapPage: React.FC = () => {
             <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 className="text-base sm:text-xl font-bold tracking-[0.2em] uppercase text-white">National Approvals Map</h1>
+            <h1 className="text-base sm:text-xl font-bold tracking-[0.2em] uppercase text-white">
+              National Approvals Map
+            </h1>
             <p className="text-[11px] tracking-[0.2em] uppercase text-[#8aa0bd] mt-0.5">
-              Units and licence status · {[entities.find((e) => e._id === filters.entity)?.code, filters.state].filter(Boolean).join(' · ') || 'All India'}
+              Units and licence status ·{' '}
+              {[entities.find((e) => e._id === filters.entity)?.code, filters.state].filter(Boolean).join(' · ') ||
+                'All India'}
               {asOf && ` · ${asOf}`}
             </p>
           </div>
@@ -371,14 +378,19 @@ const MapPage: React.FC = () => {
       {/* ── 3D stage ─────────────────────────────────────────────────────────── */}
       <div className="relative h-[60vh] lg:absolute lg:inset-0 lg:h-auto">
         {webgl ? (
-          <div ref={stageRef} className="absolute inset-0" aria-label="3D map of India showing licences approved by state" role="img" />
+          <div
+            ref={stageRef}
+            className="absolute inset-0"
+            aria-label="3D map of India showing licences approved by state"
+            role="img"
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
             <div className={`${GLASS} max-w-md p-6`}>
               <p className="text-base font-semibold text-white">3D view isn't available in this browser</p>
               <p className="text-sm text-[#8aa0bd] mt-2">
-                It needs WebGL, which this browser or device has turned off. The figures below still work, and the 2D map
-                is on the dashboard.
+                It needs WebGL, which this browser or device has turned off. The figures below still work, and the 2D
+                map is on the dashboard.
               </p>
               <button
                 type="button"
@@ -410,7 +422,8 @@ const MapPage: React.FC = () => {
                   {hovered.pct}% approved · {hovered.licences.total} licences
                 </p>
                 <p className="text-slate-400">
-                  {hovered.licences.approved} approved · {hovered.licences.applied + hovered.licences.toBeApplied} pending
+                  {hovered.licences.approved} approved · {hovered.licences.applied + hovered.licences.toBeApplied}{' '}
+                  pending
                   {hovered.licences.expired > 0 ? ` · ${hovered.licences.expired} expired` : ''}
                 </p>
               </>
@@ -457,11 +470,7 @@ const MapPage: React.FC = () => {
                     <div
                       key={`${slide}-${paused}-${slideMs}`}
                       className="h-full bg-[#4da3ff] motion-reduce:hidden"
-                      style={
-                        paused
-                          ? { width: 0 }
-                          : { animation: `map3d-slide-progress ${slideMs}ms linear forwards` }
-                      }
+                      style={paused ? { width: 0 } : { animation: `map3d-slide-progress ${slideMs}ms linear forwards` }}
                     />
                   </div>
                   <div className="flex items-center gap-2 mt-3">
@@ -491,7 +500,9 @@ const MapPage: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSlideMs(SLIDE_SPEEDS[(SLIDE_SPEEDS.indexOf(slideMs) + 1) % SLIDE_SPEEDS.length])}
+                      onClick={() =>
+                        setSlideMs(SLIDE_SPEEDS[(SLIDE_SPEEDS.indexOf(slideMs) + 1) % SLIDE_SPEEDS.length])
+                      }
                       aria-label={`Time on each slide: ${slideMs / 1000} seconds. Change`}
                       className="rounded-full border border-[#2a3c5c] px-3 py-1.5 text-xs tabular-nums hover:bg-white/5"
                     >
@@ -523,7 +534,9 @@ const MapPage: React.FC = () => {
                   aria-label="Licences approved by state"
                 >
                   <h2 className="text-sm font-semibold text-slate-100">Licences Approved by State</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Share of applicable licences approved. Click a state to open it.</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Share of applicable licences approved. Click a state to open it.
+                  </p>
                   <ul className="mt-3 space-y-1">
                     {mapped.map((row) => (
                       <li key={row.state}>
@@ -535,7 +548,10 @@ const MapPage: React.FC = () => {
                             filters.state === row.state ? 'bg-white/10' : ''
                           }`}
                         >
-                          <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: bandColor(row.pct) }} />
+                          <span
+                            className="w-3 h-3 rounded-sm shrink-0"
+                            style={{ backgroundColor: bandColor(row.pct) }}
+                          />
                           <span className="text-slate-200">{row.state}</span>
                           <span className="ml-auto tabular-nums text-slate-400">
                             {row.licences.approved}/{row.licences.total} · {row.pct}%
@@ -544,7 +560,9 @@ const MapPage: React.FC = () => {
                       </li>
                     ))}
                   </ul>
-                  {mapped.length === 0 && <p className="text-sm text-slate-400 mt-3">No licence records in this view.</p>}
+                  {mapped.length === 0 && (
+                    <p className="text-sm text-slate-400 mt-3">No licence records in this view.</p>
+                  )}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-[11px] text-slate-400">
                     <span className="font-medium">Licences approved:</span>
                     {SCORE_BANDS.map((band, index) => (
@@ -554,7 +572,9 @@ const MapPage: React.FC = () => {
                       </span>
                     ))}
                   </div>
-                  {unmapped.length > 0 && <p className="text-[11px] text-slate-400 mt-2">Not on the map: {unmapped.join(', ')}</p>}
+                  {unmapped.length > 0 && (
+                    <p className="text-[11px] text-slate-400 mt-2">Not on the map: {unmapped.join(', ')}</p>
+                  )}
                   <p className="text-[11px] text-slate-500 mt-2">
                     Taller states have more approved. Drag to orbit, scroll to zoom.
                   </p>
@@ -564,7 +584,9 @@ const MapPage: React.FC = () => {
               {/* The open view's licence figures, as on the dashboard */}
               <aside className={`${GLASS} lg:pointer-events-auto lg:w-[460px] lg:h-full flex flex-col overflow-hidden`}>
                 <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-[#1d2b44]">
-                  <h2 className="text-sm font-bold tracking-[0.18em] uppercase text-white">{filters.state || 'All India'}</h2>
+                  <h2 className="text-sm font-bold tracking-[0.18em] uppercase text-white">
+                    {filters.state || 'All India'}
+                  </h2>
                   {filters.state && (
                     <div className="flex items-center gap-2">
                       <button
@@ -592,7 +614,12 @@ const MapPage: React.FC = () => {
                       <p className="text-sm text-slate-400 mt-3">No licence records in this view.</p>
                     ) : (
                       <>
-                        <StatusGauge slices={licenceSlices} total={licences.total} headline="approved" animate={motion} />
+                        <StatusGauge
+                          slices={licenceSlices}
+                          total={licences.total}
+                          headline="approved"
+                          animate={motion}
+                        />
                         <p className="text-[11px] text-slate-400 mt-2">
                           {licences.notApplicable.toLocaleString()} more are marked not applicable and are left out.
                         </p>
@@ -619,7 +646,10 @@ const MapPage: React.FC = () => {
                     )}
                   </Section>
 
-                  <Section title="Licence Status by Type" subtitle="Each licence across the units it applies to. Click a bar to open those records.">
+                  <Section
+                    title="Licence Status by Type"
+                    subtitle="Each licence across the units it applies to. Click a bar to open those records."
+                  >
                     {licenceRows.length === 0 ? (
                       <p className="text-sm text-slate-400 mt-3">No licence records in this view.</p>
                     ) : (
