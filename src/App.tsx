@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppRoutes from '@/routes/AppRoutes';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import env from '@/config/env';
 
 const queryClient = new QueryClient({
@@ -25,13 +26,16 @@ const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <ToastProvider>
-              <AppRoutes />
-            </ToastProvider>
-          </AuthProvider>
-        </BrowserRouter>
+        {/* Last resort for errors outside a page (providers, layout, login) */}
+        <ErrorBoundary fullScreen>
+          <BrowserRouter>
+            <AuthProvider>
+              <ToastProvider>
+                <AppRoutes />
+              </ToastProvider>
+            </AuthProvider>
+          </BrowserRouter>
+        </ErrorBoundary>
         {env.IS_DEV && <ReactQueryDevtools initialIsOpen={false} />}
       </ThemeProvider>
     </QueryClientProvider>

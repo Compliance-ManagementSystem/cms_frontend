@@ -3,10 +3,23 @@ import { Briefcase, FileText, Mail, MapPin, Phone, Save, User } from 'lucide-rea
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { useToast } from '@/hooks/useToast';
 import { CreateEntityPayload, EntityItem } from '@/services/entityService';
 import type { MasterDataItem } from '@/services/adminService';
 import { lookupService, LookupUser } from '@/services/lookupService';
+import { z } from 'zod';
+import FieldError, { fieldBorder } from '@/components/ui/FieldError';
+import {
+  FieldErrors,
+  useFormErrors,
+  required,
+  email,
+  phone,
+  optionalPincode,
+  optionalGstin,
+  optionalPan,
+  optionalCin,
+  optionalCode,
+} from '@/utils/validation';
 
 /** The form element's id, so a button outside the form can submit it */
 export const ENTITY_FORM_ID = 'entity-form';
@@ -22,6 +35,8 @@ interface EntityFormProps {
   isSubmitting: boolean;
   onSubmit: (payload: CreateEntityPayload) => void;
   onCancel: () => void;
+  /** Field errors returned by the API for the last submit */
+  serverErrors?: FieldErrors;
 }
 
 interface FormState {
@@ -51,7 +66,33 @@ interface FormState {
 }
 
 const FIELD_CLASS =
-  'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed';
+  'w-full bg-white dark:bg-slate-800 border rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed';
+const fieldClass = (error?: string) => `${FIELD_CLASS} ${fieldBorder(error)}`;
+
+// Contact details and address: editable by everyone who can edit the entity
+const contactSchema = z.object({
+  contactEmail: email,
+  contactPhone: phone,
+  address: z.object({
+    line1: required('Address line 1'),
+    city: required('City'),
+    state: z.string().trim().min(1, 'Select a state'),
+    pincode: optionalPincode,
+  }),
+});
+
+// Details and statutory identifiers: administrators only
+const coreSchema = contactSchema.extend({
+  name: required('Entity name')
+    .min(2, 'Entity name must be at least 2 characters')
+    .max(150, 'Entity name must be at most 150 characters'),
+  code: optionalCode('Entity code'),
+  entityType: z.string().min(1, 'Select an entity type'),
+  gstin: optionalGstin,
+  pan: optionalPan,
+  cin: optionalCin,
+});
+
 const LABEL_CLASS = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5';
 
 const RequiredMark = () => (
@@ -86,8 +127,15 @@ const toFormState = (ent?: EntityItem): FormState => ({
   },
 });
 
-const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, isSubmitting, onSubmit, onCancel }) => {
-  const toast = useToast();
+const EntityForm: React.FC<EntityFormProps> = ({
+  initial,
+  canEditCore = true,
+  isSubmitting,
+  onSubmit,
+  onCancel,
+  serverErrors,
+}) => {
+  const { errors, validate, clear } = useFormErrors(serverErrors);
   const isEdit = !!initial;
 
   const [form, setForm] = useState<FormState>(() => toFormState(initial));
@@ -116,14 +164,20 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
     });
   }, []);
 
-  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    clear(key);
+  };
 
-  const setAddress = (key: keyof FormState['address'], value: string) =>
+  const setAddress = (key: keyof FormState['address'], value: string) => {
     setForm((prev) => ({ ...prev, address: { ...prev.address, [key]: value } }));
+    clear(`address.${key}`);
+  };
 
-  const handleStateChange = (state: string) =>
+  const handleStateChange = (state: string) => {
     setForm((prev) => ({ ...prev, address: { ...prev.address, state, district: '' } }));
+    clear('address.state');
+  };
 
   // Districts narrow to the chosen state when Master Data links them
   const selectedState = states.find((s) => s.label === form.address.state);
@@ -133,18 +187,8 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const missing =
-      (!form.name.trim() && 'Entity name is required') ||
-      (!form.entityType && 'Please select an entity type') ||
-      (!form.contactEmail.trim() && 'Contact email is required') ||
-      (!form.contactPhone.trim() && 'Contact phone is required') ||
-      (!form.address.line1.trim() && 'Address line 1 is required') ||
-      (!form.address.city.trim() && 'City is required') ||
-      (!form.address.state.trim() && 'State is required');
-    if (missing) {
-      toast.error(missing);
-      return;
-    }
+    // Fields an Entity Admin cannot change are not re-checked for them
+    if (!validate(canEditCore ? coreSchema : contactSchema, form)) return;
 
     const code = form.code.trim().toUpperCase() || undefined;
     onSubmit({
@@ -176,7 +220,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
   };
 
   return (
-    <form id={ENTITY_FORM_ID} onSubmit={handleSubmit} className="space-y-6">
+    <form id={ENTITY_FORM_ID} onSubmit={handleSubmit} noValidate className="space-y-6">
       {!canEditCore && (
         <p className="text-sm text-slate-700 dark:text-slate-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-600/40 rounded-lg px-4 py-3">
           You can update this entity's contact details, address and description. Its name, code, type, owner, status
@@ -198,6 +242,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
               <Input
                 label="Entity Name"
                 name="name"
+                error={errors['name']}
                 required
                 value={form.name}
                 onChange={(e) => setField('name', e.target.value)}
@@ -208,6 +253,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
             <Input
               label="Entity Code"
               name="code"
+                error={errors['code']}
               value={form.code}
               onChange={(e) => setField('code', e.target.value.toUpperCase())}
               placeholder="e.g. ACPL"
@@ -225,7 +271,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                 required
                 value={form.entityType}
                 onChange={(e) => setField('entityType', e.target.value)}
-                className={FIELD_CLASS}
+                className={fieldClass(errors.entityType)}
               >
                 <option value="">Select entity type</option>
                 {/* Keep the saved type selectable even if it has since been deactivated */}
@@ -238,6 +284,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                   </option>
                 ))}
               </select>
+              <FieldError message={errors.entityType} />
             </div>
 
             <div>
@@ -249,7 +296,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                 name="industry"
                 value={form.industry}
                 onChange={(e) => setField('industry', e.target.value)}
-                className={FIELD_CLASS}
+                className={fieldClass()}
               >
                 <option value="">Not specified</option>
                 {industries.map((industry) => (
@@ -269,7 +316,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                 name="owner"
                 value={form.owner}
                 onChange={(e) => setField('owner', e.target.value)}
-                className={FIELD_CLASS}
+                className={fieldClass()}
               >
                 <option value="">Not assigned</option>
                 {users.map((user) => (
@@ -289,7 +336,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                 name="status"
                 value={form.status}
                 onChange={(e) => setField('status', e.target.value as FormState['status'])}
-                className={FIELD_CLASS}
+                className={fieldClass()}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -310,6 +357,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
             <Input
               label="GSTIN"
               name="gstin"
+                error={errors['gstin']}
               value={form.gstin}
               onChange={(e) => setField('gstin', e.target.value.toUpperCase())}
               placeholder="e.g. 27AAAAA0000A1Z5"
@@ -318,6 +366,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
             <Input
               label="PAN"
               name="pan"
+                error={errors['pan']}
               value={form.pan}
               onChange={(e) => setField('pan', e.target.value.toUpperCase())}
               placeholder="e.g. AAAAA0000A"
@@ -326,6 +375,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
             <Input
               label="CIN"
               name="cin"
+                error={errors['cin']}
               value={form.cin}
               onChange={(e) => setField('cin', e.target.value.toUpperCase())}
               placeholder="e.g. U72200MH2020PTC123456"
@@ -361,6 +411,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
           <Input
             label="Contact Email"
             name="contactEmail"
+                error={errors['contactEmail']}
             type="email"
             required
             value={form.contactEmail}
@@ -371,6 +422,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
           <Input
             label="Contact Phone"
             name="contactPhone"
+                error={errors['contactPhone']}
             required
             value={form.contactPhone}
             onChange={(e) => setField('contactPhone', e.target.value)}
@@ -389,7 +441,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
               value={form.description}
               onChange={(e) => setField('description', e.target.value)}
               placeholder="What this entity does"
-              className={FIELD_CLASS}
+              className={fieldClass()}
             />
           </div>
         </div>
@@ -407,6 +459,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
             <Input
               label="Address Line 1"
               name="address.line1"
+                error={errors['address.line1']}
               required
               value={form.address.line1}
               onChange={(e) => setAddress('line1', e.target.value)}
@@ -436,7 +489,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                 required
                 value={form.address.state}
                 onChange={(e) => handleStateChange(e.target.value)}
-                className={FIELD_CLASS}
+                className={fieldClass(errors['address.state'])}
               >
                 <option value="">Select state</option>
                 {form.address.state && !selectedState && (
@@ -456,9 +509,10 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                 value={form.address.state}
                 onChange={(e) => setAddress('state', e.target.value)}
                 placeholder="e.g. Maharashtra"
-                className={FIELD_CLASS}
+                className={fieldClass(errors['address.state'])}
               />
             )}
+            <FieldError message={errors['address.state']} />
           </div>
 
           <div>
@@ -471,7 +525,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                 name="address.district"
                 value={form.address.district}
                 onChange={(e) => setAddress('district', e.target.value)}
-                className={FIELD_CLASS}
+                className={fieldClass()}
               >
                 <option value="">Select district</option>
                 {form.address.district && !districtOptions.some((d) => d.label === form.address.district) && (
@@ -490,7 +544,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
                 value={form.address.district}
                 onChange={(e) => setAddress('district', e.target.value)}
                 placeholder="e.g. Mumbai Suburban"
-                className={FIELD_CLASS}
+                className={fieldClass()}
               />
             )}
           </div>
@@ -498,6 +552,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
           <Input
             label="City"
             name="address.city"
+                error={errors['address.city']}
             required
             value={form.address.city}
             onChange={(e) => setAddress('city', e.target.value)}
@@ -508,6 +563,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initial, canEditCore = true, is
             <Input
               label="Pincode"
               name="address.pincode"
+                error={errors['address.pincode']}
               value={form.address.pincode}
               onChange={(e) => setAddress('pincode', e.target.value)}
               placeholder="e.g. 400001"

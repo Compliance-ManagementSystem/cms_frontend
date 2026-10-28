@@ -28,6 +28,9 @@ import { socketService } from '@/services/socketService';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import TaskDetailModal from './TaskDetailModal';
+import FieldError, { fieldBorder } from '@/components/ui/FieldError';
+import { useFormErrors, getServerFieldErrors } from '@/utils/validation';
+import { createTaskSchema } from './taskValidation';
 import { PRIORITY_META, STATUS_META, AUTO_SOURCE_LABELS, isPastDue, formatOverdue } from './taskDisplay';
 
 const PAGE_SIZE = 15;
@@ -64,6 +67,9 @@ const SORT_OPTIONS = [
 const SELECT_CLASS =
   'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
 const LABEL_CLASS = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1';
+
+/** A form field's classes, with a red border when it has an error */
+const fieldClass = (error?: string) => SELECT_CLASS.replace('border-slate-300 dark:border-slate-700', fieldBorder(error));
 
 const EMPTY_FORM = {
   title: '',
@@ -129,6 +135,12 @@ export const TaskListPage: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const { errors, setErrors, validate, clear } = useFormErrors();
+
+  const setFormField = <K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+    clear(key);
+  };
   const [entities, setEntities] = useState<EntityItem[]>([]);
   const [users, setUsers] = useState<TaskAssigneeOption[]>([]);
 
@@ -246,10 +258,7 @@ export const TaskListPage: React.FC = () => {
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.entity || !formData.assignedTo || !formData.dueDate) {
-      toast.error('Title, entity, assignee and due date are required');
-      return;
-    }
+    if (!validate(createTaskSchema, formData)) return;
 
     setIsCreating(true);
     try {
@@ -266,6 +275,7 @@ export const TaskListPage: React.FC = () => {
       setFormData(EMPTY_FORM);
       refreshAll();
     } catch (err: any) {
+      setErrors(getServerFieldErrors(err));
       toast.error(err.message || 'Failed to create task');
     } finally {
       setIsCreating(false);
@@ -401,7 +411,10 @@ export const TaskListPage: React.FC = () => {
 
         <div className="flex items-center gap-3">
           {canCreate && (
-            <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => setCreateModalOpen(true)}>
+            <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => {
+                setErrors({});
+                setCreateModalOpen(true);
+              }}>
               Create Task
             </Button>
           )}
@@ -599,13 +612,15 @@ export const TaskListPage: React.FC = () => {
           </div>
         }
       >
-        <form onSubmit={handleCreateSubmit} className="space-y-4">
+        <form onSubmit={handleCreateSubmit} noValidate className="space-y-4">
           <Input
             label="Title"
+            name="title"
+            error={errors.title}
             required
             placeholder="e.g. Upload Fire Safety NOC renewal certificate"
             value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            onChange={(e) => setFormField('title', e.target.value)}
           />
 
           <div>
@@ -614,9 +629,11 @@ export const TaskListPage: React.FC = () => {
               rows={3}
               placeholder="Context or instructions for this action item"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className={`${SELECT_CLASS} resize-none`}
+              name="description"
+              onChange={(e) => setFormField('description', e.target.value)}
+              className={`${fieldClass(errors.description)} resize-none`}
             />
+            <FieldError message={errors.description} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -638,10 +655,12 @@ export const TaskListPage: React.FC = () => {
               <input
                 type="date"
                 required
+                name="dueDate"
                 value={formData.dueDate}
-                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                className={SELECT_CLASS}
+                onChange={(e) => setFormField('dueDate', e.target.value)}
+                className={fieldClass(errors.dueDate)}
               />
+              <FieldError message={errors.dueDate} />
             </div>
           </div>
 
@@ -650,9 +669,13 @@ export const TaskListPage: React.FC = () => {
               <label className={LABEL_CLASS}>Entity *</label>
               <select
                 required
+                name="entity"
                 value={formData.entity}
-                onChange={(e) => setFormData({ ...formData, entity: e.target.value, assignedTo: '' })}
-                className={SELECT_CLASS}
+                onChange={(e) => {
+                  setFormData({ ...formData, entity: e.target.value, assignedTo: '' });
+                  clear('entity');
+                }}
+                className={fieldClass(errors.entity)}
               >
                 <option value="">Select entity</option>
                 {entities.map((entity) => (
@@ -661,14 +684,16 @@ export const TaskListPage: React.FC = () => {
                   </option>
                 ))}
               </select>
+              <FieldError message={errors.entity} />
             </div>
             <div>
               <label className={LABEL_CLASS}>Assign To *</label>
               <select
                 required
+                name="assignedTo"
                 value={formData.assignedTo}
-                onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
-                className={SELECT_CLASS}
+                onChange={(e) => setFormField('assignedTo', e.target.value)}
+                className={fieldClass(errors.assignedTo)}
               >
                 <option value="">Select assignee</option>
                 {users.map((user) => (
@@ -678,6 +703,7 @@ export const TaskListPage: React.FC = () => {
                   </option>
                 ))}
               </select>
+              <FieldError message={errors.assignedTo} />
             </div>
           </div>
         </form>

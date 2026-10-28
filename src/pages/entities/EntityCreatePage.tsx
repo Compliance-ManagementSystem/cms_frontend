@@ -5,20 +5,24 @@ import Button from '@/components/ui/Button';
 import { useToast } from '@/hooks/useToast';
 import { entityService, CreateEntityPayload } from '@/services/entityService';
 import { ROUTES } from '@/constants/routes';
+import { FieldErrors, getServerFieldErrors } from '@/utils/validation';
 import EntityForm, { ENTITY_FORM_ID } from './EntityForm';
 
 export const EntityCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
 
   const handleSubmit = async (payload: CreateEntityPayload) => {
     setIsSubmitting(true);
+    setServerErrors({});
     try {
       const res = await entityService.createEntity(payload);
       toast.success(res.message || 'Entity created');
       navigate(`/entities/${res.data.entity._id}`);
     } catch (err: any) {
+      setServerErrors(getServerFieldErrors(err));
       toast.error(err.message || 'Failed to create entity');
     } finally {
       setIsSubmitting(false);
@@ -58,7 +62,7 @@ export const EntityCreatePage: React.FC = () => {
         </div>
       </div>
 
-      <EntityForm isSubmitting={isSubmitting} onSubmit={handleSubmit} onCancel={goBack} />
+      <EntityForm isSubmitting={isSubmitting} onSubmit={handleSubmit} serverErrors={serverErrors} onCancel={goBack} />
     </div>
   );
 };

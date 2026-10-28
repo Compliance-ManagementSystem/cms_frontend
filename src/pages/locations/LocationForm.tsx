@@ -3,7 +3,9 @@ import { MapPin, Save, Briefcase, Plus, Trash2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { useToast } from '@/hooks/useToast';
+import { z } from 'zod';
+import FieldError, { fieldBorder } from '@/components/ui/FieldError';
+import { FieldErrors, useFormErrors, required, optionalPincode, maxLength } from '@/utils/validation';
 import {
   CreateLocationPayload,
   LocationItem,
@@ -27,6 +29,8 @@ interface LocationFormProps {
   isSubmitting: boolean;
   onSubmit: (payload: CreateLocationPayload) => void;
   onCancel: () => void;
+  /** Field errors returned by the API for the last submit */
+  serverErrors?: FieldErrors;
 }
 
 interface FormState {
@@ -54,7 +58,37 @@ interface FormState {
 }
 
 const FIELD_CLASS =
-  'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
+  'w-full bg-white dark:bg-slate-800 border rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
+const fieldClass = (error?: string) => `${FIELD_CLASS} ${fieldBorder(error)}`;
+
+const locationSchema = z
+  .object({
+    name: required('Location name').pipe(maxLength('Location name', 200)),
+    code: maxLength('Location code', 50),
+    entity: z.string().min(1, 'Select an entity'),
+    locationType: z.string().min(1, 'Select a location type'),
+    openingDate: z.string(),
+    closingDate: z.string(),
+    address: z.object({
+      line1: required('Address line 1'),
+      state: z.string().trim().min(1, 'Select a state'),
+      pincode: optionalPincode,
+    }),
+    coEntities: z.array(z.object({ entity: z.string(), openingDate: z.string() })),
+  })
+  .superRefine((values, ctx) => {
+    if (values.closingDate && values.openingDate && values.closingDate < values.openingDate) {
+      ctx.addIssue({ code: 'custom', path: ['closingDate'], message: 'The closing date cannot be before the opening date' });
+    }
+    // Rows left without an entity are dropped on submit
+    const chosen = values.coEntities.map((co) => co.entity).filter(Boolean);
+    if (chosen.includes(values.entity)) {
+      ctx.addIssue({ code: 'custom', path: ['coEntities'], message: 'A co-entity must be different from the owning entity' });
+    } else if (new Set(chosen).size !== chosen.length) {
+      ctx.addIssue({ code: 'custom', path: ['coEntities'], message: 'The same co-entity is listed more than once' });
+    }
+  });
+
 const LABEL_CLASS = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5';
 
 const RequiredMark = () => (
@@ -100,8 +134,15 @@ const toCoEntityRows = (loc?: LocationItem): CoEntityRow[] =>
     .filter((co) => co.entity)
     .map((co) => ({ entity: co.entity!._id, openingDate: dateInput(co.openingDate) }));
 
-const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, isSubmitting, onSubmit, onCancel }) => {
-  const toast = useToast();
+const LocationForm: React.FC<LocationFormProps> = ({
+  initial,
+  defaultEntityId,
+  isSubmitting,
+  onSubmit,
+  onCancel,
+  serverErrors,
+}) => {
+  const { errors, validate, clear } = useFormErrors(serverErrors);
   const isEditing = !!initial;
 
   const [form, setForm] = useState<FormState>(() => toFormState(initial, defaultEntityId));
@@ -146,58 +187,45 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
       .catch(() => setUsers([]));
   }, [form.entity]);
 
-  const setField = <K extends keyof FormState>(field: K, value: FormState[K]) =>
+  const setField = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    // Changing either date can resolve a date-order error shown on the closing date
+    clear(field, ...(field === 'openingDate' ? ['closingDate'] : []));
+  };
 
-  const setAddress = (field: keyof FormState['address'], value: string) =>
+  const setAddress = (field: keyof FormState['address'], value: string) => {
     setForm((prev) => ({ ...prev, address: { ...prev.address, [field]: value } }));
+    clear(`address.${field}`);
+  };
 
-  const handleEntityChange = (entity: string) =>
+  const handleEntityChange = (entity: string) => {
     // A manager from the previous entity no longer applies
     setForm((prev) => ({ ...prev, entity, manager: '' }));
+    clear('entity', 'coEntities');
+  };
 
-  const handleStateChange = (state: string) =>
+  const handleStateChange = (state: string) => {
     setForm((prev) => ({ ...prev, address: { ...prev.address, state, district: '' } }));
+    clear('address.state');
+  };
 
   // Districts of the selected state, when the master data links them
   const selectedState = states.find((s) => s.label === form.address.state);
   const stateDistricts = selectedState ? districts.filter((d) => d.parent?._id === selectedState._id) : [];
   const districtOptions = stateDistricts.length > 0 ? stateDistricts : selectedState ? [] : districts;
 
-  const updateCoEntity = (index: number, patch: Partial<CoEntityRow>) =>
+  const updateCoEntity = (index: number, patch: Partial<CoEntityRow>) => {
     setCoEntities((prev) => prev.map((co, i) => (i === index ? { ...co, ...patch } : co)));
+    clear('coEntities');
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const missing = [
-      [!form.name.trim(), 'Location name'],
-      [!form.entity, 'Entity'],
-      [!form.locationType, 'Location type'],
-      [!form.address.line1.trim(), 'Address line 1'],
-      [!form.address.state.trim(), 'State'],
-    ]
-      .filter(([isMissing]) => isMissing)
-      .map(([, label]) => label);
-    if (missing.length > 0) {
-      toast.error(`Please fill in: ${missing.join(', ')}`);
-      return;
-    }
+    if (!validate(locationSchema, { ...form, coEntities })) return;
 
     // Rows left without an entity are dropped
     const chosenCoEntities = coEntities.filter((co) => co.entity);
-    if (chosenCoEntities.some((co) => co.entity === form.entity)) {
-      toast.error('A co-entity must be different from the owning entity');
-      return;
-    }
-    if (new Set(chosenCoEntities.map((co) => co.entity)).size !== chosenCoEntities.length) {
-      toast.error('The same co-entity is listed more than once');
-      return;
-    }
-    if (form.closingDate && form.openingDate && form.closingDate < form.openingDate) {
-      toast.error('The closing date cannot be before the opening date');
-      return;
-    }
 
     onSubmit({
       name: form.name.trim(),
@@ -226,7 +254,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
   };
 
   return (
-    <form id={LOCATION_FORM_ID} onSubmit={handleSubmit} className="space-y-6">
+    <form id={LOCATION_FORM_ID} onSubmit={handleSubmit} noValidate className="space-y-6">
       {/* Section 1: Location & entity */}
       <Card padding="lg">
         <Card.Header
@@ -243,10 +271,11 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             </label>
             <select
               id="location-entity"
+              name="entity"
               value={form.entity}
               onChange={(e) => handleEntityChange(e.target.value)}
               required
-              className={FIELD_CLASS}
+              className={fieldClass(errors.entity)}
             >
               <option value="">Select entity</option>
               {/* Keep the current entity selectable even if it is no longer active */}
@@ -259,6 +288,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
                 </option>
               ))}
             </select>
+            <FieldError message={errors.entity} />
             {isEditing && (
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 A location can only move to another entity while it has no records, tasks, documents, licences or sub-units.
@@ -268,6 +298,8 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
 
           <Input
             label="Location Name"
+            name="name"
+            error={errors.name}
             value={form.name}
             onChange={(e) => setField('name', e.target.value)}
             placeholder="e.g. Koramangala Day Care Clinic"
@@ -276,6 +308,8 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
 
           <Input
             label="Location Code"
+            name="code"
+            error={errors.code}
             value={form.code}
             onChange={(e) => setField('code', e.target.value)}
             placeholder={isEditing ? 'e.g. LOC-KOR-01' : 'Leave blank to generate one'}
@@ -289,10 +323,11 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             </label>
             <select
               id="location-type"
+              name="locationType"
               value={form.locationType}
               onChange={(e) => setField('locationType', e.target.value)}
               required
-              className={FIELD_CLASS}
+              className={fieldClass(errors.locationType)}
             >
               <option value="">Select type</option>
               {/* Keep the current type selectable even if it is no longer active */}
@@ -305,6 +340,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
                 </option>
               ))}
             </select>
+            <FieldError message={errors.locationType} />
           </div>
 
           <div>
@@ -315,7 +351,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
               id="location-manager"
               value={form.manager}
               onChange={(e) => setField('manager', e.target.value)}
-              className={FIELD_CLASS}
+              className={fieldClass()}
             >
               <option value="">Not assigned</option>
               {/* Keep the current manager selectable even if outside the loaded list */}
@@ -344,7 +380,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
               id="location-status"
               value={form.status}
               onChange={(e) => setField('status', e.target.value as FormState['status'])}
-              className={FIELD_CLASS}
+              className={fieldClass()}
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -361,7 +397,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
               type="date"
               value={form.openingDate}
               onChange={(e) => setField('openingDate', e.target.value)}
-              className={FIELD_CLASS}
+              className={fieldClass()}
             />
             {/* A planned unit: a future date, or this mark when the date is not fixed */}
             <label className="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
@@ -382,11 +418,13 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             </label>
             <input
               id="location-closing"
+              name="closingDate"
               type="date"
               value={form.closingDate}
               onChange={(e) => setField('closingDate', e.target.value)}
-              className={FIELD_CLASS}
+              className={fieldClass(errors.closingDate)}
             />
+            <FieldError message={errors.closingDate} />
           </div>
 
           <div>
@@ -397,7 +435,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
               id="location-model"
               value={form.operatingModel}
               onChange={(e) => setField('operatingModel', e.target.value as FormState['operatingModel'])}
-              className={FIELD_CLASS}
+              className={fieldClass()}
             >
               <option value="">Not set</option>
               {(Object.keys(OPERATING_MODEL_LABELS) as OperatingModel[]).map((model) => (
@@ -417,10 +455,11 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
               {coEntities.map((co, index) => (
                 <div key={index} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center">
                   <select
+                    name={index === 0 ? 'coEntities' : undefined}
                     aria-label={`Co-entity ${index + 1}`}
                     value={co.entity}
                     onChange={(e) => updateCoEntity(index, { entity: e.target.value })}
-                    className={FIELD_CLASS}
+                    className={fieldClass()}
                   >
                     <option value="">Select entity</option>
                     {/* Keep a saved co-entity selectable even if it is no longer active */}
@@ -443,7 +482,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
                     title="Opening date for this company"
                     value={co.openingDate}
                     onChange={(e) => updateCoEntity(index, { openingDate: e.target.value })}
-                    className={FIELD_CLASS}
+                    className={fieldClass()}
                   />
                   <Button
                     type="button"
@@ -457,6 +496,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
                 </div>
               ))}
             </div>
+            <FieldError message={errors.coEntities} />
             <Button
               type="button"
               variant="outline"
@@ -479,7 +519,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
               value={form.description}
               onChange={(e) => setField('description', e.target.value)}
               placeholder="What this location is used for"
-              className={FIELD_CLASS}
+              className={fieldClass()}
             />
           </div>
         </div>
@@ -497,6 +537,8 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
           <div className="md:col-span-2">
             <Input
               label="Address Line 1"
+              name="address.line1"
+              error={errors['address.line1']}
               value={form.address.line1}
               onChange={(e) => setAddress('line1', e.target.value)}
               placeholder="Building, floor, street"
@@ -528,10 +570,11 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             {states.length > 0 ? (
               <select
                 id="location-state"
+                name="address.state"
                 value={form.address.state}
                 onChange={(e) => handleStateChange(e.target.value)}
                 required
-                className={FIELD_CLASS}
+                className={fieldClass(errors['address.state'])}
               >
                 <option value="">Select state</option>
                 {/* Keep a saved state that is not in the master list */}
@@ -545,13 +588,15 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
             ) : (
               <input
                 id="location-state"
+                name="address.state"
                 value={form.address.state}
                 onChange={(e) => setAddress('state', e.target.value)}
                 placeholder="e.g. Karnataka"
                 required
-                className={FIELD_CLASS}
+                className={fieldClass(errors['address.state'])}
               />
             )}
+            <FieldError message={errors['address.state']} />
           </div>
 
           <div>
@@ -563,7 +608,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
                 id="location-district"
                 value={form.address.district}
                 onChange={(e) => setAddress('district', e.target.value)}
-                className={FIELD_CLASS}
+                className={fieldClass()}
               >
                 <option value="">Select district</option>
                 {form.address.district && !districtOptions.some((d) => d.label === form.address.district) && (
@@ -581,7 +626,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
                 value={form.address.district}
                 onChange={(e) => setAddress('district', e.target.value)}
                 placeholder="e.g. Bengaluru Urban"
-                className={FIELD_CLASS}
+                className={fieldClass()}
               />
             )}
           </div>
@@ -594,7 +639,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
               id="location-area-type"
               value={form.areaType}
               onChange={(e) => setField('areaType', e.target.value as FormState['areaType'])}
-              className={FIELD_CLASS}
+              className={fieldClass()}
             >
               <option value="">Not set</option>
               {(Object.keys(AREA_TYPE_LABELS) as AreaType[]).map((type) => (
@@ -609,6 +654,9 @@ const LocationForm: React.FC<LocationFormProps> = ({ initial, defaultEntityId, i
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Pincode"
+              name="address.pincode"
+              error={errors['address.pincode']}
+              maxLength={6}
               value={form.address.pincode}
               onChange={(e) => setAddress('pincode', e.target.value)}
               placeholder="e.g. 560034"

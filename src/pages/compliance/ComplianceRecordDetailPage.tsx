@@ -36,6 +36,7 @@ import {
   WorkflowApprovalsResponse,
 } from '@/services/complianceRecordService';
 import { adminService, MasterDataItem } from '@/services/adminService';
+import { UPLOAD_ACCEPT, pickUploadFile } from '@/utils/validation';
 import { ROUTES } from '@/constants/routes';
 
 // The statuses the Location Master sheet uses, in the order work progresses
@@ -913,8 +914,9 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             <input
               type="file"
               required
+              accept={UPLOAD_ACCEPT}
               onChange={(e) => {
-                const f = e.target.files?.[0];
+                const f = pickUploadFile(e, toast.error);
                 if (f) {
                   setUploadFile(f);
                   if (!uploadDocName) setUploadDocName(f.name.replace(/\.[^/.]+$/, ''));
@@ -993,7 +995,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             <input
               type="file"
               required
-              onChange={(e) => setReplaceFile(e.target.files?.[0] || null)}
+              accept={UPLOAD_ACCEPT}
+              onChange={(e) => setReplaceFile(pickUploadFile(e, toast.error))}
               className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
             />
           </div>
@@ -1088,7 +1091,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   id="record-acknowledgement-file"
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => setAcknowledgementFile(e.target.files?.[0] || null)}
+                  onChange={(e) => setAcknowledgementFile(pickUploadFile(e, toast.error))}
                   className={FILE_INPUT_CLASS}
                 />
                 {acknowledgementFile ? (

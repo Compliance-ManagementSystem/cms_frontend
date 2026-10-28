@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 
 const AppLayout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
 
   const toggleSidebar = () => setSidebarCollapsed((prev) => !prev);
   const openMobileSidebar = () => setMobileOpen(true);
@@ -49,7 +51,10 @@ const AppLayout: React.FC = () => {
           id="main-content"
           className="flex-1 mt-16 p-4 sm:p-6 page-enter min-w-0 overflow-x-hidden"
         >
-          <Outlet />
+          {/* A crashing page keeps the sidebar and navbar usable; navigating clears it */}
+          <ErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { entityService, CreateEntityPayload, EntityItem } from '@/services/entityService';
 import { ROUTES } from '@/constants/routes';
+import { FieldErrors, getServerFieldErrors } from '@/utils/validation';
 import EntityForm, { ENTITY_FORM_ID } from './EntityForm';
 
 export const EntityEditPage: React.FC = () => {
@@ -18,6 +19,7 @@ export const EntityEditPage: React.FC = () => {
 
   const [entity, setEntity] = useState<EntityItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     if (!id) return;
@@ -40,6 +42,7 @@ export const EntityEditPage: React.FC = () => {
       toast.success(res.message || 'Entity updated');
       goBack();
     } catch (err: any) {
+      setServerErrors(getServerFieldErrors(err));
       toast.error(err.message || 'Failed to update entity');
     } finally {
       setIsSubmitting(false);
@@ -93,6 +96,7 @@ export const EntityEditPage: React.FC = () => {
         canEditCore={canEditCore}
         isSubmitting={isSubmitting}
         onSubmit={handleSubmit}
+        serverErrors={serverErrors}
         onCancel={goBack}
       />
     </div>

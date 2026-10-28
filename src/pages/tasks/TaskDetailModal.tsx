@@ -7,6 +7,9 @@ import Badge from '@/components/ui/Badge';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
 import { PRIORITY_META, STATUS_META, isPastDue, formatOverdue } from './taskDisplay';
+import { taskFormSchema } from './taskValidation';
+import FieldError, { fieldBorder } from '@/components/ui/FieldError';
+import { useFormErrors, getServerFieldErrors } from '@/utils/validation';
 import {
   taskService,
   TaskItem,
@@ -27,6 +30,10 @@ interface TaskDetailModalProps {
 const FIELD_CLASS =
   'w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const LABEL_CLASS = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1';
+const COMMENT_MAX = 2000;
+
+/** A form field's classes, with a red border when it has an error */
+const fieldClass = (error?: string) => FIELD_CLASS.replace('border-slate-300 dark:border-slate-700', fieldBorder(error));
 
 const fullName = (user?: { firstName: string; lastName: string }) =>
   user ? `${user.firstName} ${user.lastName}`.trim() : '';
@@ -72,6 +79,13 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
     loadTask();
   }, [loadTask]);
 
+  const { errors, setErrors, validate, clear } = useFormErrors();
+
+  const setFormField = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    clear(key);
+  };
+
   const startEditing = () => {
     if (!task) return;
     setForm({
@@ -81,6 +95,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
       dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
       assignedTo: task.assignedTo?._id || '',
     });
+    setErrors({});
     setIsEditing(true);
     taskService
       .getAssignees(task.entity?._id)
@@ -91,10 +106,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!task) return;
-    if (!form.title.trim() || !form.dueDate || !form.assignedTo) {
-      toast.error('Title, assignee and due date are required');
-      return;
-    }
+    if (!validate(taskFormSchema, form)) return;
 
     setIsSaving(true);
     try {
@@ -111,6 +123,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
       toast.success(reassigned ? 'Task updated and reassigned' : 'Task updated');
       onChanged();
     } catch (err: any) {
+      setErrors(getServerFieldErrors(err));
       toast.error(err.message || 'Failed to update task');
     } finally {
       setIsSaving(false);
@@ -216,11 +229,13 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
       {isLoading || !task ? (
         <div className="py-12 text-center text-sm text-slate-500">Loading task...</div>
       ) : isEditing ? (
-        <form onSubmit={handleSave} className="space-y-4">
+        <form onSubmit={handleSave} noValidate className="space-y-4">
           <Input
             label="Title"
+            name="title"
+            error={errors.title}
             value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            onChange={(e) => setFormField('title', e.target.value)}
             required
           />
 
@@ -228,10 +243,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
             <label className={LABEL_CLASS}>Description</label>
             <textarea
               rows={3}
+              name="description"
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className={`${FIELD_CLASS} resize-none`}
+              onChange={(e) => setFormField('description', e.target.value)}
+              className={`${fieldClass(errors.description)} resize-none`}
             />
+            <FieldError message={errors.description} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -254,19 +271,22 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
               <input
                 type="date"
                 required
+                name="dueDate"
                 value={form.dueDate}
-                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                className={FIELD_CLASS}
+                onChange={(e) => setFormField('dueDate', e.target.value)}
+                className={fieldClass(errors.dueDate)}
               />
+              <FieldError message={errors.dueDate} />
             </div>
 
             <div>
               <label className={LABEL_CLASS}>Assigned To *</label>
               <select
                 required
+                name="assignedTo"
                 value={form.assignedTo}
-                onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-                className={FIELD_CLASS}
+                onChange={(e) => setFormField('assignedTo', e.target.value)}
+                className={fieldClass(errors.assignedTo)}
               >
                 {/* Keep the current assignee selectable even if outside the loaded list */}
                 {task.assignedTo && !assignees.some((u) => u._id === task.assignedTo?._id) && (
@@ -279,6 +299,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
                   </option>
                 ))}
               </select>
+              <FieldError message={errors.assignedTo} />
             </div>
           </div>
 
@@ -430,6 +451,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Add a comment or progress note"
                   aria-label="Add a comment"
+                  maxLength={COMMENT_MAX}
                   className={`${FIELD_CLASS} resize-none`}
                 />
                 <Button

@@ -5,6 +5,7 @@ import Input from '@/components/ui/Input';
 import { useToast } from '@/hooks/useToast';
 import type { MasterDataItem } from '@/services/adminService';
 import { lookupService } from '@/services/lookupService';
+import { MAX_UPLOAD_MB, UPLOAD_ACCEPT, pickUploadFile } from '@/utils/validation';
 import { complianceRecordService } from '@/services/complianceRecordService';
 
 interface DocumentUploadModalProps {
@@ -62,6 +63,10 @@ const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
       toast.error('Document name is required');
       return;
     }
+    if (name.trim().length > 200) {
+      toast.error('Document name must be at most 200 characters');
+      return;
+    }
 
     setIsUploading(true);
     try {
@@ -113,14 +118,15 @@ const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
           <input
             type="file"
             required
+            accept={UPLOAD_ACCEPT}
             onChange={(e) => {
-              const selected = e.target.files?.[0] || null;
+              const selected = pickUploadFile(e, toast.error);
               setFile(selected);
               if (selected && !name) setName(selected.name.replace(/\.[^/.]+$/, ''));
             }}
             className={FILE_CLASS}
           />
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">PDF, image, Word, Excel, text or CSV, up to 15 MB</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">PDF, image, Word, Excel, text or CSV, up to {MAX_UPLOAD_MB} MB</p>
         </div>
 
         <Input

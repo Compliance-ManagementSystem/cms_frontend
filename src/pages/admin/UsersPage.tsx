@@ -24,6 +24,22 @@ import Table, { Column } from '@/components/ui/Table';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
 import { adminService, UserItem, RoleItem } from '@/services/adminService';
+import { z } from 'zod';
+import FieldError from '@/components/ui/FieldError';
+import { useFormErrors, getServerFieldErrors, required, email, optionalPhone, password, maxLength } from '@/utils/validation';
+
+const userFields = {
+  firstName: required('First name').pipe(maxLength('First name', 50)),
+  lastName: required('Last name').pipe(maxLength('Last name', 50)),
+  email,
+  phone: optionalPhone,
+  role: z.string().min(1, 'Select a role'),
+};
+
+const createUserSchema = z.object({ ...userFields, password });
+
+// Left blank, the password is not changed
+const editUserSchema = z.object({ ...userFields, password: password.or(z.literal('')) });
 
 const UsersPage: React.FC = () => {
   const toast = useToast();
@@ -58,6 +74,13 @@ const UsersPage: React.FC = () => {
     phone: '',
     status: 'active' as 'active' | 'inactive' | 'suspended',
   });
+
+  const { errors, setErrors, validate, clear } = useFormErrors();
+
+  const setFormField = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+    clear(key);
+  };
 
   // Fetch Roles for dropdown
   useEffect(() => {
@@ -102,6 +125,7 @@ const UsersPage: React.FC = () => {
       phone: '',
       status: 'active',
     });
+    setErrors({});
     setIsCreateOpen(true);
   };
 
@@ -117,6 +141,7 @@ const UsersPage: React.FC = () => {
       phone: user.phone || '',
       status: user.status === 'archived' ? 'inactive' : user.status,
     });
+    setErrors({});
     setIsEditOpen(true);
   };
 
@@ -129,10 +154,7 @@ const UsersPage: React.FC = () => {
   // Submit Create
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.role) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+    if (!validate(createUserSchema, formData)) return;
 
     setIsSubmitting(true);
     try {
@@ -141,6 +163,7 @@ const UsersPage: React.FC = () => {
       setIsCreateOpen(false);
       fetchUsers();
     } catch (err: any) {
+      setErrors(getServerFieldErrors(err));
       toast.error(err.message || 'Failed to create user');
     } finally {
       setIsSubmitting(false);
@@ -151,6 +174,7 @@ const UsersPage: React.FC = () => {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
+    if (!validate(editUserSchema, formData)) return;
 
     setIsSubmitting(true);
     try {
@@ -167,6 +191,7 @@ const UsersPage: React.FC = () => {
       setIsEditOpen(false);
       fetchUsers();
     } catch (err: any) {
+      setErrors(getServerFieldErrors(err));
       toast.error(err.message || 'Failed to update user');
     } finally {
       setIsSubmitting(false);
@@ -450,38 +475,46 @@ const UsersPage: React.FC = () => {
         size="lg"
         id="create-user-modal"
       >
-        <form onSubmit={handleCreateSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleCreateSubmit} noValidate className="flex flex-col gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
+              name="firstName"
+              error={errors.firstName}
               label="First Name"
               required
               placeholder="e.g. Rahul"
               value={formData.firstName}
-              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              onChange={(e) => setFormField('firstName', e.target.value)}
             />
             <Input
+              name="lastName"
+              error={errors.lastName}
               label="Last Name"
               required
               placeholder="e.g. Varma"
               value={formData.lastName}
-              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+              onChange={(e) => setFormField('lastName', e.target.value)}
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
+              name="email"
+              error={errors.email}
               label="Email Address"
               type="email"
               required
               placeholder="e.g. rahul.varma@ccpl.local"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) => setFormField('email', e.target.value)}
             />
             <Input
+              name="phone"
+              error={errors.phone}
               label="Phone Number"
               placeholder="e.g. +91 9876543210"
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              onChange={(e) => setFormField('phone', e.target.value)}
             />
           </div>
 
@@ -493,7 +526,8 @@ const UsersPage: React.FC = () => {
               <select
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
                 value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                onChange={(e) => setFormField('role', e.target.value)}
+                name="role"
                 required
               >
                 <option value="" disabled>
@@ -505,6 +539,7 @@ const UsersPage: React.FC = () => {
                   </option>
                 ))}
               </select>
+              <FieldError message={errors.role} />
             </div>
 
             <div>
@@ -512,7 +547,7 @@ const UsersPage: React.FC = () => {
               <select
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                onChange={(e) => setFormField('status', e.target.value as typeof formData.status)}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -523,12 +558,14 @@ const UsersPage: React.FC = () => {
 
           <Input
             label="Temporary Password"
+            name="password"
+            error={errors.password}
             type="password"
             required
             leftAddon={<Lock size={15} />}
             placeholder="Min 8 chars with uppercase, lowercase & number"
             value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            onChange={(e) => setFormField('password', e.target.value)}
             hint="User will be prompted to change their temporary password upon initial login."
           />
 
@@ -552,34 +589,42 @@ const UsersPage: React.FC = () => {
         size="lg"
         id="edit-user-modal"
       >
-        <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleEditSubmit} noValidate className="flex flex-col gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
+              name="firstName"
+              error={errors.firstName}
               label="First Name"
               required
               value={formData.firstName}
-              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              onChange={(e) => setFormField('firstName', e.target.value)}
             />
             <Input
+              name="lastName"
+              error={errors.lastName}
               label="Last Name"
               required
               value={formData.lastName}
-              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+              onChange={(e) => setFormField('lastName', e.target.value)}
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
+              name="email"
+              error={errors.email}
               label="Email Address"
               type="email"
               required
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) => setFormField('email', e.target.value)}
             />
             <Input
+              name="phone"
+              error={errors.phone}
               label="Phone Number"
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              onChange={(e) => setFormField('phone', e.target.value)}
             />
           </div>
 
@@ -591,7 +636,8 @@ const UsersPage: React.FC = () => {
               <select
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
                 value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                onChange={(e) => setFormField('role', e.target.value)}
+                name="role"
                 required
               >
                 {roles.map((r) => (
@@ -600,6 +646,7 @@ const UsersPage: React.FC = () => {
                   </option>
                 ))}
               </select>
+              <FieldError message={errors.role} />
             </div>
 
             <div>
@@ -607,7 +654,7 @@ const UsersPage: React.FC = () => {
               <select
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                onChange={(e) => setFormField('status', e.target.value as typeof formData.status)}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -618,11 +665,13 @@ const UsersPage: React.FC = () => {
 
           <Input
             label="Reset Password (Optional)"
+            name="password"
+            error={errors.password}
             type="password"
             leftAddon={<Lock size={15} />}
             placeholder="Leave blank to keep existing password"
             value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            onChange={(e) => setFormField('password', e.target.value)}
           />
 
           <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700/60">

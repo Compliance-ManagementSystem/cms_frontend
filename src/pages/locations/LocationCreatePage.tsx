@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button';
 import { useToast } from '@/hooks/useToast';
 import { locationService, CreateLocationPayload } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
+import { FieldErrors, getServerFieldErrors } from '@/utils/validation';
 import LocationForm, { LOCATION_FORM_ID } from './LocationForm';
 
 export const LocationCreatePage: React.FC = () => {
@@ -12,14 +13,17 @@ export const LocationCreatePage: React.FC = () => {
   const toast = useToast();
   const [searchParams] = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
 
   const handleSubmit = async (payload: CreateLocationPayload) => {
     setIsSubmitting(true);
+    setServerErrors({});
     try {
       const res = await locationService.createLocation(payload);
       toast.success(res.message || 'Location created');
       navigate(`/locations/${res.data.location._id}`);
     } catch (err: any) {
+      setServerErrors(getServerFieldErrors(err));
       toast.error(err.message || 'Failed to create location');
     } finally {
       setIsSubmitting(false);
@@ -63,6 +67,7 @@ export const LocationCreatePage: React.FC = () => {
         defaultEntityId={searchParams.get('entityId') || undefined}
         isSubmitting={isSubmitting}
         onSubmit={handleSubmit}
+        serverErrors={serverErrors}
         onCancel={goBack}
       />
     </div>

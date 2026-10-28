@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button';
 import { useToast } from '@/hooks/useToast';
 import { locationService, CreateLocationPayload, LocationItem } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
+import { FieldErrors, getServerFieldErrors } from '@/utils/validation';
 import LocationForm, { LOCATION_FORM_ID } from './LocationForm';
 
 export const LocationEditPage: React.FC = () => {
@@ -14,6 +15,7 @@ export const LocationEditPage: React.FC = () => {
 
   const [location, setLocation] = useState<LocationItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     if (!id) return;
@@ -31,11 +33,13 @@ export const LocationEditPage: React.FC = () => {
   const handleSubmit = async (payload: CreateLocationPayload) => {
     if (!id) return;
     setIsSubmitting(true);
+    setServerErrors({});
     try {
       const res = await locationService.updateLocation(id, payload);
       toast.success(res.message || 'Location updated');
       goBack();
     } catch (err: any) {
+      setServerErrors(getServerFieldErrors(err));
       toast.error(err.message || 'Failed to update location');
     } finally {
       setIsSubmitting(false);
@@ -84,7 +88,7 @@ export const LocationEditPage: React.FC = () => {
         </div>
       </div>
 
-      <LocationForm initial={location} isSubmitting={isSubmitting} onSubmit={handleSubmit} onCancel={goBack} />
+      <LocationForm initial={location} isSubmitting={isSubmitting} onSubmit={handleSubmit} serverErrors={serverErrors} onCancel={goBack} />
     </div>
   );
 };
