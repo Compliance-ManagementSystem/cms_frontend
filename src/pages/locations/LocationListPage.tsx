@@ -320,10 +320,8 @@ export const LocationListPage: React.FC = () => {
       key: 'locationType',
       header: 'Type',
       cell: (row) => (
-        <span className="whitespace-nowrap">
-          <Badge variant="info" size="sm">
-            {row.locationType?.label || row.locationType?.code || '—'}
-          </Badge>
+        <span className="text-xs font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
+          {row.locationType?.label || row.locationType?.code || '—'}
         </span>
       ),
     },
