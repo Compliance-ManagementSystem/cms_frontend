@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
+import axios from 'axios';
 import { z } from 'zod';
 
 export type FieldErrors = Record<string, string>;
@@ -98,7 +99,8 @@ export const validateForm = (schema: z.ZodTypeAny, values: unknown): FieldErrors
 
 /** Field errors from an API error response (422 validation, 409 duplicate). */
 export const getServerFieldErrors = (err: unknown): FieldErrors => {
-  const list = (err as any)?.response?.data?.errors;
+  if (!axios.isAxiosError<{ errors?: unknown }>(err)) return {};
+  const list = err.response?.data?.errors;
   if (!Array.isArray(list)) return {};
   const errors: FieldErrors = {};
   for (const item of list) {

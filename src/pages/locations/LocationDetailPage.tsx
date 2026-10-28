@@ -29,6 +29,7 @@ import {
 import { ROUTES } from '@/constants/routes';
 import { openDocumentInNewTab } from '@/utils/documentFile';
 import DocumentUploadModal from '@/components/documents/DocumentUploadModal';
+import { getErrorMessage } from '@/utils/errors';
 
 type TabType = 'overview' | 'compliance' | 'documents' | 'tasks' | 'history';
 
@@ -53,8 +54,8 @@ export const LocationDetailPage: React.FC = () => {
     try {
       const details = await locationService.getLocationById(id);
       setData(details);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to fetch location details');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to fetch location details'));
     } finally {
       setIsLoading(false);
     }
@@ -65,7 +66,7 @@ export const LocationDetailPage: React.FC = () => {
   }, [fetchLocationDetails]);
 
   const handleViewDocument = (documentId: string) => {
-    openDocumentInNewTab(documentId).catch((err) => toast.error(err.message || 'Failed to open document'));
+    openDocumentInNewTab(documentId).catch((err) => toast.error(getErrorMessage(err, 'Failed to open document')));
   };
 
   if (isLoading) {

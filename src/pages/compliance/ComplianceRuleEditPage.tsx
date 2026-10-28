@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/useToast';
 import { complianceRuleService, ComplianceRuleItem, CreateRulePayload } from '@/services/complianceRuleService';
 import { ROUTES } from '@/constants/routes';
 import RuleForm, { RULE_FORM_ID } from './RuleForm';
+import { getErrorMessage } from '@/utils/errors';
 
 export const ComplianceRuleEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,8 +21,8 @@ export const ComplianceRuleEditPage: React.FC = () => {
     complianceRuleService
       .getRuleById(id)
       .then(setRule)
-      .catch((err: any) => {
-        toast.error(err.message || 'Failed to load compliance rule');
+      .catch((err) => {
+        toast.error(getErrorMessage(err, 'Failed to load compliance rule'));
         navigate(ROUTES.COMPLIANCE_RULES);
       });
   }, [id, toast, navigate]);
@@ -36,8 +37,8 @@ export const ComplianceRuleEditPage: React.FC = () => {
       toast.success(res.message || 'Compliance rule updated');
       // Land on the coverage tab, in case the change brought new locations into scope
       navigate(`/compliance/rules/${id}?tab=coverage`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update compliance rule');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to update compliance rule'));
     } finally {
       setIsSubmitting(false);
     }

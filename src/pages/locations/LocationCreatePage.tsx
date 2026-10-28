@@ -7,6 +7,7 @@ import { locationService, CreateLocationPayload } from '@/services/locationServi
 import { ROUTES } from '@/constants/routes';
 import { FieldErrors, getServerFieldErrors } from '@/utils/validation';
 import LocationForm, { LOCATION_FORM_ID } from './LocationForm';
+import { getErrorMessage } from '@/utils/errors';
 
 export const LocationCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -22,9 +23,9 @@ export const LocationCreatePage: React.FC = () => {
       const res = await locationService.createLocation(payload);
       toast.success(res.message || 'Location created');
       navigate(`/locations/${res.data.location._id}`);
-    } catch (err: any) {
+    } catch (err) {
       setServerErrors(getServerFieldErrors(err));
-      toast.error(err.message || 'Failed to create location');
+      toast.error(getErrorMessage(err, 'Failed to create location'));
     } finally {
       setIsSubmitting(false);
     }

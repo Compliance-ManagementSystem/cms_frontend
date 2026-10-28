@@ -7,6 +7,7 @@ import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
 import { adminService, RoleItem } from '@/services/adminService';
+import { getErrorMessage } from '@/utils/errors';
 
 const AVAILABLE_RESOURCES = [
   { id: 'entity', name: 'Entity Management', actions: ['read', 'create', 'update', 'delete'] },
@@ -51,8 +52,8 @@ const RolesPage: React.FC = () => {
     try {
       const data = await adminService.getRoles();
       setRoles(data);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to fetch roles');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to fetch roles'));
     } finally {
       setIsLoading(false);
     }
@@ -133,8 +134,8 @@ const RolesPage: React.FC = () => {
       toast.success('Custom role created successfully');
       setIsCreateOpen(false);
       fetchRoles();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create role');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to create role'));
     } finally {
       setIsSubmitting(false);
     }
@@ -156,8 +157,8 @@ const RolesPage: React.FC = () => {
       toast.success('Role updated successfully');
       setIsEditOpen(false);
       fetchRoles();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update role');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to update role'));
     } finally {
       setIsSubmitting(false);
     }
@@ -172,8 +173,8 @@ const RolesPage: React.FC = () => {
       toast.success('Role deleted successfully');
       setIsDeleteOpen(false);
       fetchRoles();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete role');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete role'));
     } finally {
       setIsSubmitting(false);
     }

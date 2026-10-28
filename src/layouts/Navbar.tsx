@@ -5,7 +5,7 @@ import { SIDEBAR_GROUPS } from '@/constants/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ROUTES } from '@/constants/routes';
-import { notificationService } from '@/services/notificationService';
+import { notificationService, type NotificationItem } from '@/services/notificationService';
 import { socketService } from '@/services/socketService';
 import GlobalSearch from '@/layouts/GlobalSearch';
 
@@ -50,7 +50,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [recentNotifs, setRecentNotifs] = useState<any[]>([]);
+  const [recentNotifs, setRecentNotifs] = useState<NotificationItem[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +71,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
 
   // Listen to realtime notifications
   useEffect(() => {
-    const unsub = socketService.on('notification:new', (notif: any) => {
+    const unsub = socketService.on('notification:new', (notif: NotificationItem) => {
       setRecentNotifs((prev) => [notif, ...prev.slice(0, 4)]);
       setUnreadCount((c) => c + 1);
     });
@@ -123,7 +123,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
     }
   };
 
-  const handleClickNotif = async (notif: any) => {
+  const handleClickNotif = async (notif: NotificationItem) => {
     if (!notif.isRead) {
       try {
         await notificationService.markAsRead(notif._id);

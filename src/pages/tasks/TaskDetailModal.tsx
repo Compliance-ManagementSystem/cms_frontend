@@ -11,6 +11,7 @@ import { taskFormSchema } from './taskValidation';
 import FieldError, { fieldBorder } from '@/components/ui/FieldError';
 import { useFormErrors, getServerFieldErrors } from '@/utils/validation';
 import { taskService, TaskItem, TaskStatus, TaskPriority, TaskAssigneeOption } from '@/services/taskService';
+import { getErrorMessage } from '@/utils/errors';
 
 interface TaskDetailModalProps {
   taskId: string | null;
@@ -58,8 +59,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
     setIsLoading(true);
     try {
       setTask(await taskService.getTaskById(taskId));
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load task');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to load task'));
       onClose();
     } finally {
       setIsLoading(false);
@@ -117,9 +118,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
       setIsEditing(false);
       toast.success(reassigned ? 'Task updated and reassigned' : 'Task updated');
       onChanged();
-    } catch (err: any) {
+    } catch (err) {
       setErrors(getServerFieldErrors(err));
-      toast.error(err.message || 'Failed to update task');
+      toast.error(getErrorMessage(err, 'Failed to update task'));
     } finally {
       setIsSaving(false);
     }
@@ -130,8 +131,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
     try {
       setTask(await taskService.updateTaskStatus(task._id, status));
       onChanged();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update task status');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to update task status'));
     }
   };
 
@@ -143,8 +144,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
       toast.success('Task deleted');
       onChanged();
       onClose();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete task');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete task'));
     } finally {
       setIsSaving(false);
     }
@@ -157,8 +158,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ taskId, onClose, onCh
     try {
       setTask(await taskService.addComment(task._id, commentText.trim()));
       setCommentText('');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to add comment');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to add comment'));
     } finally {
       setIsCommenting(false);
     }

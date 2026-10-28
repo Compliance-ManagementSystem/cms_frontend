@@ -13,6 +13,7 @@ import type { MasterDataItem } from '@/services/adminService';
 import { lookupService } from '@/services/lookupService';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
+import { getErrorMessage } from '@/utils/errors';
 
 // Summary cards double as quick filters
 type CardKey = 'active' | 'inactive' | 'attention';
@@ -123,8 +124,8 @@ export const EntityListPage: React.FC = () => {
           attention: data.pagination.attentionCount ?? 0,
         });
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to fetch entities');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to fetch entities'));
     } finally {
       setIsLoading(false);
     }
@@ -220,8 +221,8 @@ export const EntityListPage: React.FC = () => {
       link.remove();
       URL.revokeObjectURL(url);
       toast.success(`Exported ${exportRows.length} ${exportRows.length === 1 ? 'entity' : 'entities'} to CSV`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to export entities');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to export entities'));
     } finally {
       setIsExporting(false);
     }
@@ -235,8 +236,8 @@ export const EntityListPage: React.FC = () => {
       toast.success(`Entity "${entityToDelete.name}" deleted`);
       setEntityToDelete(null);
       fetchEntities();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete entity');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete entity'));
     } finally {
       setIsDeleting(false);
     }

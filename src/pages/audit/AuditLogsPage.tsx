@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { auditService, AuditLogItem, AuditFilters, AuditFilterOptions } from '@/services/auditService';
 import { useToast } from '@/hooks/useToast';
+import { getErrorMessage } from '@/utils/errors';
 
 export const AuditLogsPage: React.FC = () => {
   const toast = useToast();
@@ -69,9 +70,9 @@ export const AuditLogsPage: React.FC = () => {
       const res = await auditService.getAuditLogs(filters);
       setLogs(res.logs);
       setPagination(res.pagination);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load audit logs:', err);
-      toast.error('Failed to load audit logs: ' + (err.message || 'Error'));
+      toast.error('Failed to load audit logs: ' + getErrorMessage(err, 'Error'));
     } finally {
       setLoading(false);
     }

@@ -13,6 +13,7 @@ import type { MasterDataItem } from '@/services/adminService';
 import { lookupService } from '@/services/lookupService';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
+import { getErrorMessage } from '@/utils/errors';
 
 // Summary cards double as quick filters
 type CardKey = 'active' | 'inactive' | 'archived';
@@ -121,8 +122,8 @@ export const ComplianceRuleListPage: React.FC = () => {
       const inactive = data.stats?.inactiveCount ?? 0;
       const archived = data.stats?.archivedCount ?? 0;
       setMetrics({ total: active + inactive + archived, active, inactive, archived });
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to fetch compliance rules');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to fetch compliance rules'));
     } finally {
       setIsLoading(false);
     }
@@ -156,8 +157,8 @@ export const ComplianceRuleListPage: React.FC = () => {
       const res = await complianceRuleService.toggleRuleStatus(rule._id);
       toast.success(res.message || 'Rule status updated');
       fetchRules();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to change rule status');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to change rule status'));
     } finally {
       setTogglingRuleId(null);
     }
@@ -171,8 +172,8 @@ export const ComplianceRuleListPage: React.FC = () => {
       toast.success(`Rule "${ruleToDelete.name}" deleted`);
       setRuleToDelete(null);
       fetchRules();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete rule');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete rule'));
     } finally {
       setIsDeleting(false);
     }
@@ -244,8 +245,8 @@ export const ComplianceRuleListPage: React.FC = () => {
       link.remove();
       URL.revokeObjectURL(url);
       toast.success(`Exported ${exportRows.length} compliance ${exportRows.length === 1 ? 'rule' : 'rules'} to CSV`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to export compliance rules');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to export compliance rules'));
     } finally {
       setIsExporting(false);
     }

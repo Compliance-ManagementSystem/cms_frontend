@@ -8,6 +8,7 @@ import { entityService, CreateEntityPayload, EntityItem } from '@/services/entit
 import { ROUTES } from '@/constants/routes';
 import { FieldErrors, getServerFieldErrors } from '@/utils/validation';
 import EntityForm, { ENTITY_FORM_ID } from './EntityForm';
+import { getErrorMessage } from '@/utils/errors';
 
 export const EntityEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -26,8 +27,8 @@ export const EntityEditPage: React.FC = () => {
     entityService
       .getEntityById(id)
       .then((res) => setEntity(res.entity))
-      .catch((err: any) => {
-        toast.error(err.message || 'Failed to load entity');
+      .catch((err) => {
+        toast.error(getErrorMessage(err, 'Failed to load entity'));
         navigate(ROUTES.ENTITIES);
       });
   }, [id, toast, navigate]);
@@ -41,9 +42,9 @@ export const EntityEditPage: React.FC = () => {
       const res = await entityService.updateEntity(id, payload);
       toast.success(res.message || 'Entity updated');
       goBack();
-    } catch (err: any) {
+    } catch (err) {
       setServerErrors(getServerFieldErrors(err));
-      toast.error(err.message || 'Failed to update entity');
+      toast.error(getErrorMessage(err, 'Failed to update entity'));
     } finally {
       setIsSubmitting(false);
     }

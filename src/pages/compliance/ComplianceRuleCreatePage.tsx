@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/useToast';
 import { complianceRuleService, ComplianceRuleItem, CreateRulePayload } from '@/services/complianceRuleService';
 import { ROUTES } from '@/constants/routes';
 import RuleForm, { RULE_FORM_ID } from './RuleForm';
+import { getErrorMessage } from '@/utils/errors';
 
 export const ComplianceRuleCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,8 +35,8 @@ export const ComplianceRuleCreatePage: React.FC = () => {
       toast.success(res.message || 'Compliance rule created');
       // Land on the coverage tab, where records for matching locations can be created
       navigate(`/compliance/rules/${res.data.rule._id}?tab=coverage`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create compliance rule');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to create compliance rule'));
     } finally {
       setIsSubmitting(false);
     }

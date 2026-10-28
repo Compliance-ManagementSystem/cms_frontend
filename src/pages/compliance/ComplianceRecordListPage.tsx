@@ -30,6 +30,7 @@ import { complianceRuleService, ComplianceRuleItem } from '@/services/compliance
 import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem, operatesAt } from '@/services/locationService';
 import { FEATURES } from '@/constants/features';
+import { getErrorMessage } from '@/utils/errors';
 
 // Summary cards double as quick filters over one or more statuses
 interface MetricCard {
@@ -191,8 +192,8 @@ export const ComplianceRecordListPage: React.FC = () => {
         ...prev,
         total: data.pagination.total,
       }));
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to fetch compliance records');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to fetch compliance records'));
     } finally {
       setIsLoading(false);
     }
@@ -276,8 +277,8 @@ export const ComplianceRecordListPage: React.FC = () => {
       toast.success('Compliance tracking record created successfully');
       setIsCreateModalOpen(false);
       fetchRecords();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create compliance record');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to create compliance record'));
     } finally {
       setIsCreating(false);
     }
@@ -293,8 +294,8 @@ export const ComplianceRecordListPage: React.FC = () => {
       setIsDeleteModalOpen(false);
       setRecordToDelete(null);
       fetchRecords();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete record');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete record'));
     } finally {
       setIsDeleting(false);
     }

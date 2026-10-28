@@ -60,6 +60,7 @@ import {
   LicenceTypeChart,
   buildUnitCards,
 } from '@/components/dashboard/operationsParts';
+import { getErrorMessage } from '@/utils/errors';
 
 const REFRESH_MS = 60_000;
 // The share of applicable licences each state is measured against on the target chart
@@ -261,9 +262,9 @@ export const Dashboard: React.FC = () => {
             .catch(() => undefined);
         }
         setLoadError(null);
-      } catch (err: any) {
+      } catch (err) {
         if (id !== requestId.current) return;
-        if (!silent) setLoadError(err.response?.data?.message || err.message || 'Failed to load the dashboard');
+        if (!silent) setLoadError(getErrorMessage(err, 'Failed to load the dashboard'));
       } finally {
         if (id === requestId.current) setIsLoading(false);
       }

@@ -35,6 +35,7 @@ import {
   password,
   maxLength,
 } from '@/utils/validation';
+import { getErrorMessage } from '@/utils/errors';
 
 const userFields = {
   firstName: required('First name').pipe(maxLength('First name', 50)),
@@ -114,8 +115,8 @@ const UsersPage: React.FC = () => {
         ...prev,
         total: data.pagination.total,
       }));
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to fetch users');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to fetch users'));
     } finally {
       setIsLoading(false);
     }
@@ -173,9 +174,9 @@ const UsersPage: React.FC = () => {
       toast.success('User created successfully');
       setIsCreateOpen(false);
       fetchUsers();
-    } catch (err: any) {
+    } catch (err) {
       setErrors(getServerFieldErrors(err));
-      toast.error(err.message || 'Failed to create user');
+      toast.error(getErrorMessage(err, 'Failed to create user'));
     } finally {
       setIsSubmitting(false);
     }
@@ -201,9 +202,9 @@ const UsersPage: React.FC = () => {
       toast.success('User updated successfully');
       setIsEditOpen(false);
       fetchUsers();
-    } catch (err: any) {
+    } catch (err) {
       setErrors(getServerFieldErrors(err));
-      toast.error(err.message || 'Failed to update user');
+      toast.error(getErrorMessage(err, 'Failed to update user'));
     } finally {
       setIsSubmitting(false);
     }
@@ -216,8 +217,8 @@ const UsersPage: React.FC = () => {
       await adminService.toggleUserStatus(user._id, nextStatus);
       toast.success(`User marked as ${nextStatus}`);
       fetchUsers();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update status');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to update status'));
     }
   };
 
@@ -230,8 +231,8 @@ const UsersPage: React.FC = () => {
       toast.success('User deleted successfully');
       setIsDeleteOpen(false);
       fetchUsers();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete user');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete user'));
     } finally {
       setIsSubmitting(false);
     }

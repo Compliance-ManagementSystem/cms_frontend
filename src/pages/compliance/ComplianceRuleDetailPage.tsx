@@ -38,6 +38,7 @@ import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem, operatesAt } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
 import { useAuth } from '@/hooks/useAuth';
+import { getErrorMessage } from '@/utils/errors';
 
 export const ComplianceRuleDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -89,8 +90,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
     try {
       const data = await complianceRuleService.getRuleById(id);
       setRule(data);
-    } catch (err: any) {
-      toastRef.current.error(err.message || 'Failed to load compliance rule');
+    } catch (err) {
+      toastRef.current.error(getErrorMessage(err, 'Failed to load compliance rule'));
       navigate(ROUTES.COMPLIANCE_RULES);
     } finally {
       setIsLoading(false);
@@ -124,8 +125,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       const res = await complianceRuleService.generateRecords(rule._id);
       toastRef.current.success(res.message || 'Records created');
       await fetchCoverage();
-    } catch (err: any) {
-      toastRef.current.error(err.message || 'Failed to create records');
+    } catch (err) {
+      toastRef.current.error(getErrorMessage(err, 'Failed to create records'));
     } finally {
       setIsGenerating(false);
     }
@@ -157,8 +158,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       toastRef.current.success(res.message || 'Rule status updated');
       setRule(res.data.rule);
       fetchHistory();
-    } catch (err: any) {
-      toastRef.current.error(err.message || 'Failed to toggle rule status');
+    } catch (err) {
+      toastRef.current.error(getErrorMessage(err, 'Failed to toggle rule status'));
     } finally {
       setIsTogglingStatus(false);
     }
@@ -174,8 +175,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       toastRef.current.success(res.message || 'Rule archived successfully');
       setRule(res.data.rule);
       fetchHistory();
-    } catch (err: any) {
-      toastRef.current.error(err.message || 'Failed to archive rule');
+    } catch (err) {
+      toastRef.current.error(getErrorMessage(err, 'Failed to archive rule'));
     } finally {
       setIsArchiving(false);
     }
@@ -190,8 +191,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       toastRef.current.success(res.message || 'Rule restored');
       setRule(res.data.rule);
       fetchHistory();
-    } catch (err: any) {
-      toastRef.current.error(err.message || 'Failed to restore rule');
+    } catch (err) {
+      toastRef.current.error(getErrorMessage(err, 'Failed to restore rule'));
     } finally {
       setIsArchiving(false);
     }
@@ -205,8 +206,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
       await complianceRuleService.deleteRule(rule._id);
       toastRef.current.success('Rule deleted successfully');
       navigate(ROUTES.COMPLIANCE_RULES);
-    } catch (err: any) {
-      toastRef.current.error(err.message || 'Failed to delete rule');
+    } catch (err) {
+      toastRef.current.error(getErrorMessage(err, 'Failed to delete rule'));
     } finally {
       setIsDeleting(false);
       setIsDeleteModalOpen(false);
@@ -237,8 +238,8 @@ export const ComplianceRuleDetailPage: React.FC = () => {
         locationId: selectedLocationId || undefined,
       });
       setEvaluationResult(result);
-    } catch (err: any) {
-      toastRef.current.error(err.message || 'Failed to evaluate rule applicability');
+    } catch (err) {
+      toastRef.current.error(getErrorMessage(err, 'Failed to evaluate rule applicability'));
     } finally {
       setIsEvaluating(false);
     }

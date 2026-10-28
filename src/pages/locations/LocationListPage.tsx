@@ -14,6 +14,7 @@ import type { MasterDataItem } from '@/services/adminService';
 import { lookupService } from '@/services/lookupService';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
+import { getErrorMessage } from '@/utils/errors';
 
 // Summary cards double as quick filters
 type CardKey = 'active' | 'inactive' | 'attention';
@@ -141,8 +142,8 @@ export const LocationListPage: React.FC = () => {
           attention: data.pagination.attentionCount ?? 0,
         });
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to fetch locations');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to fetch locations'));
     } finally {
       setIsLoading(false);
     }
@@ -235,8 +236,8 @@ export const LocationListPage: React.FC = () => {
       link.remove();
       URL.revokeObjectURL(url);
       toast.success(`Exported ${exportRows.length} ${exportRows.length === 1 ? 'location' : 'locations'} to CSV`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to export locations');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to export locations'));
     } finally {
       setIsExporting(false);
     }
@@ -250,8 +251,8 @@ export const LocationListPage: React.FC = () => {
       toast.success(`Location "${locationToDelete.name}" deleted`);
       setLocationToDelete(null);
       fetchLocations();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete location');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete location'));
     } finally {
       setIsDeleting(false);
     }

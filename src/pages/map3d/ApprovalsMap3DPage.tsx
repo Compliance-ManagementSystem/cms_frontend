@@ -20,6 +20,7 @@ import {
 import { FixedTheme } from '@/contexts/ThemeContext';
 import { ROUTES } from '@/constants/routes';
 import { createIndiaScene, isWebGLAvailable, type ActiveState, type IndiaSceneHandle } from './indiaScene';
+import { getErrorMessage } from '@/utils/errors';
 
 /**
  * National approvals map: the operations dashboard's figures around a 3D map of India.
@@ -87,9 +88,9 @@ const MapPage: React.FC = () => {
         setStateView(state);
         setAnimate(!silent);
         setLoadError(null);
-      } catch (err: any) {
+      } catch (err) {
         if (id !== requestId.current) return;
-        if (!silent) setLoadError(err.response?.data?.message || err.message || 'Could not load the map data');
+        if (!silent) setLoadError(getErrorMessage(err, 'Could not load the map data'));
       } finally {
         if (id === requestId.current) setIsLoading(false);
       }

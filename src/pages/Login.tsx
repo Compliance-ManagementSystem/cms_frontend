@@ -40,6 +40,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { ROUTES } from '../constants/routes';
 import env from '@/config/env';
+import { getErrorMessage } from '@/utils/errors';
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email address is required').email('Please enter a valid email address'),
@@ -243,7 +244,7 @@ export const Login: React.FC = () => {
   const [showForgotModal, setShowForgotModal] = useState(false);
 
   const showDemoLogin = env.SHOW_DEMO_LOGIN;
-  const from = (location.state as any)?.from?.pathname || ROUTES.DASHBOARD;
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || ROUTES.DASHBOARD;
 
   // Ensure body background is light for the enterprise compliance login page
   useEffect(() => {
@@ -276,8 +277,8 @@ export const Login: React.FC = () => {
       await login(data.email, data.password);
       success('Authentication successful! Welcome to CMS.');
       navigate(from, { replace: true });
-    } catch (err: any) {
-      error(err.message || 'Invalid credentials. Please verify your details.');
+    } catch (err) {
+      error(getErrorMessage(err, 'Invalid credentials. Please verify your details.'));
     } finally {
       setIsSubmitting(false);
     }

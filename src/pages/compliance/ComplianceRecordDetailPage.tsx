@@ -38,6 +38,7 @@ import {
 import { adminService, MasterDataItem } from '@/services/adminService';
 import { UPLOAD_ACCEPT, pickUploadFile } from '@/utils/validation';
 import { ROUTES } from '@/constants/routes';
+import { getErrorMessage } from '@/utils/errors';
 
 // The statuses the Location Master sheet uses, in the order work progresses
 const SIMPLE_STATUS_OPTIONS: Array<{ value: ComplianceRecordStatus; label: string }> = [
@@ -123,8 +124,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       try {
         const data = await complianceRecordService.getRecordById(id);
         setRecord(data);
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to load compliance record');
+      } catch (err) {
+        toast.error(getErrorMessage(err, 'Failed to load compliance record'));
         navigate(ROUTES.COMPLIANCE_RECORDS);
       } finally {
         setIsLoading(false);
@@ -248,11 +249,12 @@ export const ComplianceRecordDetailPage: React.FC = () => {
           const documentTypeId = docTypes.find((dt) => dt.code === statusUpload.type)?._id;
           if (documentTypeId) formData.append('documentType', documentTypeId);
           await complianceRecordService.uploadDocument(formData);
-        } catch (err: any) {
+        } catch (err) {
           toast.error(
-            `Status saved, but the ${statusUpload.label} could not be uploaded: ${
-              err.response?.data?.message || err.message || 'unknown error'
-            }`
+            `Status saved, but the ${statusUpload.label} could not be uploaded: ${getErrorMessage(
+              err,
+              'unknown error'
+            )}`
           );
           setIsStatusModalOpen(false);
           await Promise.all([fetchRecord(true), fetchWorkflow()]);
@@ -263,8 +265,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       toast.success(res.message || 'Record updated');
       setIsStatusModalOpen(false);
       await Promise.all([fetchRecord(true), fetchWorkflow()]);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || err.message || 'Could not update the record');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Could not update the record'));
     } finally {
       setIsSavingStatus(false);
     }
@@ -309,8 +311,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       setUploadExpiryDate('');
       fetchRecord(true);
       fetchWorkflow();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to upload document');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to upload document'));
     } finally {
       setIsUploading(false);
     }
@@ -337,8 +339,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       setReplaceNotes('');
       fetchRecord(true);
       fetchWorkflow();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to replace document version');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to replace document version'));
     } finally {
       setIsReplacing(false);
     }
@@ -351,8 +353,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       setPreviewDocUrl(URL.createObjectURL(blob));
       setPreviewDocTitle(`${doc.name} (v${version || doc.currentVersion || 1})`);
       setIsPreviewModalOpen(true);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load document preview');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to load document preview'));
     }
   };
 
@@ -374,8 +376,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to download document');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to download document'));
     }
   };
 

@@ -7,6 +7,7 @@ import { locationService, CreateLocationPayload, LocationItem } from '@/services
 import { ROUTES } from '@/constants/routes';
 import { FieldErrors, getServerFieldErrors } from '@/utils/validation';
 import LocationForm, { LOCATION_FORM_ID } from './LocationForm';
+import { getErrorMessage } from '@/utils/errors';
 
 export const LocationEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,8 +23,8 @@ export const LocationEditPage: React.FC = () => {
     locationService
       .getLocationById(id)
       .then((res) => setLocation(res.location))
-      .catch((err: any) => {
-        toast.error(err.message || 'Failed to load location');
+      .catch((err) => {
+        toast.error(getErrorMessage(err, 'Failed to load location'));
         navigate(ROUTES.LOCATIONS);
       });
   }, [id, toast, navigate]);
@@ -38,9 +39,9 @@ export const LocationEditPage: React.FC = () => {
       const res = await locationService.updateLocation(id, payload);
       toast.success(res.message || 'Location updated');
       goBack();
-    } catch (err: any) {
+    } catch (err) {
       setServerErrors(getServerFieldErrors(err));
-      toast.error(err.message || 'Failed to update location');
+      toast.error(getErrorMessage(err, 'Failed to update location'));
     } finally {
       setIsSubmitting(false);
     }

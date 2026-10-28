@@ -24,6 +24,7 @@ import FieldError, { fieldBorder } from '@/components/ui/FieldError';
 import { useFormErrors, getServerFieldErrors } from '@/utils/validation';
 import { createTaskSchema } from './taskValidation';
 import { PRIORITY_META, STATUS_META, AUTO_SOURCE_LABELS, isPastDue, formatOverdue } from './taskDisplay';
+import { getErrorMessage } from '@/utils/errors';
 
 const PAGE_SIZE = 15;
 
@@ -181,8 +182,8 @@ export const TaskListPage: React.FC = () => {
       const res = mineOnly ? await taskService.getMyTasks(params) : await taskService.getTasks(params);
       setTasks(res.data);
       setTotalCount(res.pagination.total);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load tasks');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to load tasks'));
     } finally {
       setLoading(false);
     }
@@ -278,9 +279,9 @@ export const TaskListPage: React.FC = () => {
       setCreateModalOpen(false);
       setFormData(EMPTY_FORM);
       refreshAll();
-    } catch (err: any) {
+    } catch (err) {
       setErrors(getServerFieldErrors(err));
-      toast.error(err.message || 'Failed to create task');
+      toast.error(getErrorMessage(err, 'Failed to create task'));
     } finally {
       setIsCreating(false);
     }

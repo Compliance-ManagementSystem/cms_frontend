@@ -27,6 +27,7 @@ import { ROUTES } from '@/constants/routes';
 import { openDocumentInNewTab } from '@/utils/documentFile';
 import { useAuth } from '@/hooks/useAuth';
 import DocumentUploadModal from '@/components/documents/DocumentUploadModal';
+import { getErrorMessage } from '@/utils/errors';
 
 type TabType = 'overview' | 'locations' | 'compliance' | 'documents' | 'tasks' | 'audit';
 
@@ -49,8 +50,8 @@ export const EntityDetailPage: React.FC = () => {
     try {
       const details = await entityService.getEntityById(id);
       setData(details);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to fetch entity details');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to fetch entity details'));
     } finally {
       setIsLoading(false);
     }
@@ -540,7 +541,7 @@ export const EntityDetailPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  locations.map((loc: any) => (
+                  locations.map((loc) => (
                     <tr
                       key={loc._id}
                       onClick={() => navigate(`/locations/${loc._id}`)}
@@ -550,9 +551,7 @@ export const EntityDetailPage: React.FC = () => {
                         <div className="font-semibold text-slate-900 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                           {loc.name}
                         </div>
-                        <div className="text-xs font-mono text-emerald-600 dark:text-emerald-300">
-                          {loc.locationCode || loc.code}
-                        </div>
+                        <div className="text-xs font-mono text-emerald-600 dark:text-emerald-300">{loc.code}</div>
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant="info" size="sm">
@@ -784,7 +783,7 @@ export const EntityDetailPage: React.FC = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               openDocumentInNewTab(doc._id).catch((err) =>
-                                toast.error(err.message || 'Failed to open document')
+                                toast.error(getErrorMessage(err, 'Failed to open document'))
                               );
                             }}
                           >

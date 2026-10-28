@@ -7,6 +7,7 @@ import type { MasterDataItem } from '@/services/adminService';
 import { lookupService } from '@/services/lookupService';
 import { MAX_UPLOAD_MB, UPLOAD_ACCEPT, pickUploadFile } from '@/utils/validation';
 import { complianceRecordService } from '@/services/complianceRecordService';
+import { getErrorMessage } from '@/utils/errors';
 
 interface DocumentUploadModalProps {
   isOpen: boolean;
@@ -86,8 +87,8 @@ const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
       toast.success('Document uploaded');
       onUploaded();
       onClose();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to upload document');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to upload document'));
     } finally {
       setIsUploading(false);
     }
