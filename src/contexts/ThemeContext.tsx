@@ -34,6 +34,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.classList.remove('light');
       root.classList.add('dark');
     }
+    // Match the browser's UI (mobile address bar) to the page background
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', theme === 'light' ? '#ffffff' : '#020617');
   }, [theme]);
 
   // Remember the theme only when the user chooses it

@@ -39,6 +39,7 @@ import { adminService, MasterDataItem } from '@/services/adminService';
 import { UPLOAD_ACCEPT, pickUploadFile } from '@/utils/validation';
 import { ROUTES } from '@/constants/routes';
 import { getErrorMessage } from '@/utils/errors';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 // The statuses the Location Master sheet uses, in the order work progresses
 const SIMPLE_STATUS_OPTIONS: Array<{ value: ComplianceRecordStatus; label: string }> = [
@@ -74,6 +75,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const canUpdateStatus = can('compliance_record', 'update');
 
   const [record, setRecord] = useState<ComplianceRecordItem | null>(null);
+  usePageTitle(record?.recordNumber);
   const [docTypes, setDocTypes] = useState<MasterDataItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'documents'>('overview');

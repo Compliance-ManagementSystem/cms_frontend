@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppRoutes from '@/routes/AppRoutes';
+import RouteTitle from '@/routes/RouteTitle';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import env from '@/config/env';
 
@@ -31,6 +32,7 @@ const App: React.FC = () => {
           <BrowserRouter>
             <AuthProvider>
               <ToastProvider>
+                <RouteTitle />
                 <AppRoutes />
               </ToastProvider>
             </AuthProvider>

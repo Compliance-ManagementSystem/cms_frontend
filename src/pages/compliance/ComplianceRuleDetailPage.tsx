@@ -39,6 +39,7 @@ import { locationService, LocationItem, operatesAt } from '@/services/locationSe
 import { ROUTES } from '@/constants/routes';
 import { useAuth } from '@/hooks/useAuth';
 import { getErrorMessage } from '@/utils/errors';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export const ComplianceRuleDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +53,7 @@ export const ComplianceRuleDetailPage: React.FC = () => {
   toastRef.current = toast;
 
   const [rule, setRule] = useState<ComplianceRuleItem | null>(null);
+  usePageTitle(rule?.name);
   const [isLoading, setIsLoading] = useState(true);
   const [searchParams] = useSearchParams();
   const canCreateRecords = can('compliance_record', 'create');

@@ -28,6 +28,7 @@ import { openDocumentInNewTab } from '@/utils/documentFile';
 import { useAuth } from '@/hooks/useAuth';
 import DocumentUploadModal from '@/components/documents/DocumentUploadModal';
 import { getErrorMessage } from '@/utils/errors';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 type TabType = 'overview' | 'locations' | 'compliance' | 'documents' | 'tasks' | 'audit';
 
@@ -42,6 +43,7 @@ export const EntityDetailPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [data, setData] = useState<EntityDetailData | null>(null);
+  usePageTitle(data?.entity.name);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchEntityDetails = useCallback(async () => {

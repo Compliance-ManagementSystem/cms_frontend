@@ -30,6 +30,7 @@ import { ROUTES } from '@/constants/routes';
 import { openDocumentInNewTab } from '@/utils/documentFile';
 import DocumentUploadModal from '@/components/documents/DocumentUploadModal';
 import { getErrorMessage } from '@/utils/errors';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 type TabType = 'overview' | 'compliance' | 'documents' | 'tasks' | 'history';
 
@@ -46,6 +47,7 @@ export const LocationDetailPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [data, setData] = useState<LocationDetailData | null>(null);
+  usePageTitle(data?.location.name);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchLocationDetails = useCallback(async () => {

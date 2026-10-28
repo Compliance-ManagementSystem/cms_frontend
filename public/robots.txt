@@ -1,0 +1,3 @@
+# Private application: keep all search engines out
+User-agent: *
+Disallow: /
