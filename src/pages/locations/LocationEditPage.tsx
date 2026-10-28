@@ -31,17 +31,19 @@ export const LocationEditPage: React.FC = () => {
 
   const goBack = () => navigate(`/locations/${id}`);
 
-  const handleSubmit = async (payload: CreateLocationPayload) => {
-    if (!id) return;
+  const handleSubmit = async (payload: CreateLocationPayload): Promise<boolean> => {
+    if (!id) return false;
     setIsSubmitting(true);
     setServerErrors({});
     try {
       const res = await locationService.updateLocation(id, payload);
       toast.success(res.message || 'Location updated');
       goBack();
+      return true;
     } catch (err) {
       setServerErrors(getServerFieldErrors(err));
       toast.error(getErrorMessage(err, 'Failed to update location'));
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -80,9 +82,7 @@ export const LocationEditPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={goBack} disabled={isSubmitting}>
-            Cancel
-          </Button>
+          {/* Cancel is in the form's footer, where it also discards the unsaved draft */}
           <Button
             type="submit"
             form={LOCATION_FORM_ID}

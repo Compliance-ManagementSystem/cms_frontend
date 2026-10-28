@@ -7,6 +7,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
+import { clearLocationDrafts } from '@/utils/locationDraft';
 import type { AuthUser, AuthContextType, LoginResponseData, RoleCode } from '../types/auth';
 
 const TOKEN_KEY = 'cms_access_token';
@@ -73,6 +74,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setPermissions([]);
       setAuthTokens(null, null);
+      // Unsaved form drafts stay on this computer otherwise
+      clearLocationDrafts();
     }
   }, [setAuthTokens]);
 

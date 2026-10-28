@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MapPin,
   Save,
@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ClipboardList,
   Pencil,
+  RotateCcw,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -45,6 +46,8 @@ import { locationService } from '@/services/locationService';
 import LocationPhoto from '@/components/locations/LocationPhoto';
 import { openLocationPhoto } from '@/utils/locationPhoto';
 import { getErrorMessage } from '@/utils/errors';
+import { useAuth } from '@/hooks/useAuth';
+import { loadLocationDraft, saveLocationDraft, removeLocationDraft } from '@/utils/locationDraft';
 
 /** The form element's id, so a button outside the form can submit it */
 export const LOCATION_FORM_ID = 'location-form';
@@ -55,7 +58,8 @@ interface LocationFormProps {
   /** Pre-selects the entity for a new location */
   defaultEntityId?: string;
   isSubmitting: boolean;
-  onSubmit: (payload: CreateLocationPayload) => void;
+  /** Resolves true once saved, so the unsaved draft can be dropped */
+  onSubmit: (payload: CreateLocationPayload) => Promise<boolean>;
   onCancel: () => void;
   /** Field errors returned by the API for the last submit */
   serverErrors?: FieldErrors;
@@ -356,6 +360,16 @@ const stepOfField = (field: string): number => {
   return index === -1 ? 0 : index;
 };
 
+/** What a draft keeps: everything typed plus where the user was */
+interface DraftData {
+  form: FormState;
+  coEntities: CoEntityRow[];
+  step: number;
+  reached: number;
+}
+
+const LEAVE_MESSAGE = 'You have unsaved changes. Your draft is kept and restored when you come back. Leave this page?';
+
 const LocationForm: React.FC<LocationFormProps> = ({
   initial,
   defaultEntityId,
@@ -367,8 +381,16 @@ const LocationForm: React.FC<LocationFormProps> = ({
   const { errors, setErrors, clear } = useFormErrors(serverErrors);
   const isEditing = !!initial;
 
-  const [form, setForm] = useState<FormState>(() => toFormState(initial, defaultEntityId));
-  const [coEntities, setCoEntities] = useState<CoEntityRow[]>(() => toCoEntityRows(initial));
+  const userId = useAuth().user?._id;
+
+  // An unsaved draft from an earlier visit (refresh, crash, closed tab) is picked up once
+  const [draft] = useState(() =>
+    userId ? loadLocationDraft<DraftData>(userId, initial?._id, initial?.updatedAt) : null
+  );
+  const [restoredAt, setRestoredAt] = useState<string | null>(draft?.savedAt ?? null);
+
+  const [form, setForm] = useState<FormState>(() => draft?.data.form ?? toFormState(initial, defaultEntityId));
+  const [coEntities, setCoEntities] = useState<CoEntityRow[]>(() => draft?.data.coEntities ?? toCoEntityRows(initial));
   const [uploading, setUploading] = useState<{ photos: boolean; noticePhoto: boolean }>({
     photos: false,
     noticePhoto: false,
@@ -478,9 +500,93 @@ const LocationForm: React.FC<LocationFormProps> = ({
   // ── Steps ──
   const LAST_STEP = STEPS.length - 1;
   const formRef = useRef<HTMLFormElement>(null);
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(draft?.data.step ?? 0);
   // Furthest step reached; a new location moves forward one checked step at a time
-  const [reached, setReached] = useState(isEditing ? LAST_STEP : 0);
+  const [reached, setReached] = useState(draft?.data.reached ?? (isEditing ? LAST_STEP : 0));
+
+  // ── Unsaved draft ──
+  // The values the form opened with. A new location's entity may be filled in
+  // automatically, so it alone does not count as a change.
+  const [pristine] = useState(() =>
+    JSON.stringify({
+      form: { ...toFormState(initial, defaultEntityId), entity: '' },
+      coEntities: toCoEntityRows(initial),
+    })
+  );
+  const isDirty =
+    JSON.stringify({ form: { ...form, entity: '' }, coEntities }) !== pristine ||
+    (isEditing && form.entity !== (initial?.entity?._id || ''));
+
+  // Set once the form is saved or cancelled, so nothing writes the draft back
+  const leavingRef = useRef(false);
+  const latestRef = useRef({ isDirty, data: { form, coEntities, step, reached } as DraftData });
+  latestRef.current = { isDirty, data: { form, coEntities, step, reached } };
+
+  const persistDraft = useCallback(() => {
+    if (!userId || leavingRef.current) return;
+    const { isDirty: dirty, data } = latestRef.current;
+    if (dirty) {
+      saveLocationDraft(userId, initial?._id, {
+        savedAt: new Date().toISOString(),
+        baseUpdatedAt: initial?.updatedAt,
+        data,
+      });
+    } else {
+      removeLocationDraft(userId, initial?._id);
+    }
+  }, [userId, initial?._id, initial?.updatedAt]);
+
+  // Saved shortly after each change
+  useEffect(() => {
+    const timer = setTimeout(persistDraft, 500);
+    return () => clearTimeout(timer);
+  }, [form, coEntities, step, reached, persistDraft]);
+
+  // Saved at once when the page is left, and a warning before a refresh, a closed tab or a link
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      persistDraft();
+      if (latestRef.current.isDirty && !leavingRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    // In-app links (sidebar, navbar) are caught before the router handles them
+    const onLinkClick = (e: MouseEvent) => {
+      if (!latestRef.current.isDirty || leavingRef.current) return;
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!link || link.target === '_blank' || link.origin !== window.location.origin) return;
+      if (link.pathname === window.location.pathname) return;
+      if (!window.confirm(LEAVE_MESSAGE)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    document.addEventListener('click', onLinkClick, true);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      document.removeEventListener('click', onLinkClick, true);
+      persistDraft();
+    };
+  }, [persistDraft]);
+
+  const discardDraft = () => {
+    if (userId) removeLocationDraft(userId, initial?._id);
+    setForm(toFormState(initial, defaultEntityId));
+    setCoEntities(toCoEntityRows(initial));
+    setStep(0);
+    setReached(isEditing ? LAST_STEP : 0);
+    setErrors({});
+    setRestoredAt(null);
+  };
+
+  const handleCancel = () => {
+    leavingRef.current = true;
+    if (userId) removeLocationDraft(userId, initial?._id);
+    onCancel();
+  };
 
   const showStep = (index: number) => {
     setStep(index);
@@ -518,7 +624,7 @@ const LocationForm: React.FC<LocationFormProps> = ({
 
   const stepHasErrors = (index: number) => Object.keys(errors).some((field) => stepOfField(field) === index);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Enter in a field moves a new location to the next step rather than saving it
@@ -540,7 +646,8 @@ const LocationForm: React.FC<LocationFormProps> = ({
     // Rows left without an entity are dropped
     const chosenCoEntities = coEntities.filter((co) => co.entity);
 
-    onSubmit({
+    leavingRef.current = true;
+    const saved = await onSubmit({
       name: form.name.trim(),
       entity: form.entity,
       locationType: form.locationType,
@@ -570,6 +677,11 @@ const LocationForm: React.FC<LocationFormProps> = ({
         country: form.address.country.trim() || 'India',
       },
     });
+    if (saved) {
+      if (userId) removeLocationDraft(userId, initial?._id);
+    } else {
+      leavingRef.current = false;
+    }
   };
 
   const entityName = entities.find((ent) => ent._id === form.entity)?.name || initial?.entity?.name;
@@ -579,6 +691,27 @@ const LocationForm: React.FC<LocationFormProps> = ({
 
   return (
     <form id={LOCATION_FORM_ID} ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-6 scroll-mt-24">
+      {restoredAt && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200"
+        >
+          <span className="flex items-center gap-2">
+            <RotateCcw size={16} className="flex-shrink-0" />
+            We restored your unsaved draft from{' '}
+            {new Date(restoredAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.
+          </span>
+          <span className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setRestoredAt(null)}>
+              Keep
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={discardDraft}>
+              Discard draft
+            </Button>
+          </span>
+        </div>
+      )}
+
       {/* Step indicator; every step is open when editing */}
       <Card padding="md">
         <ol className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -1218,7 +1351,7 @@ const LocationForm: React.FC<LocationFormProps> = ({
           Step {step + 1} of {STEPS.length}: {current.title}
         </span>
         <div className="flex items-center gap-3 ml-auto">
-          <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
+          <Button type="button" variant="ghost" onClick={handleCancel} disabled={isSubmitting}>
             Cancel
           </Button>
           {step > 0 && (

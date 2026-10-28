@@ -15,16 +15,18 @@ export const LocationCreatePage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverErrors, setServerErrors] = useState<FieldErrors>({});
 
-  const handleSubmit = async (payload: CreateLocationPayload) => {
+  const handleSubmit = async (payload: CreateLocationPayload): Promise<boolean> => {
     setIsSubmitting(true);
     setServerErrors({});
     try {
       const res = await locationService.createLocation(payload);
       toast.success(res.message || 'Location created');
       navigate(`/locations/${res.data.location._id}`);
+      return true;
     } catch (err) {
       setServerErrors(getServerFieldErrors(err));
       toast.error(getErrorMessage(err, 'Failed to create location'));
+      return false;
     } finally {
       setIsSubmitting(false);
     }
