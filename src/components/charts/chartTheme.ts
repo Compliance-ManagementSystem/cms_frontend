@@ -8,14 +8,6 @@ import type { HealthBucket } from '@/services/dashboardService';
  * contrast against each surface, in this stacking order: compliant, pending,
  * expiring soon, expired. Keep that order wherever the buckets sit side by side.
  */
-export const BUCKET_ORDER: HealthBucket[] = ['compliant', 'pending', 'expiringSoon', 'expired'];
-
-export const BUCKET_LABELS: Record<HealthBucket, string> = {
-  compliant: 'Compliant',
-  pending: 'Pending Action',
-  expiringSoon: 'Expiring Soon',
-  expired: 'Expired',
-};
 
 // Compliance-score bands for the map: one hue, stepped by magnitude
 export const SCORE_BANDS = [

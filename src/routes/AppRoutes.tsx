@@ -13,36 +13,36 @@ const Login = React.lazy(() => import('@/pages/Login'));
 const Unauthorized = React.lazy(() => import('@/pages/Unauthorized'));
 const NotFound = React.lazy(() => import('@/pages/NotFound'));
 
-// Phase 4 – Administration
+// Administration
 const AdminUsers = React.lazy(() => import('@/pages/admin/UsersPage'));
 // const AdminRoles       = React.lazy(() => import('@/pages/admin/RolesPage'));
 
-// Phase 5 – Entity Management
+// Entity Management
 const EntityListPage = React.lazy(() => import('@/pages/entities/EntityListPage'));
 const EntityCreatePage = React.lazy(() => import('@/pages/entities/EntityCreatePage'));
 const EntityDetailPage = React.lazy(() => import('@/pages/entities/EntityDetailPage'));
 const EntityEditPage = React.lazy(() => import('@/pages/entities/EntityEditPage'));
 
-// Phase 6 – Location Master
+// Location Master
 const LocationListPage = React.lazy(() => import('@/pages/locations/LocationListPage'));
 const LocationCreatePage = React.lazy(() => import('@/pages/locations/LocationCreatePage'));
 const LocationDetailPage = React.lazy(() => import('@/pages/locations/LocationDetailPage'));
 const LocationEditPage = React.lazy(() => import('@/pages/locations/LocationEditPage'));
 
-// Phase 7 – Compliance Rule Engine
+// Compliance Rule Engine
 // const ComplianceRuleListPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleListPage'));
 // const ComplianceRuleCreatePage = React.lazy(() => import('@/pages/compliance/ComplianceRuleCreatePage'));
 // const ComplianceRuleDetailPage = React.lazy(() => import('@/pages/compliance/ComplianceRuleDetailPage'));
 // const ComplianceRuleEditPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleEditPage'));
 
-// Phase 8 – Compliance Records & Document Management
+// Compliance Records & Document Management
 const ComplianceRecordListPage = React.lazy(() => import('@/pages/compliance/ComplianceRecordListPage'));
 const ComplianceRecordDetailPage = React.lazy(() => import('@/pages/compliance/ComplianceRecordDetailPage'));
 
-// Phase 10 – Tasks
+// Tasks
 const TaskListPage = React.lazy(() => import('@/pages/tasks/TaskListPage'));
 
-// Phase 13 – Audit Trail
+// Audit Trail
 const AuditLogsPage = React.lazy(() =>
   import('@/pages/audit/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage }))
 );
@@ -109,7 +109,7 @@ const AppRoutes: React.FC = () => {
           }
         />
 
-        {/* ── Phase 4: Administration (Super Admin & Admin only) ── */}
+        {/* ── Administration (Super Admin & Admin only) ── */}
         {/* Roles and Compliance Rules are hidden for every role:
             their addresses send people back to the dashboard. To bring one back, restore
             its lazy import above, its route element here and its entry in constants/sidebar.ts. */}
@@ -125,7 +125,7 @@ const AppRoutes: React.FC = () => {
         />
         <Route path={ROUTES.ADMIN_ROLES} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
 
-        {/* Phase 5: Entities — Restricted to Super Admin, Admin, Entity Admin */}
+        {/* Entities — Restricted to Super Admin, Admin, Entity Admin */}
         <Route
           path={ROUTES.ENTITIES}
           element={
@@ -167,7 +167,7 @@ const AppRoutes: React.FC = () => {
           }
         />
 
-        {/* Phase 6: Location Master */}
+        {/* Location Master */}
         <Route
           path={ROUTES.LOCATIONS}
           element={
@@ -227,13 +227,13 @@ const AppRoutes: React.FC = () => {
           }
         />
 
-        {/* Phase 7 – Compliance Rule Engine */}
+        {/* Compliance Rule Engine */}
         <Route path={ROUTES.COMPLIANCE_RULES} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
         <Route path={ROUTES.COMPLIANCE_RULE_CREATE} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
         <Route path={ROUTES.COMPLIANCE_RULE_DETAILS} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
         <Route path={ROUTES.COMPLIANCE_RULE_EDIT} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
 
-        {/* Phase 8 – Compliance Records Lifecycle */}
+        {/* Compliance Records Lifecycle */}
         <Route path={ROUTES.COMPLIANCE} element={<Navigate to={ROUTES.COMPLIANCE_RECORDS} replace />} />
         <Route
           path={ROUTES.COMPLIANCE_RECORDS}
@@ -274,7 +274,7 @@ const AppRoutes: React.FC = () => {
           }
         />
 
-        {/* Phase 10 – Tasks */}
+        {/* Tasks */}
         <Route
           path={ROUTES.TASKS}
           element={
@@ -300,7 +300,7 @@ const AppRoutes: React.FC = () => {
           }
         />
 
-        {/* Phase 13 – Audit Trail — Restricted to Super Admin, Admin, Entity Admin, Compliance Officer */}
+        {/* Audit Trail — Restricted to Super Admin, Admin, Entity Admin, Compliance Officer */}
         <Route
           path={ROUTES.AUDIT_LOGS}
           element={

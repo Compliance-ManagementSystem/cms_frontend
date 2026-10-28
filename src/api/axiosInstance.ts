@@ -9,15 +9,6 @@ const axiosInstance = axios.create({
   },
 });
 
-// ── Request interceptor ────────────────────────────────────────────────────────
-axiosInstance.interceptors.request.use(
-  (config) => {
-    // Phase 2 will add Authorization header here
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
 // ── Response interceptor ───────────────────────────────────────────────────────
 axiosInstance.interceptors.response.use(
   (response) => response,

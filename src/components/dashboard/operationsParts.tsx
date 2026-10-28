@@ -51,7 +51,7 @@ export const withQuery = (path: string, params: Record<string, string | undefine
 export const unitsLink = (filters: OperationsFilters, status?: string, opening?: string): string =>
   withQuery(ROUTES.LOCATIONS, { entity: filters.entity, state: filters.state, status, opening });
 
-export const ChartTooltip = ({ active, payload, label, unit }: any) => {
+const ChartTooltip = ({ active, payload, label, unit }: any) => {
   if (!active || !payload?.length) return null;
   const rows = payload.filter((entry: any) => entry.value !== undefined && entry.value !== null);
   const total = rows.reduce((sum: number, entry: any) => sum + (Number(entry.value) || 0), 0);
