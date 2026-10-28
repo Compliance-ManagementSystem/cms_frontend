@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Save, Briefcase, Plus, Trash2 } from 'lucide-react';
+import { MapPin, Save, Briefcase, Plus, Trash2, Camera, X, Star, Loader2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -16,7 +16,11 @@ import {
 } from '@/services/locationService';
 import { entityService, EntityItem } from '@/services/entityService';
 import type { MasterDataItem } from '@/services/adminService';
-import { lookupService, LookupUser } from '@/services/lookupService';
+import { lookupService } from '@/services/lookupService';
+import { locationService } from '@/services/locationService';
+import LocationPhoto from '@/components/locations/LocationPhoto';
+import { openLocationPhoto } from '@/utils/locationPhoto';
+import { getErrorMessage } from '@/utils/errors';
 
 /** The form element's id, so a button outside the form can submit it */
 export const LOCATION_FORM_ID = 'location-form';
@@ -38,10 +42,18 @@ interface FormState {
   code: string;
   entity: string;
   locationType: string;
-  manager: string;
+  unitIncharge: string;
+  /** Clinic Operations Manager */
+  com: string;
+  /** Clinic photo keys; the first is the avatar */
+  photos: string[];
+  noticePhoto: string;
   openingDate: string;
   isUpcoming: boolean;
   closingDate: string;
+  /** Kept as typed text; converted to numbers on submit */
+  latitude: string;
+  longitude: string;
   areaType: AreaType | '';
   operatingModel: OperatingModel | '';
   description: string;
@@ -61,22 +73,50 @@ const FIELD_CLASS =
   'w-full bg-white dark:bg-slate-800 border rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none';
 const fieldClass = (error?: string) => `${FIELD_CLASS} ${fieldBorder(error)}`;
 
+/** Optional decimal degrees within ±limit */
+const coordinate = (label: string, limit: number) =>
+  z
+    .string()
+    .trim()
+    .refine((v) => v === '' || (/^-?\d+(\.\d+)?$/.test(v) && Math.abs(Number(v)) <= limit), {
+      message: `${label} must be a number between -${limit} and ${limit}`,
+    });
+
 const locationSchema = z
   .object({
     name: required('Location name').pipe(maxLength('Location name', 200)),
-    code: maxLength('Location code', 50),
     entity: z.string().min(1, 'Select an entity'),
     locationType: z.string().min(1, 'Select a location type'),
+    unitIncharge: required('Unit In-charge').pipe(maxLength('Unit In-charge', 200)),
+    com: required('COM').pipe(maxLength('COM', 200)),
     openingDate: z.string(),
     closingDate: z.string(),
+    latitude: coordinate('Latitude', 90),
+    longitude: coordinate('Longitude', 180),
     address: z.object({
       line1: required('Address line 1'),
       state: z.string().trim().min(1, 'Select a state'),
       pincode: optionalPincode,
     }),
     coEntities: z.array(z.object({ entity: z.string(), openingDate: z.string() })),
+    photos: z.array(z.string()),
+    noticePhoto: z.string(),
+    // Photos are required for new locations, and for older ones once they have them
+    requirePhotos: z.boolean(),
+    requireNotice: z.boolean(),
   })
   .superRefine((values, ctx) => {
+    if (values.requirePhotos && values.photos.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['photos'], message: 'Add at least one clinic photo' });
+    }
+    if (values.requireNotice && !values.noticePhoto) {
+      ctx.addIssue({ code: 'custom', path: ['noticePhoto'], message: 'Add the notice photo' });
+    }
+    // A map pin needs both values
+    if (!!values.latitude.trim() !== !!values.longitude.trim()) {
+      const missing = values.latitude.trim() ? 'longitude' : 'latitude';
+      ctx.addIssue({ code: 'custom', path: [missing], message: 'Enter both latitude and longitude, or neither' });
+    }
     if (values.closingDate && values.openingDate && values.closingDate < values.openingDate) {
       ctx.addIssue({
         code: 'custom',
@@ -113,10 +153,15 @@ const toFormState = (loc?: LocationItem, defaultEntityId = ''): FormState => ({
   entity: loc?.entity?._id || defaultEntityId,
   // Location types are submitted by their Master Data code
   locationType: loc?.locationType?.code || '',
-  manager: loc?.manager?._id || '',
+  unitIncharge: loc?.unitIncharge || '',
+  com: loc?.com || '',
+  photos: loc?.photos || [],
+  noticePhoto: loc?.noticePhoto || '',
   openingDate: dateInput(loc?.openingDate),
   isUpcoming: !!loc?.isUpcoming && !loc?.openingDate,
   closingDate: dateInput(loc?.closingDate),
+  latitude: loc?.geoCoordinates?.latitude != null ? String(loc.geoCoordinates.latitude) : '',
+  longitude: loc?.geoCoordinates?.longitude != null ? String(loc.geoCoordinates.longitude) : '',
   areaType: loc?.areaType || '',
   operatingModel: loc?.operatingModel || '',
   description: loc?.description || '',
@@ -131,6 +176,95 @@ const toFormState = (loc?: LocationItem, defaultEntityId = ''): FormState => ({
     country: loc?.address?.country || 'India',
   },
 });
+
+const MAX_CLINIC_PHOTOS = 4;
+const PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp';
+
+interface PhotoTileProps {
+  photoKey: string;
+  label: string;
+  /** Marks the photo used as the location's avatar */
+  isAvatar?: boolean;
+  onRemove?: () => void;
+  onMakeAvatar?: () => void;
+}
+
+const PhotoTile: React.FC<PhotoTileProps> = ({ photoKey, label, isAvatar, onRemove, onMakeAvatar }) => (
+  <div className="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+    <button type="button" onClick={() => openLocationPhoto(photoKey)} className="w-full h-full" title="Open full size">
+      <LocationPhoto
+        photoKey={photoKey}
+        alt={label}
+        className="w-full h-full"
+        fallback={<Camera size={20} className="m-auto text-slate-400" />}
+      />
+    </button>
+    {isAvatar && (
+      <span className="absolute left-1.5 top-1.5 rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+        Avatar
+      </span>
+    )}
+    <div className="absolute right-1.5 top-1.5 flex gap-1">
+      {onMakeAvatar && (
+        <button
+          type="button"
+          onClick={onMakeAvatar}
+          className="rounded-md bg-white/90 dark:bg-slate-900/90 p-1 text-slate-600 dark:text-slate-300 hover:text-emerald-600 shadow-sm"
+          title="Use as avatar"
+          aria-label="Use as avatar"
+        >
+          <Star size={13} />
+        </button>
+      )}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="rounded-md bg-white/90 dark:bg-slate-900/90 p-1 text-slate-600 dark:text-slate-300 hover:text-red-600 shadow-sm"
+          title="Remove photo"
+          aria-label="Remove photo"
+        >
+          <X size={13} />
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+interface AddPhotoTileProps {
+  id: string;
+  label: string;
+  multiple?: boolean;
+  uploading: boolean;
+  error?: string;
+  onFiles: (files: File[]) => void;
+}
+
+const AddPhotoTile: React.FC<AddPhotoTileProps> = ({ id, label, multiple, uploading, error, onFiles }) => (
+  <label
+    htmlFor={id}
+    className={`aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 text-xs font-medium cursor-pointer transition-colors ${
+      error
+        ? 'border-red-300 dark:border-red-500/60 text-red-500'
+        : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-emerald-400 hover:text-emerald-600'
+    } ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+  >
+    {uploading ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
+    {uploading ? 'Uploading…' : label}
+    <input
+      id={id}
+      type="file"
+      accept={PHOTO_ACCEPT}
+      multiple={multiple}
+      className="sr-only"
+      disabled={uploading}
+      onChange={(e) => {
+        onFiles(Array.from(e.target.files || []));
+        e.target.value = '';
+      }}
+    />
+  </label>
+);
 
 interface CoEntityRow {
   entity: string;
@@ -150,17 +284,22 @@ const LocationForm: React.FC<LocationFormProps> = ({
   onCancel,
   serverErrors,
 }) => {
-  const { errors, validate, clear } = useFormErrors(serverErrors);
+  const { errors, setErrors, validate, clear } = useFormErrors(serverErrors);
   const isEditing = !!initial;
 
   const [form, setForm] = useState<FormState>(() => toFormState(initial, defaultEntityId));
   const [coEntities, setCoEntities] = useState<CoEntityRow[]>(() => toCoEntityRows(initial));
+  const [uploading, setUploading] = useState<{ photos: boolean; noticePhoto: boolean }>({
+    photos: false,
+    noticePhoto: false,
+  });
+  const requirePhotos = !isEditing || (initial?.photos?.length ?? 0) > 0;
+  const requireNotice = !isEditing || !!initial?.noticePhoto;
 
   const [entities, setEntities] = useState<EntityItem[]>([]);
   const [locationTypes, setLocationTypes] = useState<MasterDataItem[]>([]);
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
-  const [users, setUsers] = useState<LookupUser[]>([]);
 
   // Reference data
   useEffect(() => {
@@ -183,18 +322,6 @@ const LocationForm: React.FC<LocationFormProps> = ({
     });
   }, [initial]);
 
-  // Managers belong to the selected entity
-  useEffect(() => {
-    if (!form.entity) {
-      setUsers([]);
-      return;
-    }
-    lookupService
-      .getUsers(form.entity)
-      .then((res) => setUsers(res.users || []))
-      .catch(() => setUsers([]));
-  }, [form.entity]);
-
   const setField = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     // Changing either date can resolve a date-order error shown on the closing date
@@ -207,8 +334,7 @@ const LocationForm: React.FC<LocationFormProps> = ({
   };
 
   const handleEntityChange = (entity: string) => {
-    // A manager from the previous entity no longer applies
-    setForm((prev) => ({ ...prev, entity, manager: '' }));
+    setForm((prev) => ({ ...prev, entity }));
     clear('entity', 'coEntities');
   };
 
@@ -222,6 +348,39 @@ const LocationForm: React.FC<LocationFormProps> = ({
   const stateDistricts = selectedState ? districts.filter((d) => d.parent?._id === selectedState._id) : [];
   const districtOptions = stateDistricts.length > 0 ? stateDistricts : selectedState ? [] : districts;
 
+  /** Uploads each file as it is picked; the keys are saved with the location */
+  const uploadPhotos = async (field: 'photos' | 'noticePhoto', files: File[]) => {
+    const room = field === 'photos' ? MAX_CLINIC_PHOTOS - form.photos.length : 1;
+    if (files.length === 0 || room <= 0) return;
+    if (files.length > room) {
+      setErrors((prev) => ({
+        ...prev,
+        photos: `Only ${room} more photo${room === 1 ? '' : 's'} can be added, so the first ${room} were used`,
+      }));
+    } else {
+      clear(field);
+    }
+
+    setUploading((prev) => ({ ...prev, [field]: true }));
+    try {
+      for (const file of files.slice(0, room)) {
+        const key = await locationService.uploadPhoto(file);
+        setForm((prev) =>
+          field === 'photos' ? { ...prev, photos: [...prev.photos, key] } : { ...prev, noticePhoto: key }
+        );
+      }
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, [field]: getErrorMessage(err, 'The photo could not be uploaded') }));
+    } finally {
+      setUploading((prev) => ({ ...prev, [field]: false }));
+    }
+  };
+
+  const removePhoto = (key: string) => setForm((prev) => ({ ...prev, photos: prev.photos.filter((k) => k !== key) }));
+
+  const makeAvatar = (key: string) =>
+    setForm((prev) => ({ ...prev, photos: [key, ...prev.photos.filter((k) => k !== key)] }));
+
   const updateCoEntity = (index: number, patch: Partial<CoEntityRow>) => {
     setCoEntities((prev) => prev.map((co, i) => (i === index ? { ...co, ...patch } : co)));
     clear('coEntities');
@@ -230,20 +389,30 @@ const LocationForm: React.FC<LocationFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validate(locationSchema, { ...form, coEntities })) return;
+    if (uploading.photos || uploading.noticePhoto) {
+      setErrors((prev) => ({ ...prev, photos: 'Wait for the photos to finish uploading' }));
+      return;
+    }
+    if (!validate(locationSchema, { ...form, coEntities, requirePhotos, requireNotice })) return;
 
     // Rows left without an entity are dropped
     const chosenCoEntities = coEntities.filter((co) => co.entity);
 
     onSubmit({
       name: form.name.trim(),
-      code: form.code.trim() || undefined,
       entity: form.entity,
       locationType: form.locationType,
-      manager: form.manager || null,
+      unitIncharge: form.unitIncharge.trim(),
+      com: form.com.trim(),
+      photos: form.photos,
+      noticePhoto: form.noticePhoto || null,
       openingDate: form.openingDate || null,
       isUpcoming: form.isUpcoming && !form.openingDate,
       closingDate: form.closingDate || null,
+      geoCoordinates:
+        form.latitude.trim() && form.longitude.trim()
+          ? { latitude: Number(form.latitude), longitude: Number(form.longitude) }
+          : null,
       areaType: form.areaType || null,
       operatingModel: form.operatingModel || null,
       coEntities: chosenCoEntities.map((co) => ({ entity: co.entity, openingDate: co.openingDate || null })),
@@ -315,14 +484,17 @@ const LocationForm: React.FC<LocationFormProps> = ({
             required
           />
 
+          {/* Generated by the server on create and fixed after that */}
           <Input
             label="Location Code"
             name="code"
-            error={errors.code}
             value={form.code}
-            onChange={(e) => setField('code', e.target.value)}
-            placeholder={isEditing ? 'e.g. LOC-KOR-01' : 'Leave blank to generate one'}
-            hint="Unique within the entity"
+            placeholder="Auto-generated on save"
+            hint={
+              isEditing ? 'Location codes cannot be changed' : 'e.g. CC-OD-26109001: entity, state, year, month, number'
+            }
+            readOnly
+            disabled
           />
 
           <div>
@@ -353,35 +525,6 @@ const LocationForm: React.FC<LocationFormProps> = ({
           </div>
 
           <div>
-            <label className={LABEL_CLASS} htmlFor="location-manager">
-              Unit Manager
-            </label>
-            <select
-              id="location-manager"
-              value={form.manager}
-              onChange={(e) => setField('manager', e.target.value)}
-              className={fieldClass()}
-            >
-              <option value="">Not assigned</option>
-              {/* Keep the current manager selectable even if outside the loaded list */}
-              {initial?.manager && !users.some((u) => u._id === initial.manager?._id) && (
-                <option value={initial.manager._id}>
-                  {initial.manager.firstName} {initial.manager.lastName}
-                </option>
-              )}
-              {users.map((u) => (
-                <option key={u._id} value={u._id}>
-                  {u.firstName} {u.lastName}
-                  {u.role?.name ? ` (${u.role.name})` : ''}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              The manager is also assigned to this location in their user profile.
-            </p>
-          </div>
-
-          <div>
             <label className={LABEL_CLASS} htmlFor="location-status">
               Status
             </label>
@@ -396,6 +539,26 @@ const LocationForm: React.FC<LocationFormProps> = ({
               <option value="archived">Archived</option>
             </select>
           </div>
+
+          <Input
+            label="Unit In-charge"
+            name="unitIncharge"
+            error={errors.unitIncharge}
+            value={form.unitIncharge}
+            onChange={(e) => setField('unitIncharge', e.target.value)}
+            placeholder="Full name"
+            required
+          />
+
+          <Input
+            label="COM (Clinic Operations Manager)"
+            name="com"
+            error={errors.com}
+            value={form.com}
+            onChange={(e) => setField('com', e.target.value)}
+            placeholder="Full name"
+            required
+          />
 
           <div>
             <label className={LABEL_CLASS} htmlFor="location-opening">
@@ -535,7 +698,90 @@ const LocationForm: React.FC<LocationFormProps> = ({
         </div>
       </Card>
 
-      {/* Section 2: Address */}
+      {/* Section 2: Photos */}
+      <Card padding="lg">
+        <Card.Header
+          title="Photos"
+          description="JPG, PNG or WEBP, up to 10 MB each"
+          icon={<Camera size={18} className="text-emerald-600 dark:text-emerald-400" />}
+        />
+
+        <div className="space-y-6">
+          <div>
+            <span className={LABEL_CLASS}>
+              Clinic Photos
+              {requirePhotos && <RequiredMark />}
+            </span>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+              Up to {MAX_CLINIC_PHOTOS} photos. The first one is used as the location's avatar; use the star to change
+              it.
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-3">
+              {form.photos.map((key, index) => (
+                <PhotoTile
+                  key={key}
+                  photoKey={key}
+                  label={`Clinic photo ${index + 1}`}
+                  isAvatar={index === 0}
+                  onMakeAvatar={index === 0 ? undefined : () => makeAvatar(key)}
+                  // A location that needs photos keeps at least one
+                  onRemove={requirePhotos && form.photos.length === 1 && isEditing ? undefined : () => removePhoto(key)}
+                />
+              ))}
+              {form.photos.length < MAX_CLINIC_PHOTOS && (
+                <AddPhotoTile
+                  id="location-photos"
+                  label="Add photo"
+                  multiple
+                  uploading={uploading.photos}
+                  error={errors.photos}
+                  onFiles={(files) => uploadPhotos('photos', files)}
+                />
+              )}
+            </div>
+            <FieldError message={errors.photos} />
+          </div>
+
+          <div>
+            <span className={LABEL_CLASS}>
+              Notice Photo
+              {requireNotice && <RequiredMark />}
+            </span>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+              A photo of the notice or board displayed at the unit, inside or outside.
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-3">
+              {form.noticePhoto ? (
+                <PhotoTile
+                  photoKey={form.noticePhoto}
+                  label="Notice photo"
+                  // Replaced rather than removed once required
+                  onRemove={requireNotice && isEditing ? undefined : () => setField('noticePhoto', '')}
+                />
+              ) : (
+                <AddPhotoTile
+                  id="location-notice-photo"
+                  label="Add photo"
+                  uploading={uploading.noticePhoto}
+                  error={errors.noticePhoto}
+                  onFiles={(files) => uploadPhotos('noticePhoto', files)}
+                />
+              )}
+              {form.noticePhoto && (
+                <AddPhotoTile
+                  id="location-notice-photo"
+                  label="Replace photo"
+                  uploading={uploading.noticePhoto}
+                  onFiles={(files) => uploadPhotos('noticePhoto', files)}
+                />
+              )}
+            </div>
+            <FieldError message={errors.noticePhoto} />
+          </div>
+        </div>
+      </Card>
+
+      {/* Section 3: Address */}
       <Card padding="lg">
         <Card.Header
           title="Address"
@@ -677,6 +923,27 @@ const LocationForm: React.FC<LocationFormProps> = ({
               label="Country"
               value={form.address.country}
               onChange={(e) => setAddress('country', e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Latitude"
+              name="latitude"
+              inputMode="decimal"
+              error={errors.latitude}
+              value={form.latitude}
+              onChange={(e) => setField('latitude', e.target.value)}
+              placeholder="e.g. 20.296059"
+            />
+            <Input
+              label="Longitude"
+              name="longitude"
+              inputMode="decimal"
+              error={errors.longitude}
+              value={form.longitude}
+              onChange={(e) => setField('longitude', e.target.value)}
+              placeholder="e.g. 85.824539"
             />
           </div>
         </div>

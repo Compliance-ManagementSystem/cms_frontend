@@ -14,6 +14,7 @@ import type { MasterDataItem } from '@/services/adminService';
 import { lookupService } from '@/services/lookupService';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
+import LocationPhoto from '@/components/locations/LocationPhoto';
 import { getErrorMessage } from '@/utils/errors';
 
 // Summary cards double as quick filters
@@ -201,7 +202,8 @@ export const LocationListPage: React.FC = () => {
         'Type',
         'City',
         'State',
-        'Unit Manager',
+        'Unit In-charge',
+        'COM (Clinic Operations Manager)',
         'Compliance Records',
         'Records Valid %',
         'Expired',
@@ -215,7 +217,8 @@ export const LocationListPage: React.FC = () => {
           loc.locationType?.label || loc.locationType?.code || '',
           loc.address?.city || '',
           loc.address?.state || '',
-          loc.manager ? `${loc.manager.firstName} ${loc.manager.lastName}` : '',
+          loc.unitIncharge || '',
+          loc.com || '',
           loc.health?.total ?? loc.complianceCount ?? 0,
           loc.health?.total ? loc.health.percentage : '',
           loc.health?.expired ?? 0,
@@ -264,8 +267,13 @@ export const LocationListPage: React.FC = () => {
       header: 'Location',
       cell: (row) => (
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-700/40 flex items-center justify-center text-emerald-700 dark:text-emerald-400 flex-shrink-0">
-            <MapPin size={16} />
+          <div className="w-9 h-9 rounded-lg overflow-hidden bg-emerald-50 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-700/40 flex items-center justify-center text-emerald-700 dark:text-emerald-400 flex-shrink-0">
+            <LocationPhoto
+              photoKey={row.photos?.[0]}
+              alt={row.name}
+              className="w-full h-full"
+              fallback={<MapPin size={16} />}
+            />
           </div>
           <div className="min-w-0">
             <div className="font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[200px]" title={row.name}>
@@ -332,16 +340,16 @@ export const LocationListPage: React.FC = () => {
       ),
     },
     {
-      key: 'manager',
-      header: 'Manager',
-      cell: (row) =>
-        row.manager ? (
-          <span className="text-xs font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
-            {row.manager.firstName} {row.manager.lastName}
-          </span>
-        ) : (
-          <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">Not assigned</span>
-        ),
+      key: 'unitIncharge',
+      header: 'Unit In-charge / COM',
+      cell: (row) => (
+        <div className="text-xs whitespace-nowrap">
+          <div className="font-medium text-slate-800 dark:text-slate-200">
+            {row.unitIncharge || <span className="font-normal text-slate-400 dark:text-slate-500">Not set</span>}
+          </div>
+          <div className="text-slate-500 dark:text-slate-400">COM: {row.com || 'Not set'}</div>
+        </div>
+      ),
     },
     {
       key: 'health',

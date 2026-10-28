@@ -14,6 +14,8 @@ import {
   Plus,
   Eye,
   FileCheck2,
+  Tag,
+  Camera,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -31,6 +33,8 @@ import { openDocumentInNewTab } from '@/utils/documentFile';
 import DocumentUploadModal from '@/components/documents/DocumentUploadModal';
 import { getErrorMessage } from '@/utils/errors';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import LocationPhoto from '@/components/locations/LocationPhoto';
+import { openLocationPhoto } from '@/utils/locationPhoto';
 
 type TabType = 'overview' | 'compliance' | 'documents' | 'tasks' | 'history';
 
@@ -121,6 +125,12 @@ export const LocationDetailPage: React.FC = () => {
         : { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' };
 
   const statusLabel = location.status ? location.status.charAt(0).toUpperCase() + location.status.slice(1) : 'Active';
+  const statusTone =
+    location.status === 'inactive'
+      ? { text: 'text-amber-600 dark:text-amber-400', dot: 'bg-amber-500' }
+      : location.status === 'archived'
+        ? { text: 'text-slate-500 dark:text-slate-400', dot: 'bg-slate-400' }
+        : { text: 'text-emerald-600 dark:text-emerald-400', dot: 'bg-emerald-500' };
 
   return (
     <div className="space-y-6 pb-12">
@@ -173,26 +183,41 @@ export const LocationDetailPage: React.FC = () => {
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-600/20 border border-emerald-200 dark:border-emerald-500/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-2xl shadow-sm dark:shadow-inner flex-shrink-0">
-              <MapPin size={30} />
+            <div className="w-16 h-16 rounded-2xl overflow-hidden bg-emerald-50 dark:bg-emerald-600/20 border border-emerald-200 dark:border-emerald-500/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-2xl shadow-sm dark:shadow-inner flex-shrink-0">
+              {/* The first clinic photo is the avatar */}
+              {location.photos?.[0] ? (
+                <button
+                  type="button"
+                  onClick={() => openLocationPhoto(location.photos![0])}
+                  className="w-full h-full"
+                  title="Open photo"
+                >
+                  <LocationPhoto
+                    photoKey={location.photos[0]}
+                    alt={location.name}
+                    className="w-full h-full"
+                    fallback={<MapPin size={30} className="m-auto" />}
+                  />
+                </button>
+              ) : (
+                <MapPin size={30} />
+              )}
             </div>
             <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                   {location.name}
                 </h1>
-                <Badge
-                  variant={
-                    location.status === 'active' ? 'success' : location.status === 'inactive' ? 'warning' : 'default'
-                  }
-                  size="sm"
-                  dot
-                >
+                <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${statusTone.text}`}>
+                  <span className={`w-2 h-2 rounded-full ${statusTone.dot}`} aria-hidden />
                   {statusLabel}
-                </Badge>
-                <Badge variant="info" size="sm">
-                  {location.locationType?.label || location.locationType?.code || 'Location'}
-                </Badge>
+                </span>
+                {(location.locationType?.label || location.locationType?.code) && (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    <Tag size={14} className="text-slate-400 dark:text-slate-500" aria-hidden />
+                    {location.locationType.label || location.locationType.code}
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
@@ -328,10 +353,8 @@ export const LocationDetailPage: React.FC = () => {
                   <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Classification
                   </dt>
-                  <dd className="mt-1">
-                    <Badge variant="info" size="sm">
-                      {location.locationType?.label || location.locationType?.code || 'Location'}
-                    </Badge>
+                  <dd className="mt-1 text-slate-900 dark:text-slate-200">
+                    {location.locationType?.label || location.locationType?.code || '—'}
                   </dd>
                 </div>
                 <div>
@@ -415,8 +438,59 @@ export const LocationDetailPage: React.FC = () => {
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider pt-2">
                   {location.address?.country || 'India'}
                 </p>
+                {location.geoCoordinates?.latitude != null && location.geoCoordinates?.longitude != null && (
+                  <p className="pt-2 flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-xs">
+                      {location.geoCoordinates.latitude}, {location.geoCoordinates.longitude}
+                    </span>
+                    <a
+                      href={`https://www.google.com/maps?q=${location.geoCoordinates.latitude},${location.geoCoordinates.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      View on map <ExternalLink size={12} />
+                    </a>
+                  </p>
+                )}
               </div>
             </Card>
+
+            {/* Clinic & notice photos */}
+            {(location.photos?.length || location.noticePhoto) && (
+              <Card padding="lg">
+                <Card.Header
+                  title="Photos"
+                  icon={<Camera size={18} className="text-emerald-600 dark:text-emerald-400" />}
+                />
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mt-3">
+                  {[
+                    ...(location.photos || []).map((key, i) => ({ key, label: `Clinic photo ${i + 1}` })),
+                    ...(location.noticePhoto ? [{ key: location.noticePhoto, label: 'Notice photo' }] : []),
+                  ].map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => openLocationPhoto(key)}
+                      className="text-left space-y-1"
+                      title="Open full size"
+                    >
+                      <LocationPhoto
+                        photoKey={key}
+                        alt={label}
+                        className="w-full aspect-square rounded-lg border border-slate-200 dark:border-slate-700"
+                        fallback={
+                          <div className="w-full aspect-square rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                            <Camera size={18} />
+                          </div>
+                        }
+                      />
+                      <span className="block text-xs text-slate-500 dark:text-slate-400">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             {/* Unit Communication */}
 
@@ -454,30 +528,35 @@ export const LocationDetailPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Designated Unit Manager Card */}
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                      Designated Unit Manager
-                    </span>
-                    <span className="font-semibold text-slate-900 dark:text-slate-100 block">
-                      {location.manager ? `${location.manager.firstName} ${location.manager.lastName}` : 'Unassigned'}
-                    </span>
-                    {location.manager?.email && (
-                      <span className="text-xs text-slate-500 dark:text-slate-400 block">{location.manager.email}</span>
+                {/* Unit In-charge & COM Cards */}
+                {[
+                  { label: 'Unit In-charge', name: location.unitIncharge },
+                  { label: 'COM (Clinic Operations Manager)', name: location.com },
+                ].map(({ label, name }) => (
+                  <div
+                    key={label}
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 flex items-center justify-between"
+                  >
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                        {label}
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100 block">
+                        {name || 'Not set'}
+                      </span>
+                    </div>
+                    {canUpdate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/locations/${location._id}/edit`)}
+                        rightIcon={<Edit2 size={13} />}
+                      >
+                        {name ? 'Change' : 'Add'}
+                      </Button>
                     )}
                   </div>
-                  {canUpdate && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/locations/${location._id}/edit`)}
-                      rightIcon={<Edit2 size={13} />}
-                    >
-                      {location.manager ? 'Change' : 'Assign'}
-                    </Button>
-                  )}
-                </div>
+                ))}
 
                 {/* Parent Location / Campus Linkage (if sub-unit) */}
               </div>

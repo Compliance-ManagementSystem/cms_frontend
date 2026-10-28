@@ -51,6 +51,11 @@ export interface LocationHealth {
   percentage: number;
 }
 
+export interface GeoCoordinates {
+  latitude: number;
+  longitude: number;
+}
+
 export interface LocationItem {
   _id: string;
   name: string;
@@ -73,6 +78,7 @@ export interface LocationItem {
     description?: string;
   };
   address: EntityAddress;
+  geoCoordinates?: GeoCoordinates | null;
   contactPerson?: string;
   contactEmail?: string;
   contactPhone?: string;
@@ -87,6 +93,13 @@ export interface LocationItem {
       code: string;
     };
   } | null;
+  /** Name of the Unit In-charge */
+  unitIncharge?: string;
+  /** Name of the COM (Clinic Operations Manager) */
+  com?: string;
+  /** Clinic photo keys; the first is the avatar */
+  photos?: string[];
+  noticePhoto?: string | null;
   openingDate?: string;
   /** Planned unit with no opening date fixed yet */
   isUpcoming?: boolean;
@@ -193,10 +206,18 @@ export interface CreateLocationPayload {
   entity: string;
   locationType: string;
   address: EntityAddress;
+  geoCoordinates?: GeoCoordinates | null;
   contactPerson?: string;
   contactEmail?: string;
   contactPhone?: string;
   manager?: string | null;
+  /** Name of the Unit In-charge */
+  unitIncharge?: string;
+  /** Name of the COM (Clinic Operations Manager) */
+  com?: string;
+  /** Clinic photo keys; the first is the avatar */
+  photos?: string[];
+  noticePhoto?: string | null;
   openingDate?: string | null;
   isUpcoming?: boolean;
   closingDate?: string | null;
@@ -288,6 +309,27 @@ export const locationService = {
       success: boolean;
       message: string;
     }>(`/locations/${id}`);
+    return res.data;
+  },
+
+  /** Uploads one photo and returns its key, to be saved on the location */
+  uploadPhoto: async (file: File) => {
+    const body = new FormData();
+    body.append('photo', file);
+    // The shared instance defaults to JSON, which would hide the file from the server
+    const res = await axiosInstance.post<{ success: boolean; data: { key: string } }>('/locations/photos', body, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 0,
+    });
+    return res.data.data.key;
+  },
+
+  fetchPhoto: async (key: string, size: 'full' | 'thumb') => {
+    const res = await axiosInstance.get<Blob>(`/locations/photos/${key}`, {
+      params: { size },
+      responseType: 'blob',
+      timeout: 0,
+    });
     return res.data;
   },
 };
