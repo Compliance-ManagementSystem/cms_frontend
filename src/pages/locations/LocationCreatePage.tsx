@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { MapPin, ArrowLeft, Save } from 'lucide-react';
-import Button from '@/components/ui/Button';
+import { MapPin, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import { locationService, CreateLocationPayload } from '@/services/locationService';
 import { ROUTES } from '@/constants/routes';
 import { FieldErrors, getServerFieldErrors } from '@/utils/validation';
-import LocationForm, { LOCATION_FORM_ID } from './LocationForm';
+import LocationForm from './LocationForm';
 import { getErrorMessage } from '@/utils/errors';
 
 export const LocationCreatePage: React.FC = () => {
@@ -56,20 +55,7 @@ export const LocationCreatePage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={goBack} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            form={LOCATION_FORM_ID}
-            variant="primary"
-            isLoading={isSubmitting}
-            leftIcon={<Save size={16} />}
-          >
-            Create Location
-          </Button>
-        </div>
+        {/* Actions live in the form's sticky footer, which steps through the wizard */}
       </div>
 
       <LocationForm
