@@ -459,6 +459,16 @@ const LocationForm: React.FC<LocationFormProps> = ({
   const stateDistricts = selectedState ? districts.filter((d) => d.parent?._id === selectedState._id) : [];
   const districtOptions = stateDistricts.length > 0 ? stateDistricts : selectedState ? [] : districts;
 
+  /**
+   * Deletes uploaded photos that will not be saved. Photos already on the location
+   * stay until the form is saved, and the server's daily cleanup covers a failed call.
+   */
+  const discardUnsavedPhotos = (keys: string[]) => {
+    keys
+      .filter((key) => key && !initial?.photos?.includes(key) && key !== initial?.noticePhoto)
+      .forEach((key) => locationService.discardPhoto(key).catch(() => undefined));
+  };
+
   /** Uploads each file as it is picked; the keys are saved with the location */
   const uploadPhotos = async (field: 'photos' | 'noticePhoto', files: File[]) => {
     const room = field === 'photos' ? MAX_CLINIC_PHOTOS - form.photos.length : 1;
@@ -476,6 +486,12 @@ const LocationForm: React.FC<LocationFormProps> = ({
     try {
       for (const file of files.slice(0, room)) {
         const key = await locationService.uploadPhoto(file);
+        // The form was left while this was uploading
+        if (leavingRef.current) {
+          discardUnsavedPhotos([key]);
+          return;
+        }
+        if (field === 'noticePhoto') discardUnsavedPhotos([form.noticePhoto]);
         setForm((prev) =>
           field === 'photos' ? { ...prev, photos: [...prev.photos, key] } : { ...prev, noticePhoto: key }
         );
@@ -487,7 +503,15 @@ const LocationForm: React.FC<LocationFormProps> = ({
     }
   };
 
-  const removePhoto = (key: string) => setForm((prev) => ({ ...prev, photos: prev.photos.filter((k) => k !== key) }));
+  const removePhoto = (key: string) => {
+    discardUnsavedPhotos([key]);
+    setForm((prev) => ({ ...prev, photos: prev.photos.filter((k) => k !== key) }));
+  };
+
+  const removeNoticePhoto = () => {
+    discardUnsavedPhotos([form.noticePhoto]);
+    setField('noticePhoto', '');
+  };
 
   const makeAvatar = (key: string) =>
     setForm((prev) => ({ ...prev, photos: [key, ...prev.photos.filter((k) => k !== key)] }));
@@ -573,6 +597,7 @@ const LocationForm: React.FC<LocationFormProps> = ({
   }, [persistDraft]);
 
   const discardDraft = () => {
+    discardUnsavedPhotos([...form.photos, form.noticePhoto]);
     if (userId) removeLocationDraft(userId, initial?._id);
     setForm(toFormState(initial, defaultEntityId));
     setCoEntities(toCoEntityRows(initial));
@@ -584,6 +609,7 @@ const LocationForm: React.FC<LocationFormProps> = ({
 
   const handleCancel = () => {
     leavingRef.current = true;
+    discardUnsavedPhotos([...form.photos, form.noticePhoto]);
     if (userId) removeLocationDraft(userId, initial?._id);
     onCancel();
   };
@@ -1246,7 +1272,7 @@ const LocationForm: React.FC<LocationFormProps> = ({
                     photoKey={form.noticePhoto}
                     label="Notice photo"
                     // Replaced rather than removed once required
-                    onRemove={requireNotice && isEditing ? undefined : () => setField('noticePhoto', '')}
+                    onRemove={requireNotice && isEditing ? undefined : removeNoticePhoto}
                   />
                 ) : (
                   <AddPhotoTile

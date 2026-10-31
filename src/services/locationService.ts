@@ -324,12 +324,14 @@ export const locationService = {
     return res.data.data.key;
   },
 
-  fetchPhoto: async (key: string, size: 'full' | 'thumb') => {
-    const res = await axiosInstance.get<Blob>(`/locations/photos/${key}`, {
+  discardPhoto: async (key: string) => {
+    await axiosInstance.delete(`/locations/photos/${key}`);
+  },
+
+  getPhotoUrl: async (key: string, size: 'full' | 'thumb') => {
+    const res = await axiosInstance.get<{ success: boolean; data: { url: string } }>(`/locations/photos/${key}`, {
       params: { size },
-      responseType: 'blob',
-      timeout: 0,
     });
-    return res.data;
+    return res.data.data.url;
   },
 };
