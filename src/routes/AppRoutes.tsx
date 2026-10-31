@@ -15,7 +15,7 @@ const NotFound = React.lazy(() => import('@/pages/NotFound'));
 
 // Administration
 const AdminUsers = React.lazy(() => import('@/pages/admin/UsersPage'));
-// const AdminRoles       = React.lazy(() => import('@/pages/admin/RolesPage'));
+const AdminRoles = React.lazy(() => import('@/pages/admin/RolesPage'));
 
 // Entity Management
 const EntityListPage = React.lazy(() => import('@/pages/entities/EntityListPage'));
@@ -30,10 +30,10 @@ const LocationDetailPage = React.lazy(() => import('@/pages/locations/LocationDe
 const LocationEditPage = React.lazy(() => import('@/pages/locations/LocationEditPage'));
 
 // Compliance Rule Engine
-// const ComplianceRuleListPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleListPage'));
-// const ComplianceRuleCreatePage = React.lazy(() => import('@/pages/compliance/ComplianceRuleCreatePage'));
-// const ComplianceRuleDetailPage = React.lazy(() => import('@/pages/compliance/ComplianceRuleDetailPage'));
-// const ComplianceRuleEditPage   = React.lazy(() => import('@/pages/compliance/ComplianceRuleEditPage'));
+const ComplianceRuleListPage = React.lazy(() => import('@/pages/compliance/ComplianceRuleListPage'));
+const ComplianceRuleCreatePage = React.lazy(() => import('@/pages/compliance/ComplianceRuleCreatePage'));
+const ComplianceRuleDetailPage = React.lazy(() => import('@/pages/compliance/ComplianceRuleDetailPage'));
+const ComplianceRuleEditPage = React.lazy(() => import('@/pages/compliance/ComplianceRuleEditPage'));
 
 // Compliance Records & Document Management
 const ComplianceRecordListPage = React.lazy(() => import('@/pages/compliance/ComplianceRecordListPage'));
@@ -110,9 +110,6 @@ const AppRoutes: React.FC = () => {
         />
 
         {/* ── Administration (Super Admin & Admin only) ── */}
-        {/* Roles and Compliance Rules are hidden for every role:
-            their addresses send people back to the dashboard. To bring one back, restore
-            its lazy import above, its route element here and its entry in constants/sidebar.ts. */}
         <Route
           path={ROUTES.ADMIN_USERS}
           element={
@@ -123,7 +120,16 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route path={ROUTES.ADMIN_ROLES} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+        <Route
+          path={ROUTES.ADMIN_ROLES}
+          element={
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <Suspense fallback={<PageLoader />}>
+                <AdminRoles />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
 
         {/* Entities — Restricted to Super Admin, Admin, Entity Admin */}
         <Route
@@ -228,10 +234,46 @@ const AppRoutes: React.FC = () => {
         />
 
         {/* Compliance Rule Engine */}
-        <Route path={ROUTES.COMPLIANCE_RULES} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
-        <Route path={ROUTES.COMPLIANCE_RULE_CREATE} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
-        <Route path={ROUTES.COMPLIANCE_RULE_DETAILS} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
-        <Route path={ROUTES.COMPLIANCE_RULE_EDIT} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+        <Route
+          path={ROUTES.COMPLIANCE_RULES}
+          element={
+            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'compliance_officer', 'entity_admin']}>
+              <Suspense fallback={<PageLoader />}>
+                <ComplianceRuleListPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.COMPLIANCE_RULE_CREATE}
+          element={
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <Suspense fallback={<PageLoader />}>
+                <ComplianceRuleCreatePage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.COMPLIANCE_RULE_DETAILS}
+          element={
+            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'compliance_officer', 'entity_admin']}>
+              <Suspense fallback={<PageLoader />}>
+                <ComplianceRuleDetailPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.COMPLIANCE_RULE_EDIT}
+          element={
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <Suspense fallback={<PageLoader />}>
+                <ComplianceRuleEditPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
 
         {/* Compliance Records Lifecycle */}
         <Route path={ROUTES.COMPLIANCE} element={<Navigate to={ROUTES.COMPLIANCE_RECORDS} replace />} />
