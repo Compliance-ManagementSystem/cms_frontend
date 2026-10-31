@@ -10,6 +10,7 @@ const ROUTE_TITLES: Array<[path: string, title: string]> = [
   [ROUTES.DASHBOARD_MAP_3D, 'Approvals map'],
   [ROUTES.DASHBOARD, 'Dashboard'],
   [ROUTES.ADMIN_USERS, 'Users'],
+  [ROUTES.ADMIN_ROLES, 'Roles'],
   [ROUTES.ENTITIES, 'Entities'],
   [ROUTES.ENTITY_CREATE, 'New entity'],
   [ROUTES.ENTITY_EDIT, 'Edit entity'],

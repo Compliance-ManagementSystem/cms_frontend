@@ -275,10 +275,14 @@ const RolesPage: React.FC = () => {
                   </span>
                   <span className="flex items-center gap-1">
                     <KeyRound size={13} className="text-slate-500" />
-                    <strong className="text-slate-800 dark:text-slate-200">
-                      {role.permissionCount || (role.code === 'super_admin' ? 'All (*)' : 0)}
-                    </strong>{' '}
-                    perms
+                    {role.code === 'super_admin' ? (
+                      <strong className="text-slate-800 dark:text-slate-200">All permissions</strong>
+                    ) : (
+                      <>
+                        <strong className="text-slate-800 dark:text-slate-200">{role.permissionCount || 0}</strong>{' '}
+                        perms
+                      </>
+                    )}
                   </span>
                 </div>
 

@@ -7,7 +7,6 @@ import {
   History,
   Users,
   ShieldCheck,
-  Scale,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from './routes';
@@ -68,15 +67,15 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
   {
     title: 'Compliance',
     items: [
-      {
-        label: 'Compliance Rules',
-        path: ROUTES.COMPLIANCE_RULES,
-        icon: Scale,
-        phase: 7,
-        disabled: false,
-        roles: ['super_admin', 'admin', 'compliance_officer', 'entity_admin'],
-        permission: 'compliance_rule:read',
-      },
+      // {
+      //   label: 'Compliance Rules',
+      //   path: ROUTES.COMPLIANCE_RULES,
+      //   icon: Scale,
+      //   phase: 7,
+      //   disabled: false,
+      //   roles: ['super_admin', 'admin', 'compliance_officer', 'entity_admin'],
+      //   permission: 'compliance_rule:read',
+      // },
       {
         label: 'Compliance Records',
         path: ROUTES.COMPLIANCE_RECORDS,
