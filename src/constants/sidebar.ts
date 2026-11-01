@@ -6,7 +6,6 @@ import {
   CheckSquare,
   History,
   Users,
-  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from './routes';
@@ -120,13 +119,13 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         phase: 4,
         roles: ['super_admin', 'admin'],
       },
-      {
-        label: 'Roles',
-        path: ROUTES.ADMIN_ROLES,
-        icon: ShieldCheck,
-        phase: 4,
-        roles: ['super_admin', 'admin'],
-      },
+      // {
+      //   label: 'Roles',
+      //   path: ROUTES.ADMIN_ROLES,
+      //   icon: ShieldCheck,
+      //   phase: 4,
+      //   roles: ['super_admin', 'admin'],
+      // },
     ],
   },
 ];

@@ -15,7 +15,7 @@ const NotFound = React.lazy(() => import('@/pages/NotFound'));
 
 // Administration
 const AdminUsers = React.lazy(() => import('@/pages/admin/UsersPage'));
-const AdminRoles = React.lazy(() => import('@/pages/admin/RolesPage'));
+// const AdminRoles = React.lazy(() => import('@/pages/admin/RolesPage'));
 
 // Entity Management
 const EntityListPage = React.lazy(() => import('@/pages/entities/EntityListPage'));
@@ -120,16 +120,10 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path={ROUTES.ADMIN_ROLES}
-          element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-              <Suspense fallback={<PageLoader />}>
-                <AdminRoles />
-              </Suspense>
-            </ProtectedRoute>
-          }
-        />
+        {/* Roles is hidden for every role: its address sends people back to the dashboard.
+            To bring it back, restore its lazy import above, its route element here and its
+            entry in constants/sidebar.ts. */}
+        <Route path={ROUTES.ADMIN_ROLES} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
 
         {/* Entities — Restricted to Super Admin, Admin, Entity Admin */}
         <Route
