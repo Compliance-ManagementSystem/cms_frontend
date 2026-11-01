@@ -15,7 +15,7 @@ const NotFound = React.lazy(() => import('@/pages/NotFound'));
 
 // Administration
 const AdminUsers = React.lazy(() => import('@/pages/admin/UsersPage'));
-// const AdminRoles = React.lazy(() => import('@/pages/admin/RolesPage'));
+const AdminRoles = React.lazy(() => import('@/pages/admin/RolesPage'));
 
 // Entity Management
 const EntityListPage = React.lazy(() => import('@/pages/entities/EntityListPage'));
@@ -120,16 +120,22 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        {/* Roles is hidden for every role: its address sends people back to the dashboard.
-            To bring it back, restore its lazy import above, its route element here and its
-            entry in constants/sidebar.ts. */}
-        <Route path={ROUTES.ADMIN_ROLES} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+        <Route
+          path={ROUTES.ADMIN_ROLES}
+          element={
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <Suspense fallback={<PageLoader />}>
+                <AdminRoles />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Entities — Restricted to Super Admin, Admin, Entity Admin */}
+        {/* Entities */}
         <Route
           path={ROUTES.ENTITIES}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <EntityListPage />
               </Suspense>
@@ -149,7 +155,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.ENTITY_DETAILS}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <EntityDetailPage />
               </Suspense>
@@ -159,7 +165,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.ENTITY_EDIT}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <EntityEditPage />
               </Suspense>
@@ -171,16 +177,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.LOCATIONS}
           element={
-            <ProtectedRoute
-              allowedRoles={[
-                'super_admin',
-                'admin',
-                'entity_admin',
-                'location_manager',
-                'compliance_officer',
-                'viewer',
-              ]}
-            >
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <LocationListPage />
               </Suspense>
@@ -190,7 +187,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.LOCATION_CREATE}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <LocationCreatePage />
               </Suspense>
@@ -200,16 +197,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.LOCATION_DETAILS}
           element={
-            <ProtectedRoute
-              allowedRoles={[
-                'super_admin',
-                'admin',
-                'entity_admin',
-                'location_manager',
-                'compliance_officer',
-                'viewer',
-              ]}
-            >
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <LocationDetailPage />
               </Suspense>
@@ -219,7 +207,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.LOCATION_EDIT}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <LocationEditPage />
               </Suspense>
@@ -240,16 +228,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.COMPLIANCE_RECORDS}
           element={
-            <ProtectedRoute
-              allowedRoles={[
-                'super_admin',
-                'admin',
-                'entity_admin',
-                'location_manager',
-                'compliance_officer',
-                'viewer',
-              ]}
-            >
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <ComplianceRecordListPage />
               </Suspense>
@@ -259,16 +238,7 @@ const AppRoutes: React.FC = () => {
         <Route
           path={ROUTES.COMPLIANCE_RECORD_DETAILS}
           element={
-            <ProtectedRoute
-              allowedRoles={[
-                'super_admin',
-                'admin',
-                'entity_admin',
-                'location_manager',
-                'compliance_officer',
-                'viewer',
-              ]}
-            >
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <ComplianceRecordDetailPage />
               </Suspense>
@@ -302,11 +272,11 @@ const AppRoutes: React.FC = () => {
           }
         />
 
-        {/* Audit Trail — Restricted to Super Admin, Admin, Entity Admin, Compliance Officer */}
+        {/* Audit Trail */}
         <Route
           path={ROUTES.AUDIT_LOGS}
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'admin', 'entity_admin', 'compliance_officer']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <AuditLogsPage />
               </Suspense>

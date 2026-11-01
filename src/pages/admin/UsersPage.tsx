@@ -6,7 +6,6 @@ import {
   Search,
   Filter,
   Shield,
-  Building,
   Edit2,
   Trash2,
   CheckCircle2,
@@ -267,16 +266,6 @@ const UsersPage: React.FC = () => {
           <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
             {user.role?.name || 'Unassigned'}
           </span>
-        </div>
-      ),
-    },
-    {
-      key: 'entity',
-      header: 'Entity Scope',
-      cell: (user) => (
-        <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
-          <Building size={14} className="text-slate-400" />
-          <span>{user.entity?.code ? `${user.entity.code} — ${user.entity.name}` : 'Global (National)'}</span>
         </div>
       ),
     },

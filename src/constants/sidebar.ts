@@ -6,6 +6,7 @@ import {
   CheckSquare,
   History,
   Users,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from './routes';
@@ -49,7 +50,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         icon: Building2,
         phase: 5,
         disabled: false,
-        roles: ['super_admin', 'admin', 'entity_admin'],
+        roles: ['super_admin', 'admin'],
         permission: 'entity:read',
       },
       {
@@ -58,7 +59,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         icon: MapPin,
         phase: 6,
         disabled: false,
-        roles: ['super_admin', 'admin', 'entity_admin', 'location_manager', 'compliance_officer', 'viewer'],
+        roles: ['super_admin', 'admin'],
         permission: 'location:read',
       },
     ],
@@ -72,7 +73,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       //   icon: Scale,
       //   phase: 7,
       //   disabled: false,
-      //   roles: ['super_admin', 'admin', 'compliance_officer', 'entity_admin'],
+      //   roles: ['super_admin', 'admin'],
       //   permission: 'compliance_rule:read',
       // },
       {
@@ -81,7 +82,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         icon: ClipboardCheck,
         phase: 8,
         disabled: false,
-        roles: ['super_admin', 'admin', 'entity_admin', 'location_manager', 'compliance_officer', 'viewer'],
+        roles: ['super_admin', 'admin'],
         permission: 'compliance_record:read',
       },
       {
@@ -90,7 +91,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         icon: CheckSquare,
         phase: 10,
         disabled: false,
-        roles: ['super_admin', 'admin', 'entity_admin', 'location_manager', 'compliance_officer', 'viewer'],
+        roles: ['super_admin', 'admin'],
       },
     ],
   },
@@ -103,7 +104,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         icon: History,
         phase: 13,
         disabled: false,
-        roles: ['super_admin', 'admin', 'entity_admin', 'compliance_officer'],
+        roles: ['super_admin', 'admin'],
         permission: 'audit_log:read',
       },
     ],
@@ -119,13 +120,13 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         phase: 4,
         roles: ['super_admin', 'admin'],
       },
-      // {
-      //   label: 'Roles',
-      //   path: ROUTES.ADMIN_ROLES,
-      //   icon: ShieldCheck,
-      //   phase: 4,
-      //   roles: ['super_admin', 'admin'],
-      // },
+      {
+        label: 'Roles',
+        path: ROUTES.ADMIN_ROLES,
+        icon: ShieldCheck,
+        phase: 4,
+        roles: ['super_admin', 'admin'],
+      },
     ],
   },
 ];

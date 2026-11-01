@@ -23,22 +23,6 @@ const ROLE_BADGE_CONFIG: Record<string, { label: string; className: string }> = 
     label: 'Admin',
     className: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
   },
-  entity_admin: {
-    label: 'Entity Admin',
-    className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
-  },
-  location_manager: {
-    label: 'Location Manager',
-    className: 'bg-purple-500/10 text-purple-400 border border-purple-500/20',
-  },
-  compliance_officer: {
-    label: 'Compliance Officer',
-    className: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20',
-  },
-  viewer: {
-    label: 'Viewer',
-    className: 'bg-slate-500/10 text-slate-400 border border-slate-500/20',
-  },
 };
 
 const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }) => {
@@ -145,7 +129,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
   );
 
   const pageTitle = currentItem?.label ?? 'Compliance Management System';
-  const roleCode = user?.role?.code || 'viewer';
+  const roleCode = user?.role?.code || '';
   const roleBadge = ROLE_BADGE_CONFIG[roleCode] || {
     label: user?.role?.name || roleCode,
     className: 'bg-slate-500/10 text-slate-400 border border-slate-500/20',

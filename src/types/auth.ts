@@ -2,7 +2,7 @@
  * Frontend Authentication and Authorization Types
  */
 
-export type RoleCode = 'super_admin' | 'admin' | 'entity_admin' | 'location_manager' | 'compliance_officer' | 'viewer';
+export type RoleCode = 'super_admin' | 'admin';
 
 export interface UserRole {
   _id: string;

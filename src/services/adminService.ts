@@ -154,7 +154,6 @@ export const adminService = {
     email: string;
     password?: string;
     role: string;
-    entity?: string | null;
     phone?: string;
     status?: string;
   }) => {
@@ -173,7 +172,6 @@ export const adminService = {
       email: string;
       password?: string;
       role: string;
-      entity?: string | null;
       phone?: string;
       status?: string;
     }>
@@ -211,19 +209,6 @@ export const adminService = {
     return res.data.data;
   },
 
-  createRole: async (payload: {
-    name: string;
-    code: string;
-    description?: string;
-    permissions: Array<{ resource: string; actions: string[] }>;
-  }) => {
-    const res = await axiosInstance.post<{ success: boolean; data: { role: RoleItem }; message: string }>(
-      '/admin/roles',
-      payload
-    );
-    return res.data;
-  },
-
   updateRole: async (
     id: string,
     payload: Partial<{
@@ -237,11 +222,6 @@ export const adminService = {
       `/admin/roles/${id}`,
       payload
     );
-    return res.data;
-  },
-
-  deleteRole: async (id: string) => {
-    const res = await axiosInstance.delete<{ success: boolean; message: string }>(`/admin/roles/${id}`);
     return res.data;
   },
 
