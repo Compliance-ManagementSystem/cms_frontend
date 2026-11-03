@@ -370,7 +370,7 @@ export const Dashboard: React.FC = () => {
       total: row.licences.total,
       compliant: row.licences.approved,
       expiringSoon: 0,
-      pending: row.licences.applied + row.licences.toBeApplied,
+      pending: row.licences.applied + row.licences.readyToApply + row.licences.toBeApplied,
       expired: row.licences.expired,
       percentage: row.licences.approvedPct ?? 0,
     }));
@@ -584,7 +584,7 @@ export const Dashboard: React.FC = () => {
                 </Panel>
 
                 <Panel title="Where Licences Stand" subtitle="Share of all applicable licences in this view">
-                  <div className="grid grid-cols-3 gap-3 mt-3">
+                  <div className="grid grid-cols-2 gap-3 mt-3">
                     <BigPercentTile
                       pct={licencePct}
                       label="Approved"
@@ -603,12 +603,21 @@ export const Dashboard: React.FC = () => {
                       onClick={() => navigate(recordsLink('applied'))}
                     />
                     <BigPercentTile
+                      pct={pct(licences.readyToApply, licences.total)}
+                      label="Ready to apply"
+                      sub={`${licences.readyToApply.toLocaleString()} with every document in`}
+                      color={chart.licence.readyToApply}
+                      animate={motion}
+                      delay={160}
+                      onClick={() => navigate(recordsLink('readyToApply'))}
+                    />
+                    <BigPercentTile
                       pct={pct(licences.toBeApplied, licences.total)}
                       label="To be applied"
                       sub={`${licences.toBeApplied.toLocaleString()} not filed yet`}
                       color="#b45309"
                       animate={motion}
-                      delay={160}
+                      delay={240}
                       onClick={() => navigate(recordsLink('toBeApplied'))}
                     />
                   </div>

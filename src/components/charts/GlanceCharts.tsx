@@ -1115,6 +1115,7 @@ export const DistrictTreemap: React.FC<{
 const RADAR_BUCKET_LABELS: Record<LicenceBucket, string> = {
   approved: 'Approved',
   applied: 'Applied',
+  readyToApply: 'Ready to apply',
   toBeApplied: 'To be applied',
   expired: 'Expired',
 };

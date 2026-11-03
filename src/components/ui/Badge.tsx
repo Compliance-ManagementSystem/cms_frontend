@@ -1,6 +1,6 @@
 import React from 'react';
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'pending' | 'expired';
+type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'pending' | 'expired' | 'ready';
 
 type BadgeSize = 'sm' | 'md';
 
@@ -24,6 +24,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   pending:
     'bg-orange-50 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700/40',
   expired: 'bg-rose-50 dark:bg-red-950/60 text-rose-700 dark:text-red-500 border-rose-200 dark:border-red-800/40',
+  ready: 'bg-cyan-50 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700/40',
 };
 
 const dotStyles: Record<BadgeVariant, string> = {
@@ -34,6 +35,7 @@ const dotStyles: Record<BadgeVariant, string> = {
   info: 'bg-blue-400',
   pending: 'bg-orange-400',
   expired: 'bg-red-500',
+  ready: 'bg-cyan-400',
 };
 
 const sizeStyles: Record<BadgeSize, string> = {

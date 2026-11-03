@@ -423,7 +423,7 @@ const MapPage: React.FC = () => {
                   {hovered.pct}% approved · {hovered.licences.total} licences
                 </p>
                 <p className="text-slate-400">
-                  {hovered.licences.approved} approved · {hovered.licences.applied + hovered.licences.toBeApplied}{' '}
+                  {hovered.licences.approved} approved · {hovered.licences.applied + hovered.licences.readyToApply + hovered.licences.toBeApplied}{' '}
                   pending
                   {hovered.licences.expired > 0 ? ` · ${hovered.licences.expired} expired` : ''}
                 </p>

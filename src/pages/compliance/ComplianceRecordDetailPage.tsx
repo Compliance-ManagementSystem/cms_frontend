@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ClipboardCheck,
@@ -151,6 +151,16 @@ export const ComplianceRecordDetailPage: React.FC = () => {
     fetchRecord();
     fetchWorkflow();
   }, [fetchRecord, fetchWorkflow]);
+
+  // The server moves the record to Ready to apply when the last mandatory document lands: say so
+  const shownStatus = useRef<ComplianceRecordStatus | undefined>(undefined);
+  useEffect(() => {
+    if (!record) return;
+    if (shownStatus.current === 'pending' && record.status === 'ready_to_apply') {
+      toast.success('Every mandatory document is in: this record is now Ready to apply.');
+    }
+    shownStatus.current = record.status;
+  }, [record, toast]);
 
   // Load prerequisites
   useEffect(() => {
@@ -451,6 +461,12 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             APPLIED
           </Badge>
         );
+      case 'ready_to_apply':
+        return (
+          <Badge variant="ready" size="md" dot>
+            READY TO APPLY
+          </Badge>
+        );
       case 'not_applicable':
         return (
           <Badge variant="default" size="md">
@@ -616,8 +632,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             </Card>
           </div>
 
-          {/* Required Documents Checklist */}
-          {documentRequirements.length > 0 && (
+          {/* Required Documents Checklist; a not applicable record needs none */}
+          {documentRequirements.length > 0 && record.status !== 'not_applicable' && (
             <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
               <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
@@ -631,6 +647,48 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   {documentRequirements.filter((r) => r.status === 'verified').length} verified
                 </span>
               </div>
+
+              {/* How close the record is to Ready to apply: only mandatory documents count */}
+              {(() => {
+                const mandatory = documentRequirements.filter((r) => r.isMandatory);
+                const met = mandatory.filter((r) => r.status === 'pending' || r.status === 'verified').length;
+                const left = mandatory.length - met;
+                const share = mandatory.length > 0 ? (met / mandatory.length) * 100 : 0;
+                const waitingToFile = ['pending', 'ready_to_apply'].includes(record.status);
+                return (
+                  <div
+                    className={`rounded-lg p-3 border ${
+                      left === 0
+                        ? 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800/50'
+                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span
+                        className={`flex items-center gap-1.5 font-semibold ${
+                          left === 0 ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-700 dark:text-slate-200'
+                        }`}
+                      >
+                        {left === 0 && <CheckCircle2 size={14} />}
+                        {left === 0
+                          ? waitingToFile
+                            ? 'Ready to apply: every mandatory document is in'
+                            : 'Every mandatory document is in'
+                          : `${left} mandatory ${left === 1 ? 'document' : 'documents'} to go before this is ready to apply`}
+                      </span>
+                      <span className="tabular-nums text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {met} / {mandatory.length} mandatory
+                      </span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-white dark:bg-slate-900 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-[width] duration-500 ${left === 0 ? 'bg-cyan-500' : 'bg-amber-400'}`}
+                        style={{ width: `${share}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 {documentRequirements.map((req, idx) => (
@@ -1119,7 +1177,11 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             >
               {/* Keep a status from the approval route selectable until it is changed */}
               {!SIMPLE_STATUS_OPTIONS.some((option) => option.value === record.status) && (
-                <option value={record.status}>{record.status.replace(/_/g, ' ')}</option>
+                <option value={record.status}>
+                  {record.status === 'ready_to_apply'
+                    ? 'Ready to apply (set automatically)'
+                    : record.status.replace(/_/g, ' ')}
+                </option>
               )}
               {SIMPLE_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>

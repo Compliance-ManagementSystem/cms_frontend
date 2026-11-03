@@ -23,10 +23,11 @@ const BAR_MS = 600;
 const STACK_STAGGER_MS = 200;
 
 // Stacking order is fixed everywhere the statuses sit side by side
-export const LICENCE_ORDER: LicenceBucket[] = ['approved', 'applied', 'toBeApplied', 'expired'];
+export const LICENCE_ORDER: LicenceBucket[] = ['approved', 'applied', 'readyToApply', 'toBeApplied', 'expired'];
 export const LICENCE_LABELS: Record<LicenceBucket, string> = {
   approved: 'Approved',
   applied: 'Applied',
+  readyToApply: 'Ready to apply',
   toBeApplied: 'To be applied',
   expired: 'Expired',
 };
@@ -34,6 +35,7 @@ export const LICENCE_LABELS: Record<LicenceBucket, string> = {
 export const LICENCE_STATUS_PARAM: Record<LicenceBucket, string> = {
   approved: 'approved,expiring_soon',
   applied: 'in_progress',
+  readyToApply: 'ready_to_apply',
   toBeApplied: 'pending',
   expired: 'expired',
 };

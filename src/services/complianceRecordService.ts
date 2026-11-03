@@ -20,7 +20,9 @@ export type ComplianceRecordStatus =
   | 'expiring_soon'
   | 'expired'
   | 'in_progress'
-  | 'not_applicable';
+  | 'not_applicable'
+  // Set automatically once every mandatory document is uploaded
+  | 'ready_to_apply';
 
 export type WorkflowAction = 'Submit' | 'Start Review' | 'Approve' | 'Reject' | 'Request Correction' | 'Resubmit';
 
@@ -188,6 +190,13 @@ export interface ComplianceRecordItem {
       lastName: string;
       email: string;
     };
+  };
+  /** Document checklist progress; sent with the records list */
+  checklist?: {
+    done: number;
+    total: number;
+    mandatoryDone: number;
+    mandatoryTotal: number;
   };
   rule: {
     _id: string;

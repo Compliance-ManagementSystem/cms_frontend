@@ -8,6 +8,7 @@ export type NotificationType =
   | 'approval_pending'
   | 'compliance_approved'
   | 'compliance_rejected'
+  | 'ready_to_apply'
   | 'system';
 
 export interface NotificationItem {

@@ -37,12 +37,13 @@ export const useChartTheme = () => {
       expired: '#e11d48',
     } as Record<HealthBucket, string>,
     /**
-     * Licence status, in stacking order: approved, applied, to be applied, expired.
-     * The same four validated hues as the health buckets.
+     * Licence status, in stacking order: approved, applied, ready to apply, to be applied, expired.
+     * The four health-bucket hues, plus cyan for ready to apply: every document in, not yet filed.
      */
     licence: {
       approved: '#059669',
       applied: dark ? '#6366f1' : '#4f46e5',
+      readyToApply: dark ? '#22d3ee' : '#0891b2',
       toBeApplied: dark ? '#d97706' : '#f59e0b',
       expired: '#e11d48',
     },

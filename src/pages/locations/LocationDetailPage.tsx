@@ -631,7 +631,9 @@ export const LocationDetailPage: React.FC = () => {
                                   ? 'expired'
                                   : rec.status === 'not_applicable'
                                     ? 'default'
-                                    : 'pending'
+                                    : rec.status === 'ready_to_apply'
+                                      ? 'ready'
+                                      : 'pending'
                             }
                             size="sm"
                             dot

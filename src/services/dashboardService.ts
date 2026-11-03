@@ -121,7 +121,7 @@ export interface FilterOptions {
 
 // ── Operations dashboard (units and licence status) ───────────────────────────
 
-export type LicenceBucket = 'approved' | 'applied' | 'toBeApplied' | 'expired';
+export type LicenceBucket = 'approved' | 'applied' | 'readyToApply' | 'toBeApplied' | 'expired';
 export type UnitBucket = 'open' | 'toBeOpened' | 'closed';
 
 export type LicenceCounts = Record<LicenceBucket, number> & {
