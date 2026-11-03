@@ -116,7 +116,7 @@ export const AuditLogsPage: React.FC = () => {
     if (a.includes('UPDATED') || a.includes('CHANGED') || a.includes('REPLACED')) {
       return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
     }
-    if (a.includes('DELETED') || a.includes('REJECTED') || a.includes('OVERDUE')) {
+    if (a.includes('DELETED') || a.includes('REJECTED') || a.includes('OVERDUE') || a.includes('FAILED')) {
       return 'bg-rose-500/10 text-rose-400 border-rose-500/30';
     }
     if (a.includes('COMPLETED') || a.includes('VERIFIED')) {

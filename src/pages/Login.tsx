@@ -1,12 +1,12 @@
 /**
  * Login Page
  *
- * Enterprise Compliance Management System dual-column portal.
+ * Dual-column sign-in page.
  * Features:
  * - Left column: Enterprise branding, hero messaging, value proposition feature list,
  *   and architectural vector illustration.
- * - Right column: Elevated corporate login card, remember me, forgot password guidance modal,
- *   and a dedicated Development Role Tester with 6 canonical system roles.
+ * - Right column: Elevated corporate login card.
+ * - Quick-login buttons for the sample accounts when running locally (`npm run dev`).
  * Built strictly with Tailwind CSS utility classes.
  */
 
@@ -26,12 +26,11 @@ import {
   Building2,
   Loader2,
   ArrowRight,
+  AlertCircle,
   FlaskConical,
   FileText,
   Bell,
   BarChart3,
-  X,
-  Info,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
@@ -46,27 +45,31 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-// Verified Demo Accounts matching the design reference
-const DEMO_ACCOUNTS = [
-  {
-    role: 'Super Admin',
-    email: 'superadmin@cms.local',
-    icon: Crown,
-    bgClass: 'bg-amber-50 hover:bg-amber-100/80 border-amber-200/90',
-    iconColor: 'text-amber-500',
-    titleColor: 'text-amber-900',
-    desc: 'Full system control',
-  },
-  {
-    role: 'Admin',
-    email: 'admin@cms.local',
-    icon: User,
-    bgClass: 'bg-blue-50 hover:bg-blue-100/80 border-blue-200/90',
-    iconColor: 'text-blue-600',
-    titleColor: 'text-blue-900',
-    desc: 'System administrator',
-  },
-];
+// Sample accounts for local development. import.meta.env.DEV is false in a production
+// build, which leaves these accounts and the password out of the code sent to browsers.
+const DEMO_PASSWORD = import.meta.env.DEV ? 'Password123!' : '';
+const DEMO_ACCOUNTS = import.meta.env.DEV
+  ? [
+      {
+        role: 'Super Admin',
+        email: 'superadmin@cms.local',
+        icon: Crown,
+        bgClass: 'bg-amber-50 hover:bg-amber-100/80 border-amber-200/90',
+        iconColor: 'text-amber-500',
+        titleColor: 'text-amber-900',
+        desc: 'Full system control',
+      },
+      {
+        role: 'Admin',
+        email: 'admin@cms.local',
+        icon: User,
+        bgClass: 'bg-blue-50 hover:bg-blue-100/80 border-blue-200/90',
+        iconColor: 'text-blue-600',
+        titleColor: 'text-blue-900',
+        desc: 'System administrator',
+      },
+    ]
+  : [];
 
 // Architectural City Vector Illustration matching the reference design
 const CorporateIllustration: React.FC = () => (
@@ -193,19 +196,32 @@ const CorporateIllustration: React.FC = () => (
   </div>
 );
 
+const BrandMark: React.FC = () =>
+  env.APP_LOGO_URL ? (
+    <img src={env.APP_LOGO_URL} alt={`${env.APP_NAME} logo`} className="w-12 h-12 rounded-2xl object-contain" />
+  ) : (
+    <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
+      <ShieldCheck className="w-7 h-7" strokeWidth={2.4} />
+    </div>
+  );
+
 export const Login: React.FC = () => {
   const { login } = useAuth();
-  const { success, error } = useToast();
+  const { success } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [capsLockOn, setCapsLockOn] = useState(false);
 
-  const showDemoLogin = env.SHOW_DEMO_LOGIN;
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || ROUTES.DASHBOARD;
+  const showDemoLogin = import.meta.env.DEV;
+  // Return to the page that was asked for, including its query string (e.g. /tasks?task=123)
+  const requested = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
+  const from = requested?.pathname
+    ? `${requested.pathname}${requested.search || ''}${requested.hash || ''}`
+    : ROUTES.DASHBOARD;
 
   // Ensure body background is light for the enterprise compliance login page
   useEffect(() => {
@@ -225,8 +241,8 @@ export const Login: React.FC = () => {
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'superadmin@cms.local',
-      password: 'Password123!',
+      email: '',
+      password: '',
     },
   });
 
@@ -234,20 +250,28 @@ export const Login: React.FC = () => {
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsSubmitting(true);
+    setLoginError(null);
     try {
       await login(data.email, data.password);
-      success('Authentication successful! Welcome to CMS.');
+      success('Signed in successfully.');
       navigate(from, { replace: true });
     } catch (err) {
-      error(getErrorMessage(err, 'Invalid credentials. Please verify your details.'));
+      setLoginError(getErrorMessage(err, 'Invalid credentials. Please verify your details.'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const clearLoginError = () => setLoginError(null);
+
+  const handleCapsLock = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    setCapsLockOn(event.getModifierState('CapsLock'));
+  };
+
   const handleSelectDemo = (email: string) => {
+    clearLoginError();
     setValue('email', email, { shouldValidate: true });
-    setValue('password', 'Password123!', { shouldValidate: true });
+    setValue('password', DEMO_PASSWORD, { shouldValidate: true });
   };
 
   return (
@@ -269,15 +293,8 @@ export const Login: React.FC = () => {
           <div>
             {/* Top Logo */}
             <div className="flex items-center gap-3.5 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
-                <ShieldCheck className="w-7 h-7" strokeWidth={2.4} />
-              </div>
-              <div>
-                <span className="block text-2xl font-bold text-slate-900 tracking-tight leading-none">Compliance</span>
-                <span className="block text-[11px] font-bold text-slate-500 tracking-[0.2em] uppercase mt-1">
-                  MANAGEMENT SYSTEM
-                </span>
-              </div>
+              <BrandMark />
+              <span className="text-xl font-bold text-slate-900 tracking-tight leading-tight">{env.APP_NAME}</span>
             </div>
 
             {/* Hero Headline */}
@@ -288,7 +305,7 @@ export const Login: React.FC = () => {
             {/* Description */}
             <p className="text-slate-600 text-base leading-relaxed mb-6 max-w-xl">
               Manage regulatory compliance, track renewals, receive alerts and maintain audit trails &mdash; all in one
-              secure platform.
+              platform.
             </p>
 
             {/* Feature Highlights List */}
@@ -322,7 +339,7 @@ export const Login: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">Smart Alerts</h3>
-                  <p className="text-sm text-slate-500">Never miss a renewal or deadline</p>
+                  <p className="text-sm text-slate-500">Reminders for renewals and deadlines</p>
                 </div>
               </div>
 
@@ -332,8 +349,8 @@ export const Login: React.FC = () => {
                   <BarChart3 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-slate-900">Real-time Insights</h3>
-                  <p className="text-sm text-slate-500">Dashboards and detailed reports</p>
+                  <h3 className="text-base font-semibold text-slate-900">Live Dashboards</h3>
+                  <p className="text-sm text-slate-500">Compliance status across your locations</p>
                 </div>
               </div>
 
@@ -343,8 +360,8 @@ export const Login: React.FC = () => {
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-slate-900">Audit Ready</h3>
-                  <p className="text-sm text-slate-500">Complete audit trail and traceability</p>
+                  <h3 className="text-base font-semibold text-slate-900">Audit Trail</h3>
+                  <p className="text-sm text-slate-500">A record of important changes and sign-ins</p>
                 </div>
               </div>
             </div>
@@ -361,13 +378,11 @@ export const Login: React.FC = () => {
           <div className="w-full max-w-[490px] bg-white rounded-[28px] shadow-2xl shadow-blue-900/10 border border-slate-100 p-6 sm:p-8 transition-all">
             {/* Card Header Branding */}
             <div className="text-center mb-5">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/25 mb-3">
-                <ShieldCheck className="w-7 h-7" strokeWidth={2.4} />
+              <div className="flex justify-center mb-3">
+                <BrandMark />
               </div>
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Compliance Management System</h2>
-              <p className="text-sm text-slate-500 mt-1 font-normal">
-                Secure access to your enterprise compliance dashboard
-              </p>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">{env.APP_NAME}</h2>
+              <p className="text-sm text-slate-500 mt-1 font-normal">Sign in to your compliance dashboard</p>
             </div>
 
             {/* Login Form */}
@@ -385,11 +400,12 @@ export const Login: React.FC = () => {
                     id="email"
                     type="email"
                     autoComplete="email"
+                    autoFocus
                     placeholder="Enter your email address"
                     disabled={isSubmitting}
                     aria-invalid={errors.email ? 'true' : 'false'}
                     aria-describedby={errors.email ? 'email-error' : undefined}
-                    {...register('email')}
+                    {...register('email', { onChange: clearLoginError })}
                     className={`w-full h-12 pl-12 pr-4 rounded-xl border ${
                       errors.email
                         ? 'border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100'
@@ -426,7 +442,9 @@ export const Login: React.FC = () => {
                     disabled={isSubmitting}
                     aria-invalid={errors.password ? 'true' : 'false'}
                     aria-describedby={errors.password ? 'password-error' : undefined}
-                    {...register('password')}
+                    {...register('password', { onChange: clearLoginError, onBlur: () => setCapsLockOn(false) })}
+                    onKeyDown={handleCapsLock}
+                    onKeyUp={handleCapsLock}
                     className={`w-full h-12 pl-12 pr-12 rounded-xl border ${
                       errors.password
                         ? 'border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100'
@@ -452,28 +470,22 @@ export const Login: React.FC = () => {
                     {errors.password.message}
                   </p>
                 )}
+                {capsLockOn && (
+                  <p role="status" className="text-xs text-amber-600 mt-1.5 font-medium">
+                    Caps Lock is on
+                  </p>
+                )}
               </div>
 
-              {/* Remember me & Forgot Password */}
-              <div className="flex items-center justify-between text-sm pt-0.5">
-                <label className="flex items-center gap-2 cursor-pointer select-none text-slate-600 hover:text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 transition-colors"
-                  />
-                  <span className="text-sm font-medium">Remember me</span>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => setShowForgotModal(true)}
-                  className="font-semibold text-sm text-blue-600 hover:text-blue-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded transition-colors"
+              {loginError && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700"
                 >
-                  Forgot Password?
-                </button>
-              </div>
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{loginError}</span>
+                </div>
+              )}
 
               {/* Submit Button */}
               <div className="pt-1">
@@ -489,7 +501,7 @@ export const Login: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <span>Sign In to Portal</span>
+                      <span>Sign In</span>
                       <ArrowRight className="w-5 h-5" strokeWidth={2.2} />
                     </>
                   )}
@@ -497,124 +509,68 @@ export const Login: React.FC = () => {
               </div>
             </form>
 
-            {/* OR Divider */}
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-3 text-slate-400 font-bold tracking-wider">OR</span>
-              </div>
-            </div>
-
             {/* Demo accounts quick login */}
             {showDemoLogin && (
-              <div className="bg-[#F0F5FA] rounded-2xl p-3.5 border border-blue-100/70">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                    <FlaskConical className="w-4 h-4" />
+              <>
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200" />
                   </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-tight">Demo Accounts</h3>
-                    <p className="text-xs text-slate-500 leading-tight mt-0.5">
-                      Quick login to try the system as each user role
-                    </p>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-3 text-slate-400 font-bold tracking-wider">OR</span>
                   </div>
                 </div>
+                <div className="bg-[#F0F5FA] rounded-2xl p-3.5 border border-blue-100/70">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                      <FlaskConical className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 leading-tight">Demo Accounts</h3>
+                      <p className="text-xs text-slate-500 leading-tight mt-0.5">
+                        Quick login to try the system as each user role
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
-                  {DEMO_ACCOUNTS.map((account) => {
-                    const Icon = account.icon;
-                    const isSelected = currentEmail === account.email;
-                    return (
-                      <button
-                        key={account.email}
-                        type="button"
-                        onClick={() => handleSelectDemo(account.email)}
-                        title={account.desc}
-                        className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${
-                          account.bgClass
-                        } ${isSelected ? 'ring-2 ring-blue-600 shadow-sm' : ''}`}
-                      >
-                        <div className="flex items-center gap-1.5 mb-1 sm:mb-0 w-full">
-                          <Icon className={`w-3.5 h-3.5 shrink-0 ${account.iconColor}`} />
-                          <span className={`text-xs font-bold leading-tight ${account.titleColor}`}>
-                            {account.role}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
+                    {DEMO_ACCOUNTS.map((account) => {
+                      const Icon = account.icon;
+                      const isSelected = currentEmail === account.email;
+                      return (
+                        <button
+                          key={account.email}
+                          type="button"
+                          onClick={() => handleSelectDemo(account.email)}
+                          title={account.desc}
+                          className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${
+                            account.bgClass
+                          } ${isSelected ? 'ring-2 ring-blue-600 shadow-sm' : ''}`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1 sm:mb-0 w-full">
+                            <Icon className={`w-3.5 h-3.5 shrink-0 ${account.iconColor}`} />
+                            <span className={`text-xs font-bold leading-tight ${account.titleColor}`}>
+                              {account.role}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 leading-tight w-full sm:hidden">
+                            {account.desc}
                           </span>
-                        </div>
-                        <span className="text-[11px] text-slate-500 leading-tight w-full sm:hidden">
-                          {account.desc}
-                        </span>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
-            {/* Card Footer / Compliance reassurance */}
-            <div className="mt-4 text-center text-xs text-slate-400 space-y-1">
-              <p className="font-semibold text-slate-500">Compliance Management System &copy; 2026</p>
-              <p className="text-[11px] text-slate-400">
-                Role-Based Access Control &middot; Secure &middot; Compliant &middot; Audit Ready
-              </p>
-            </div>
+            {/* Card Footer */}
+            <p className="mt-4 text-center text-xs font-semibold text-slate-500">
+              {env.APP_NAME} &copy; {new Date().getFullYear()}
+            </p>
           </div>
         </div>
       </div>
-
-      {/* Forgot Password Guidance Modal */}
-      {showForgotModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="forgot-modal-title"
-        >
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-md w-full p-6 relative animate-in fade-in zoom-in-95 duration-150">
-            <button
-              type="button"
-              onClick={() => setShowForgotModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 rounded-lg p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 transition-colors"
-              aria-label="Close dialog"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                <Info className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 id="forgot-modal-title" className="text-base font-semibold text-slate-900">
-                  Password Reset Guidance
-                </h3>
-                <p className="text-xs text-slate-500">Enterprise Credential Management</p>
-              </div>
-            </div>
-            <p className="text-sm text-slate-600 mb-4 leading-relaxed">
-              For regulatory compliance and audit security, credentials are managed directly by your organization's CMS
-              Security Administrator.
-            </p>
-            <div className="bg-blue-50/70 border border-blue-100 rounded-2xl p-3 text-xs text-slate-700 mb-5 space-y-1">
-              <p className="font-semibold text-blue-900">Need immediate assistance?</p>
-              <p>
-                Contact your System Administrator at:{' '}
-                <a href="mailto:admin@cms.local" className="text-blue-600 underline font-medium">
-                  admin@cms.local
-                </a>
-              </p>
-              <p className="text-slate-500">Or contact your local IT Compliance Helpdesk.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowForgotModal(false)}
-              className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

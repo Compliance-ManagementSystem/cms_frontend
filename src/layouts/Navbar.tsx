@@ -8,6 +8,7 @@ import { ROUTES } from '@/constants/routes';
 import { notificationService, type NotificationItem } from '@/services/notificationService';
 import { socketService } from '@/services/socketService';
 import GlobalSearch from '@/layouts/GlobalSearch';
+import env from '@/config/env';
 
 interface NavbarProps {
   sidebarCollapsed: boolean;
@@ -128,7 +129,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
     (item) => location.pathname === item.path || location.pathname.startsWith(item.path + '/')
   );
 
-  const pageTitle = currentItem?.label ?? 'Compliance Management System';
+  const pageTitle = currentItem?.label ?? env.APP_NAME;
   const roleCode = user?.role?.code || '';
   const roleBadge = ROLE_BADGE_CONFIG[roleCode] || {
     label: user?.role?.name || roleCode,

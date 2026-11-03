@@ -1,6 +1,7 @@
+import env from '@/config/env';
 import { useEffect } from 'react';
 
-export const APP_NAME = 'Compliance Management System';
+export const APP_NAME = env.APP_NAME;
 
 export const formatPageTitle = (title?: string | null): string => (title ? `${title} · ${APP_NAME}` : APP_NAME);
 
