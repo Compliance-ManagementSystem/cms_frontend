@@ -10,6 +10,7 @@ import {
   LICENCE_ORDER,
   LICENCE_LABELS,
   LICENCE_STATUS_PARAM,
+  LIVE_UNITS,
   withQuery,
   Legend,
   StatCard,
@@ -284,7 +285,13 @@ const MapPage: React.FC = () => {
   const entities = allStates?.filterOptions.entities ?? [];
 
   const recordsLink = (bucket: (typeof LICENCE_ORDER)[number], extra: Record<string, string | undefined> = {}) =>
-    withQuery(ROUTES.COMPLIANCE_RECORDS, { status: LICENCE_STATUS_PARAM[bucket], entity: filters.entity, ...extra });
+    withQuery(ROUTES.COMPLIANCE_RECORDS, {
+      status: LICENCE_STATUS_PARAM[bucket],
+      entity: filters.entity,
+      state: filters.state,
+      units: LIVE_UNITS,
+      ...extra,
+    });
 
   const licences = view?.licences;
   const shownBuckets = LICENCE_ORDER.filter((bucket) => bucket !== 'expired' || (licences?.expired ?? 0) > 0);
@@ -423,8 +430,8 @@ const MapPage: React.FC = () => {
                   {hovered.pct}% approved · {hovered.licences.total} licences
                 </p>
                 <p className="text-slate-400">
-                  {hovered.licences.approved} approved · {hovered.licences.applied + hovered.licences.readyToApply + hovered.licences.toBeApplied}{' '}
-                  pending
+                  {hovered.licences.approved} approved ·{' '}
+                  {hovered.licences.applied + hovered.licences.readyToApply + hovered.licences.toBeApplied} pending
                   {hovered.licences.expired > 0 ? ` · ${hovered.licences.expired} expired` : ''}
                 </p>
               </>

@@ -18,6 +18,7 @@ import {
   Plus,
   XCircle,
   Pencil,
+  Files,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -36,7 +37,7 @@ import {
   WorkflowApprovalsResponse,
 } from '@/services/complianceRecordService';
 import { adminService, MasterDataItem } from '@/services/adminService';
-import { UPLOAD_ACCEPT, pickUploadFile } from '@/utils/validation';
+import { UPLOAD_ACCEPT, checkUploadFile, pickUploadFile } from '@/utils/validation';
 import { ROUTES } from '@/constants/routes';
 import { getErrorMessage } from '@/utils/errors';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -62,6 +63,40 @@ const FIELD_CLASS =
 const LABEL_CLASS = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5';
 const FILE_INPUT_CLASS =
   'block w-full text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 dark:file:bg-indigo-500/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100';
+
+// Words too common to say which checklist line a file name belongs to
+const MATCH_STOP_WORDS = new Set(['the', 'and', 'for', 'of', 'scan', 'copy', 'final', 'doc', 'document', 'pdf', 'img']);
+const matchWords = (text: string) =>
+  text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 2 && !MATCH_STOP_WORDS.has(word));
+
+/**
+ * A checklist line for each file: the line sharing most words with the file name,
+ * else the next line still missing a document. Each line is offered to one file only.
+ */
+const guessChecklistLines = (files: File[], requirements: DocumentRequirementItem[]): string[] => {
+  const taken = new Set<number>();
+  return files.map((file) => {
+    const fileWords = new Set(matchWords(file.name));
+    let best = -1;
+    let bestScore = 0;
+    requirements.forEach((requirement, index) => {
+      if (taken.has(index)) return;
+      const score = matchWords(requirement.label).filter((word) => fileWords.has(word)).length;
+      if (score > bestScore) {
+        best = index;
+        bestScore = score;
+      }
+    });
+    if (best < 0)
+      best = requirements.findIndex((requirement, index) => !taken.has(index) && requirement.status === 'missing');
+    if (best < 0) return '';
+    taken.add(best);
+    return String(best);
+  });
+};
 
 const formatFileSize = (bytes: number): string =>
   bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(bytes / 1024, 0.1).toFixed(1)} KB`;
@@ -105,6 +140,12 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const [uploadDocType, setUploadDocType] = useState('');
   const [uploadExpiryDate, setUploadExpiryDate] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  // Checklist uploads: a file dropped on a line, or several files picked at once
+  const [dropLine, setDropLine] = useState<number | null>(null);
+  const [uploadingLine, setUploadingLine] = useState<number | null>(null);
+  const [bulkFiles, setBulkFiles] = useState<Array<{ file: File; line: string }>>([]);
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const bulkInputRef = useRef<HTMLInputElement>(null);
 
   // Replace Document Modal
   const [isReplaceModalOpen, setIsReplaceModalOpen] = useState(false);
@@ -282,6 +323,91 @@ export const ComplianceRecordDetailPage: React.FC = () => {
     } finally {
       setIsSavingStatus(false);
     }
+  };
+
+  // One file onto one checklist line, named after the line it fills
+  const uploadToChecklistLine = async (file: File, requirement: DocumentRequirementItem) => {
+    if (!record) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', requirement.label);
+    formData.append('entity', record.entity._id);
+    formData.append('location', record.location._id);
+    formData.append('complianceRecord', record._id);
+    if (requirement.documentTypeId) formData.append('documentType', requirement.documentTypeId);
+    if (requirement.documentTypeCode) formData.append('type', requirement.documentTypeCode);
+    await complianceRecordService.uploadDocument(formData);
+  };
+
+  // Files picked or dropped together go to the matching window, each already guessed to a line
+  const startBulkUpload = (files: File[], preferredLine?: number) => {
+    const accepted = files.filter((file) => {
+      const problem = checkUploadFile(file);
+      if (problem) toast.error(problem);
+      return !problem;
+    });
+    if (accepted.length === 0) return;
+    const lines = guessChecklistLines(accepted, documentRequirements);
+    // Dropped on a line, the first file belongs to that line
+    if (preferredLine !== undefined) {
+      const clash = lines.indexOf(String(preferredLine));
+      if (clash > 0) lines[clash] = lines[0];
+      lines[0] = String(preferredLine);
+    }
+    setBulkFiles(accepted.map((file, index) => ({ file, line: lines[index] })));
+  };
+
+  const handleDropOnLine = async (e: React.DragEvent, requirement: DocumentRequirementItem, index: number) => {
+    e.preventDefault();
+    setDropLine(null);
+    if (!canUpload || uploadingLine !== null) return;
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    if (files.length > 1) {
+      startBulkUpload(files, index);
+      return;
+    }
+    const problem = checkUploadFile(files[0]);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+    setUploadingLine(index);
+    try {
+      await uploadToChecklistLine(files[0], requirement);
+      toast.success(`Uploaded to "${requirement.label}"`);
+      await Promise.all([fetchRecord(true), fetchWorkflow()]);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to upload document'));
+    } finally {
+      setUploadingLine(null);
+    }
+  };
+
+  const confirmBulkUpload = async () => {
+    const chosen = bulkFiles.filter((item) => item.line !== '');
+    if (chosen.length === 0) {
+      toast.error('Choose a checklist line for at least one file');
+      return;
+    }
+    setIsBulkUploading(true);
+    let uploaded = 0;
+    const failed: string[] = [];
+    // One at a time, so the record moves to Ready to apply only once, after the last one
+    for (const item of chosen) {
+      try {
+        await uploadToChecklistLine(item.file, documentRequirements[Number(item.line)]);
+        uploaded++;
+      } catch (err) {
+        failed.push(`${item.file.name}: ${getErrorMessage(err, 'upload failed')}`);
+      }
+    }
+    setIsBulkUploading(false);
+    if (uploaded > 0) toast.success(`${uploaded} ${uploaded === 1 ? 'document' : 'documents'} uploaded`);
+    failed.forEach((message) => toast.error(message));
+    if (failed.length === 0) setBulkFiles([]);
+    else setBulkFiles((prev) => prev.filter((item) => failed.some((message) => message.startsWith(item.file.name))));
+    await Promise.all([fetchRecord(true), fetchWorkflow()]);
   };
 
   const openUploadFor = (requirement: DocumentRequirementItem) => {
@@ -640,13 +766,43 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   <FileText size={18} className="text-sky-600 dark:text-sky-400" />
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Required Documents</h3>
                 </div>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {documentRequirements.filter((r) => r.status !== 'missing').length} of {documentRequirements.length}{' '}
-                  uploaded
-                  {' · '}
-                  {documentRequirements.filter((r) => r.status === 'verified').length} verified
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {documentRequirements.filter((r) => r.status !== 'missing').length} of {documentRequirements.length}{' '}
+                    uploaded
+                    {' · '}
+                    {documentRequirements.filter((r) => r.status === 'verified').length} verified
+                  </span>
+                  {canUpload && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Files size={13} />}
+                        onClick={() => bulkInputRef.current?.click()}
+                      >
+                        Upload several files
+                      </Button>
+                      <input
+                        ref={bulkInputRef}
+                        type="file"
+                        multiple
+                        accept={UPLOAD_ACCEPT}
+                        className="hidden"
+                        onChange={(e) => {
+                          startBulkUpload(Array.from(e.target.files || []));
+                          e.target.value = '';
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
               </div>
+              {canUpload && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 -mt-1">
+                  Tip: drag a file from your computer onto a line below to upload it there.
+                </p>
+              )}
 
               {/* How close the record is to Ready to apply: only mandatory documents count */}
               {(() => {
@@ -694,8 +850,37 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                 {documentRequirements.map((req, idx) => (
                   <div
                     key={`${req.documentTypeId}-${idx}`}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-lg"
+                    onDragOver={(e) => {
+                      if (!canUpload) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'copy';
+                      if (dropLine !== idx) setDropLine(idx);
+                    }}
+                    onDragLeave={(e) => {
+                      // Leaving for a child of the same line is not leaving the line
+                      if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropLine(null);
+                    }}
+                    onDrop={(e) => handleDropOnLine(e, req, idx)}
+                    className={`relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border rounded-lg transition-colors ${
+                      dropLine === idx
+                        ? 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-400 dark:border-cyan-600 border-dashed ring-2 ring-cyan-400/30'
+                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+                    }`}
                   >
+                    {/* Shown while a file is held over the line, or uploading to it */}
+                    {(dropLine === idx || uploadingLine === idx) && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-lg bg-cyan-50/90 dark:bg-slate-900/85 text-sm font-semibold text-cyan-700 dark:text-cyan-300 pointer-events-none">
+                        {uploadingLine === idx ? (
+                          <>
+                            <RefreshCw size={15} className="animate-spin" /> Uploading to {req.label}…
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={15} /> Drop to upload as {req.label}
+                          </>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 shrink-0">
                         {req.status === 'verified' ? (
@@ -1011,6 +1196,73 @@ export const ComplianceRecordDetailPage: React.FC = () => {
           )}
         </Card>
       )}
+
+      {/* ── Several checklist files at once ──────────────────────────────────── */}
+      <Modal
+        isOpen={bulkFiles.length > 0}
+        onClose={() => !isBulkUploading && setBulkFiles([])}
+        title="Upload to the checklist"
+        size="lg"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" disabled={isBulkUploading} onClick={() => setBulkFiles([])}>
+              Cancel
+            </Button>
+            <Button variant="primary" isLoading={isBulkUploading} onClick={confirmBulkUpload}>
+              Upload {bulkFiles.filter((item) => item.line !== '').length} of {bulkFiles.length}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+          Each file is matched to a checklist line by its name. Change any that are wrong, or choose "Skip" to leave a
+          file out.
+        </p>
+        <ul className="space-y-2">
+          {bulkFiles.map((item, index) => {
+            // A line already chosen for another file is shown, but marked
+            const takenElsewhere = new Set(bulkFiles.filter((_, other) => other !== index).map((other) => other.line));
+            return (
+              <li
+                key={`${item.file.name}-${index}`}
+                className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40"
+              >
+                <div className="flex items-center gap-2 min-w-0 sm:w-2/5">
+                  <FileText size={16} className="shrink-0 text-sky-600 dark:text-sky-400" />
+                  <div className="min-w-0">
+                    <div
+                      className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate"
+                      title={item.file.name}
+                    >
+                      {item.file.name}
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{formatFileSize(item.file.size)}</div>
+                  </div>
+                </div>
+                <select
+                  value={item.line}
+                  disabled={isBulkUploading}
+                  onChange={(e) =>
+                    setBulkFiles((prev) =>
+                      prev.map((entry, other) => (other === index ? { ...entry, line: e.target.value } : entry))
+                    )
+                  }
+                  className={`${FIELD_CLASS} sm:flex-1 py-2`}
+                >
+                  <option value="">Skip this file</option>
+                  {documentRequirements.map((requirement, line) => (
+                    <option key={line} value={String(line)}>
+                      {requirement.label}
+                      {requirement.status !== 'missing' ? ' (already uploaded)' : ''}
+                      {takenElsewhere.has(String(line)) ? ' (also chosen above)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </li>
+            );
+          })}
+        </ul>
+      </Modal>
 
       {/* ── Upload Document Modal ────────────────────────────────────────────── */}
       <Modal

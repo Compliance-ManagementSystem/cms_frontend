@@ -266,6 +266,10 @@ export interface RecordQueryParams {
   dueDateTo?: string;
   expiryDateFrom?: string;
   expiryDateTo?: string;
+  /** State of the record's unit */
+  state?: string;
+  /** 'live': only units still open or planned, as the dashboard counts them */
+  units?: 'live';
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }

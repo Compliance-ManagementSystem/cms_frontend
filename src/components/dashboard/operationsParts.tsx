@@ -31,6 +31,8 @@ export const LICENCE_LABELS: Record<LicenceBucket, string> = {
   toBeApplied: 'To be applied',
   expired: 'Expired',
 };
+/** On a link to the Compliance Records list: leave out closed units, as every dashboard figure does */
+export const LIVE_UNITS = 'live';
 // The matching filter on the Compliance Records list
 export const LICENCE_STATUS_PARAM: Record<LicenceBucket, string> = {
   approved: 'approved,expiring_soon',
@@ -418,7 +420,12 @@ export const buildUnitCards = (data: OperationsDashboardData, filters: Operation
       icon: Settings2,
       tone: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300',
       bar: 'bg-indigo-500',
-      to: withQuery(ROUTES.COMPLIANCE_RECORDS, { status: 'in_progress,pending', entity: filters.entity }),
+      to: withQuery(ROUTES.COMPLIANCE_RECORDS, {
+        status: 'in_progress,ready_to_apply,pending',
+        entity: filters.entity,
+        state: filters.state,
+        units: LIVE_UNITS,
+      }),
     },
     {
       key: 'fullyApproved',

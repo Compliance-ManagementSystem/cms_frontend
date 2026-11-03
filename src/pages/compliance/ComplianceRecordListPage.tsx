@@ -12,6 +12,7 @@ import {
   MapPin,
   FileText,
   CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -31,6 +32,8 @@ import { complianceRuleService, ComplianceRuleItem } from '@/services/compliance
 import { entityService, EntityItem } from '@/services/entityService';
 import { locationService, LocationItem, operatesAt } from '@/services/locationService';
 import { FEATURES } from '@/constants/features';
+import { adminService } from '@/services/adminService';
+import { UPLOAD_ACCEPT, pickUploadFile } from '@/utils/validation';
 import { getErrorMessage } from '@/utils/errors';
 
 // Summary cards double as quick filters over one or more statuses
@@ -86,6 +89,7 @@ export const ComplianceRecordListPage: React.FC = () => {
   const { can } = useAuth();
   const canCreate = can('compliance_record', 'create');
   const canDelete = can('compliance_record', 'delete');
+  const canUpdateStatus = can('compliance_record', 'update');
 
   const [records, setRecords] = useState<ComplianceRecordItem[]>([]);
   const [metrics, setMetrics] = useState<Record<string, number>>({});
@@ -107,9 +111,12 @@ export const ComplianceRecordListPage: React.FC = () => {
   );
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   const [selectedEntity, setSelectedEntity] = useState(searchParams.get('entity') || '');
+  const [selectedState, setSelectedState] = useState(searchParams.get('state') || '');
   const [selectedLocation, setSelectedLocation] = useState(searchParams.get('location') || '');
   const [expiringWithinDays, setExpiringWithinDays] = useState(Number(searchParams.get('expiringWithin')) || 0);
   const [selectedRule, setSelectedRule] = useState(searchParams.get('rule') || '');
+  // Arriving from a dashboard figure: closed units are left out, so the list matches the figure
+  const [liveUnitsOnly, setLiveUnitsOnly] = useState(searchParams.get('units') === 'live');
   const [dueDateFrom, setDueDateFrom] = useState('');
   const [dueDateTo, setDueDateTo] = useState('');
 
@@ -128,6 +135,12 @@ export const ComplianceRecordListPage: React.FC = () => {
     rule: '',
     comments: '',
   });
+
+  // Mark as Applied: a ready record's next step, straight from the list
+  const [recordToApply, setRecordToApply] = useState<ComplianceRecordItem | null>(null);
+  const [applyForm, setApplyForm] = useState({ acknowledgementNumber: '', comments: '' });
+  const [applyFile, setApplyFile] = useState<File | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
 
   // Delete Modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -189,7 +202,9 @@ export const ComplianceRecordListPage: React.FC = () => {
         overdue: card?.overdue ? 'true' : undefined,
         entity: selectedEntity || undefined,
         location: selectedLocation || undefined,
+        state: selectedState || undefined,
         rule: selectedRule || undefined,
+        units: liveUnitsOnly ? 'live' : undefined,
       });
 
       setRecords(data.records);
@@ -210,11 +225,13 @@ export const ComplianceRecordListPage: React.FC = () => {
     activeCard,
     selectedStatus,
     selectedEntity,
+    selectedState,
     selectedLocation,
     selectedRule,
     dueDateFrom,
     dueDateTo,
     expiringWithinDays,
+    liveUnitsOnly,
     toast,
   ]);
 
@@ -228,11 +245,13 @@ export const ComplianceRecordListPage: React.FC = () => {
     setActiveCard('');
     setSelectedStatus('');
     setSelectedEntity('');
+    setSelectedState('');
     setSelectedLocation('');
     setSelectedRule('');
     setDueDateFrom('');
     setDueDateTo('');
     setExpiringWithinDays(0);
+    setLiveUnitsOnly(false);
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
@@ -250,18 +269,24 @@ export const ComplianceRecordListPage: React.FC = () => {
         : metrics.total || 0;
 
   // Location options follow the selected entity
-  const filterLocations = selectedEntity ? locations.filter((l) => operatesAt(l, selectedEntity)) : locations;
+  // States come from the units on file; the unit list follows the chosen entity and state
+  const stateOptions = [...new Set(locations.map((l) => l.address?.state?.trim()).filter(Boolean) as string[])].sort();
+  const sameState = (l: LocationItem) =>
+    !selectedState || l.address?.state?.trim().toLowerCase() === selectedState.toLowerCase();
+  const filterLocations = locations.filter((l) => (!selectedEntity || operatesAt(l, selectedEntity)) && sameState(l));
 
   const hasActiveFilters = !!(
     search ||
     activeCard ||
     selectedStatus ||
     selectedEntity ||
+    selectedState ||
     selectedLocation ||
     selectedRule ||
     dueDateFrom ||
     dueDateTo ||
-    expiringWithinDays
+    expiringWithinDays ||
+    liveUnitsOnly
   );
 
   // Create record submission
@@ -287,6 +312,63 @@ export const ComplianceRecordListPage: React.FC = () => {
       toast.error(getErrorMessage(err, 'Failed to create compliance record'));
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const openMarkApplied = (row: ComplianceRecordItem) => {
+    setRecordToApply(row);
+    setApplyForm({ acknowledgementNumber: '', comments: '' });
+    setApplyFile(null);
+  };
+
+  // Same as Applied on the record page: the acknowledgement number and its copy are both required
+  const confirmMarkApplied = async () => {
+    if (!recordToApply) return;
+    const acknowledgementNumber = applyForm.acknowledgementNumber.trim();
+    if (!acknowledgementNumber) {
+      toast.error('Enter the acknowledgement number');
+      return;
+    }
+    if (!applyFile) {
+      toast.error('Upload the acknowledgement');
+      return;
+    }
+
+    setIsApplying(true);
+    try {
+      const res = await complianceRecordService.updateRecordStatus(recordToApply._id, {
+        status: 'in_progress',
+        acknowledgementNumber,
+        comments: applyForm.comments.trim() || undefined,
+      });
+
+      try {
+        const formData = new FormData();
+        formData.append('file', applyFile);
+        formData.append('name', `Acknowledgement - ${acknowledgementNumber}`);
+        formData.append('entity', recordToApply.entity._id);
+        formData.append('location', recordToApply.location._id);
+        formData.append('complianceRecord', recordToApply._id);
+        formData.append('type', 'ACKNOWLEDGEMENT');
+        const types = await adminService.getMasterData({ category: 'document_type' }).catch(() => ({ items: [] }));
+        const documentTypeId = (types.items || []).find(
+          (type: { code: string }) => type.code === 'ACKNOWLEDGEMENT'
+        )?._id;
+        if (documentTypeId) formData.append('documentType', documentTypeId);
+        await complianceRecordService.uploadDocument(formData);
+        toast.success(res.message || 'Marked as Applied');
+      } catch (err) {
+        toast.error(
+          `Marked as Applied, but the acknowledgement could not be uploaded: ${getErrorMessage(err, 'unknown error')}`
+        );
+      }
+
+      setRecordToApply(null);
+      fetchRecords();
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Could not mark the record as Applied'));
+    } finally {
+      setIsApplying(false);
     }
   };
 
@@ -429,7 +511,24 @@ export const ComplianceRecordListPage: React.FC = () => {
     {
       key: 'status',
       header: 'Status',
-      cell: (row) => <span className="whitespace-nowrap">{renderStatusBadge(row.status)}</span>,
+      cell: (row) => (
+        <div className="flex flex-col items-start gap-1.5">
+          <span className="whitespace-nowrap">{renderStatusBadge(row.status)}</span>
+          {row.status === 'ready_to_apply' && canUpdateStatus && (
+            <button
+              type="button"
+              onClick={(e) => {
+                // The row itself opens the record
+                e.stopPropagation();
+                openMarkApplied(row);
+              }}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300 hover:text-cyan-900 dark:hover:text-cyan-100 hover:underline whitespace-nowrap"
+            >
+              Mark as Applied <ArrowRight size={11} />
+            </button>
+          )}
+        </div>
+      ),
     },
     {
       key: 'expiry',
@@ -463,8 +562,8 @@ export const ComplianceRecordListPage: React.FC = () => {
       cell: (row) => {
         const attached = (row.documents || []).length;
         const checklist = row.checklist;
-        // Not applicable records need no documents, so they keep the plain count
-        if (!checklist || checklist.total === 0 || row.status === 'not_applicable') {
+        // The checklist only matters until the licence is filed: other records keep the plain count
+        if (!checklist || checklist.total === 0 || !['pending', 'ready_to_apply'].includes(row.status)) {
           return (
             <div className="text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
               <FileText size={13} className="text-sky-600 dark:text-sky-400" />
@@ -576,22 +675,28 @@ export const ComplianceRecordListPage: React.FC = () => {
       >
         {METRIC_CARDS.map((card) => {
           const isActive = card.key === activeCard;
+          // Records with every document in, waiting to be filed
+          const waiting = card.key === 'ready_to_apply' && metricValue(card) > 0;
           return (
             <button
               key={card.key}
               type="button"
               onClick={() => handleCardClick(card.key)}
               aria-pressed={isActive}
-              className={`text-left p-3 rounded-xl border bg-white dark:bg-slate-900/50 shadow-sm dark:shadow-none transition-colors ${
+              className={`text-left p-3 rounded-xl border shadow-sm dark:shadow-none transition-colors ${
+                waiting ? 'bg-cyan-50 dark:bg-cyan-900/20' : 'bg-white dark:bg-slate-900/50'
+              } ${
                 isActive
                   ? 'border-indigo-500 ring-2 ring-indigo-500/30'
-                  : 'border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600'
+                  : waiting
+                    ? 'border-cyan-300 dark:border-cyan-700/60 hover:border-cyan-400 dark:hover:border-cyan-600'
+                    : 'border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{card.label}</div>
                 {/* Records waiting to be filed get a live dot, so nobody misses them */}
-                {card.key === 'ready_to_apply' && metricValue(card) > 0 && (
+                {waiting && (
                   <span className="relative flex w-2 h-2" aria-hidden>
                     <span className="absolute inset-0 rounded-full bg-cyan-400 animate-ping opacity-75" />
                     <span className="relative w-2 h-2 rounded-full bg-cyan-500" />
@@ -599,6 +704,11 @@ export const ComplianceRecordListPage: React.FC = () => {
                 )}
               </div>
               <div className={`text-xl font-bold mt-1 ${card.color}`}>{metricValue(card)}</div>
+              {waiting && (
+                <div className="text-[10px] font-medium text-cyan-700 dark:text-cyan-300 mt-0.5">
+                  {metricValue(card)} waiting to be filed
+                </div>
+              )}
             </button>
           );
         })}
@@ -657,6 +767,31 @@ export const ComplianceRecordListPage: React.FC = () => {
               {entities.map((e) => (
                 <option key={e._id} value={e._id}>
                   {e.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="w-32">
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">State</label>
+            <select
+              value={selectedState}
+              onChange={(e) => {
+                setSelectedState(e.target.value);
+                // A unit from another state would leave the list empty
+                setSelectedLocation('');
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className={SELECT_CLASS}
+            >
+              <option value="">All States</option>
+              {/* A state from a dashboard link before the units have loaded */}
+              {selectedState && !stateOptions.some((state) => state.toLowerCase() === selectedState.toLowerCase()) && (
+                <option value={selectedState}>{selectedState}</option>
+              )}
+              {stateOptions.map((state) => (
+                <option key={state} value={state}>
+                  {state}
                 </option>
               ))}
             </select>
@@ -740,6 +875,20 @@ export const ComplianceRecordListPage: React.FC = () => {
               title="Remove this filter"
             >
               Expiring within {expiringWithinDays} days ✕
+            </button>
+          )}
+
+          {liveUnitsOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                setLiveUnitsOnly(false);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-300 dark:border-indigo-600/40 text-indigo-800 dark:text-indigo-200"
+              title="Closed units are left out, as on the dashboard. Remove to see every record."
+            >
+              Open and planned units only ✕
             </button>
           )}
 
@@ -876,6 +1025,75 @@ export const ComplianceRecordListPage: React.FC = () => {
       </Modal>
 
       {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={!!recordToApply}
+        onClose={() => !isApplying && setRecordToApply(null)}
+        title="Mark as Applied"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setRecordToApply(null)} disabled={isApplying}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={confirmMarkApplied} isLoading={isApplying}>
+              Mark as Applied
+            </Button>
+          </div>
+        }
+      >
+        {recordToApply && (
+          <div className="space-y-4">
+            <div className="rounded-lg bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800/50 p-3 text-sm">
+              <div className="font-semibold text-slate-900 dark:text-slate-100">{recordToApply.rule?.name}</div>
+              <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                {recordToApply.recordNumber} · {recordToApply.entity?.name} · {recordToApply.location?.name}
+              </div>
+            </div>
+
+            <Input
+              label="Acknowledgement Number"
+              value={applyForm.acknowledgementNumber}
+              onChange={(e) => setApplyForm((prev) => ({ ...prev, acknowledgementNumber: e.target.value }))}
+              placeholder="As printed on the acknowledgement"
+              required
+            />
+
+            <div>
+              <label
+                className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+                htmlFor="apply-acknowledgement-file"
+              >
+                Upload Acknowledgement *
+              </label>
+              <input
+                id="apply-acknowledgement-file"
+                type="file"
+                accept={UPLOAD_ACCEPT}
+                onChange={(e) => setApplyFile(pickUploadFile(e, toast.error))}
+                className="block w-full text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 dark:file:bg-indigo-500/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100"
+              />
+            </div>
+
+            <div>
+              <label
+                className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+                htmlFor="apply-comments"
+              >
+                Comments
+              </label>
+              <textarea
+                id="apply-comments"
+                rows={2}
+                value={applyForm.comments}
+                onChange={(e) => setApplyForm((prev) => ({ ...prev, comments: e.target.value }))}
+                placeholder="Optional"
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <Modal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}

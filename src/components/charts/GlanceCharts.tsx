@@ -2015,6 +2015,8 @@ export interface CounterItem {
   /** Tailwind classes for the icon chip */
   tone: string;
   to?: string;
+  /** Something waiting on someone: a live dot on the icon while the value is above zero */
+  alert?: boolean;
 }
 
 const Counter: React.FC<{ item: CounterItem; animate: boolean; delay: number }> = ({ item, animate, delay }) => {
@@ -2028,8 +2030,14 @@ const Counter: React.FC<{ item: CounterItem; animate: boolean; delay: number }> 
       onClick={() => item.to && navigate(item.to)}
       className="flex items-center gap-3 rounded-lg px-3 py-2 text-left enabled:hover:bg-slate-50 dark:enabled:hover:bg-slate-800/50"
     >
-      <span className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${item.tone}`}>
+      <span className={`relative shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${item.tone}`}>
         <Icon size={19} />
+        {item.alert && (item.value ?? 0) > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex w-2.5 h-2.5" aria-hidden>
+            <span className="absolute inset-0 rounded-full bg-cyan-400 animate-ping opacity-75" />
+            <span className="relative w-2.5 h-2.5 rounded-full bg-cyan-500 ring-2 ring-white dark:ring-slate-900" />
+          </span>
+        )}
       </span>
       <span className="min-w-0">
         <span className="block text-xl font-bold text-slate-900 dark:text-slate-100 tabular-nums leading-tight">
@@ -2042,7 +2050,9 @@ const Counter: React.FC<{ item: CounterItem; animate: boolean; delay: number }> 
 };
 
 export const IconCounters: React.FC<{ items: CounterItem[]; animate: boolean }> = ({ items, animate }) => (
-  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+  <div
+    className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 ${items.length > 6 ? 'xl:grid-cols-7' : 'xl:grid-cols-6'} gap-2`}
+  >
     {items.map((item, index) => (
       <Counter key={item.key} item={item} animate={animate} delay={index * 60} />
     ))}

@@ -10,6 +10,7 @@ import {
   CalendarClock,
   CircleX,
   Ban,
+  FileCheck2,
   Layers,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
@@ -51,6 +52,7 @@ import {
   LICENCE_ORDER,
   LICENCE_LABELS,
   LICENCE_STATUS_PARAM,
+  LIVE_UNITS,
   pct,
   withQuery,
   Legend,
@@ -347,7 +349,13 @@ export const Dashboard: React.FC = () => {
   const { units, licences, expiring } = data;
   const scopeParams = { entity: filters.entity, state: filters.state };
   const recordsLink = (bucket: LicenceBucket, extra: Record<string, string | undefined> = {}) =>
-    withQuery(ROUTES.COMPLIANCE_RECORDS, { status: LICENCE_STATUS_PARAM[bucket], entity: filters.entity, ...extra });
+    withQuery(ROUTES.COMPLIANCE_RECORDS, {
+      status: LICENCE_STATUS_PARAM[bucket],
+      entity: filters.entity,
+      state: filters.state,
+      units: LIVE_UNITS,
+      ...extra,
+    });
   const unitsLink = (status?: string, opening?: string) =>
     withQuery(ROUTES.LOCATIONS, { ...scopeParams, status, opening });
 
@@ -405,6 +413,16 @@ export const Dashboard: React.FC = () => {
 
   // ── At a glance ──────────────────────────────────────────────────────────────
   const counters: CounterItem[] = [
+    // First, because it is the one waiting on someone: every document in, not yet filed
+    {
+      key: 'readyToApply',
+      label: 'Ready to apply',
+      value: licences.readyToApply,
+      icon: FileCheck2,
+      tone: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300',
+      to: recordsLink('readyToApply'),
+      alert: true,
+    },
     {
       key: 'openTasks',
       label: 'Open tasks',
@@ -427,7 +445,12 @@ export const Dashboard: React.FC = () => {
       value: expiring.next30,
       icon: CalendarClock,
       tone: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-      to: withQuery(ROUTES.COMPLIANCE_RECORDS, { expiringWithin: '30', entity: filters.entity }),
+      to: withQuery(ROUTES.COMPLIANCE_RECORDS, {
+        expiringWithin: '30',
+        entity: filters.entity,
+        state: filters.state,
+        units: LIVE_UNITS,
+      }),
     },
     {
       key: 'expired',
@@ -443,7 +466,12 @@ export const Dashboard: React.FC = () => {
       value: licences.notApplicable,
       icon: Ban,
       tone: 'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300',
-      to: withQuery(ROUTES.COMPLIANCE_RECORDS, { status: 'not_applicable', entity: filters.entity }),
+      to: withQuery(ROUTES.COMPLIANCE_RECORDS, {
+        status: 'not_applicable',
+        entity: filters.entity,
+        state: filters.state,
+        units: LIVE_UNITS,
+      }),
     },
     {
       key: 'licenceTypes',
@@ -816,7 +844,12 @@ export const Dashboard: React.FC = () => {
                 approvedCount={licences.approved}
                 links={{
                   within: (days) =>
-                    withQuery(ROUTES.COMPLIANCE_RECORDS, { expiringWithin: String(days), entity: filters.entity }),
+                    withQuery(ROUTES.COMPLIANCE_RECORDS, {
+                      expiringWithin: String(days),
+                      entity: filters.entity,
+                      state: filters.state,
+                      units: LIVE_UNITS,
+                    }),
                   expired: recordsLink('expired'),
                   approved: recordsLink('approved'),
                 }}
@@ -901,7 +934,14 @@ export const Dashboard: React.FC = () => {
                 <LicenceGrid
                   grid={data.licenceGrid}
                   onOpen={(ruleId) =>
-                    navigate(withQuery(ROUTES.COMPLIANCE_RECORDS, { rule: ruleId, entity: filters.entity }))
+                    navigate(
+                      withQuery(ROUTES.COMPLIANCE_RECORDS, {
+                        rule: ruleId,
+                        entity: filters.entity,
+                        state: filters.state,
+                        units: LIVE_UNITS,
+                      })
+                    )
                   }
                 />
               )}
