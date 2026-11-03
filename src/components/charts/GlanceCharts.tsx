@@ -543,12 +543,13 @@ export const MonthlyTrend: React.FC<{
 }> = ({ rows, animate }) => {
   const chart = useChartTheme();
   const axisTick = { fill: chart.axis, fontSize: 11 };
-  const previousColor = chart.dark ? '#f59e0b' : '#d97706';
+  const previousColor = chart.trio.amber;
+  const currentColor = chart.trio.blue;
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-slate-600 dark:text-slate-400">
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-4 h-0.5 rounded-full" style={{ backgroundColor: chart.series }} />
+          <span className="w-4 h-0.5 rounded-full" style={{ backgroundColor: currentColor }} />
           Last 12 months
         </span>
         <span className="inline-flex items-center gap-1.5">
@@ -611,10 +612,10 @@ export const MonthlyTrend: React.FC<{
               type="monotone"
               dataKey="current"
               name="Opened"
-              stroke={chart.series}
+              stroke={currentColor}
               strokeWidth={2.5}
-              dot={{ r: 3, fill: chart.series, stroke: chart.surface, strokeWidth: 1.5 }}
-              activeDot={{ r: 5, fill: chart.series, stroke: chart.surface, strokeWidth: 2 }}
+              dot={{ r: 3, fill: currentColor, stroke: chart.surface, strokeWidth: 1.5 }}
+              activeDot={{ r: 5, fill: currentColor, stroke: chart.surface, strokeWidth: 2 }}
               isAnimationActive={animate}
             >
               <LabelList dataKey="current" position="top" offset={8} fill={chart.axis} fontSize={10} fontWeight={600} />
@@ -676,15 +677,15 @@ export const GrowthCurve: React.FC<{
           <AreaChart data={rows} margin={{ top: 22, right: 26, left: -18, bottom: 0 }}>
             <defs>
               <linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={chart.series} stopOpacity={0.45} />
-                <stop offset="100%" stopColor={chart.series} stopOpacity={0} />
+                <stop offset="0%" stopColor={chart.trio.blue} stopOpacity={0.45} />
+                <stop offset="100%" stopColor={chart.trio.blue} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="growthStroke" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#06b6d4" />
-                <stop offset="100%" stopColor={chart.series} />
+                <stop offset="0%" stopColor={chart.trio.sky} />
+                <stop offset="100%" stopColor={chart.trio.blue} />
               </linearGradient>
               <filter id="growthGlow" x="-10%" y="-10%" width="120%" height="140%">
-                <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor={chart.series} floodOpacity={0.35} />
+                <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor={chart.trio.blue} floodOpacity={0.35} />
               </filter>
             </defs>
             <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.18} strokeDasharray="3 4" />
@@ -698,7 +699,7 @@ export const GrowthCurve: React.FC<{
             />
             <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} tickCount={4} />
             <Tooltip
-              cursor={{ stroke: chart.series, strokeOpacity: 0.4, strokeDasharray: '4 4' }}
+              cursor={{ stroke: chart.trio.blue, strokeOpacity: 0.4, strokeDasharray: '4 4' }}
               content={({ active, payload }: any) => {
                 if (!active || !payload?.length) return null;
                 const point = payload[0].payload;
@@ -726,7 +727,7 @@ export const GrowthCurve: React.FC<{
               fill="url(#growthFill)"
               filter="url(#growthGlow)"
               dot={false}
-              activeDot={{ r: 5, fill: chart.series, stroke: chart.surface, strokeWidth: 2 }}
+              activeDot={{ r: 5, fill: chart.trio.blue, stroke: chart.surface, strokeWidth: 2 }}
               isAnimationActive={animate}
               animationDuration={1400}
             />
@@ -737,8 +738,8 @@ export const GrowthCurve: React.FC<{
                 x={row.month}
                 y={row.total}
                 r={4}
-                fill={chart.surface}
-                stroke={chart.series}
+                fill={chart.trio.amber}
+                stroke={chart.surface}
                 strokeWidth={2}
                 label={{
                   value: `${mark}`,
@@ -757,12 +758,12 @@ export const GrowthCurve: React.FC<{
               r={5}
               shape={({ cx, cy }: any) => (
                 <g>
-                  <circle cx={cx} cy={cy} r={5} fill={chart.series} opacity={0.35}>
+                  <circle cx={cx} cy={cy} r={5} fill={chart.trio.amber} opacity={0.35}>
                     <animate attributeName="r" values="5;13;5" dur="2.4s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="0.35;0;0.35" dur="2.4s" repeatCount="indefinite" />
                   </circle>
-                  <circle cx={cx} cy={cy} r={5} fill={chart.series} stroke={chart.surface} strokeWidth={2} />
-                  <text x={cx} y={cy - 12} textAnchor="middle" fill={chart.series} fontSize={12} fontWeight={800}>
+                  <circle cx={cx} cy={cy} r={5} fill={chart.trio.amber} stroke={chart.surface} strokeWidth={2} />
+                  <text x={cx} y={cy - 12} textAnchor="middle" fill={chart.trio.amber} fontSize={12} fontWeight={800}>
                     {last.total}
                   </text>
                 </g>
@@ -800,7 +801,7 @@ export const YearlyOpenings: React.FC<{
   }));
   const peak = data.reduce((best, row) => (row.opened > best.opened ? row : best), data[0]);
   const latest = data[lastIndex];
-  const peakColor = chart.dark ? '#fbbf24' : '#d97706';
+  const peakColor = chart.trio.amber;
 
   return (
     <>
@@ -838,15 +839,15 @@ export const YearlyOpenings: React.FC<{
           <AreaChart data={data} margin={{ top: 26, right: 18, left: 18, bottom: 0 }}>
             <defs>
               <linearGradient id="yearlyFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={chart.series} stopOpacity={0.4} />
-                <stop offset="100%" stopColor={chart.series} stopOpacity={0} />
+                <stop offset="0%" stopColor={chart.trio.sky} stopOpacity={0.4} />
+                <stop offset="100%" stopColor={chart.trio.blue} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="yearlyStroke" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#8b5cf6" />
-                <stop offset="100%" stopColor={chart.series} />
+                <stop offset="0%" stopColor={chart.trio.sky} />
+                <stop offset="100%" stopColor={chart.trio.blue} />
               </linearGradient>
               <filter id="yearlyGlow" x="-10%" y="-10%" width="120%" height="140%">
-                <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor={chart.series} floodOpacity={0.35} />
+                <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor={chart.trio.blue} floodOpacity={0.35} />
               </filter>
             </defs>
             <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={0.18} strokeDasharray="3 4" />
@@ -860,7 +861,7 @@ export const YearlyOpenings: React.FC<{
             />
             <YAxis hide domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
             <Tooltip
-              cursor={{ stroke: chart.series, strokeOpacity: 0.4, strokeDasharray: '4 4' }}
+              cursor={{ stroke: chart.trio.blue, strokeOpacity: 0.4, strokeDasharray: '4 4' }}
               content={({ active, payload }: any) => {
                 if (!active || !payload?.length) return null;
                 const point = payload[0].payload;
@@ -919,7 +920,7 @@ export const YearlyOpenings: React.FC<{
                       cx={cx}
                       cy={cy}
                       r={isPeak ? 7 : 5}
-                      fill={isPeak ? peakColor : chart.series}
+                      fill={isPeak ? peakColor : chart.trio.blue}
                       stroke={chart.surface}
                       strokeWidth={2.5}
                     />
@@ -941,7 +942,7 @@ export const YearlyOpenings: React.FC<{
               <Area
                 type="monotone"
                 dataKey="running"
-                stroke={chart.series}
+                stroke={chart.trio.blue}
                 strokeWidth={3}
                 strokeDasharray="6 5"
                 fill="none"
@@ -954,7 +955,7 @@ export const YearlyOpenings: React.FC<{
                   if (index !== lastIndex) return <g key={index} />;
                   return (
                     <g key={index}>
-                      <circle cx={cx} cy={cy} r={5} fill={chart.surface} stroke={chart.series} strokeWidth={2.5} />
+                      <circle cx={cx} cy={cy} r={5} fill={chart.surface} stroke={chart.trio.blue} strokeWidth={2.5} />
                       <text x={cx} y={cy - 14} textAnchor="middle" fill={chart.axis} fontSize={12} fontWeight={800}>
                         {payload.opened}
                       </text>
@@ -1001,17 +1002,14 @@ export const YearlyOpenings: React.FC<{
 
 // ── 6b. Districts as a treemap: tile size is the unit count, colour the state ──
 
-// Kept clear of the four status colours, so a category never reads as a licence status
-// (green, indigo, amber and red are taken, and so are their near neighbours)
-const CATEGORY_HUES = ['#0891b2', '#c026d3', '#7c3aed', '#db2777', '#0284c7', '#a16207', '#475569', '#9333ea'];
-
 export const DistrictTreemap: React.FC<{
   rows: Array<{ district: string; state: string; units: number }>;
   animate: boolean;
 }> = ({ rows, animate }) => {
+  const chart = useChartTheme();
   // States take a hue in order of their biggest district, so the largest state is always the first hue
   const states = [...new Set(rows.map((row) => row.state))];
-  const hueOf = (state: string) => CATEGORY_HUES[states.indexOf(state) % CATEGORY_HUES.length];
+  const hueOf = (state: string) => chart.trioSteps[states.indexOf(state) % chart.trioSteps.length];
   const max = Math.max(...rows.map((row) => row.units), 1);
   const data = rows.map((row) => ({ name: row.district, size: row.units, state: row.state }));
 
@@ -1345,6 +1343,7 @@ export const Waffle: React.FC<{
   noun: string;
   animate: boolean;
 }> = ({ rows, noun, animate }) => {
+  const chart = useChartTheme();
   const [hovered, setHovered] = React.useState<string | null>(null);
   const [shown, setShown] = React.useState(!animate);
   React.useEffect(() => {
@@ -1355,7 +1354,7 @@ export const Waffle: React.FC<{
 
   const total = rows.reduce((sum, row) => sum + row.value, 0);
   const squares = toSquares(rows.map((row) => row.value));
-  const hueOf = (index: number) => CATEGORY_HUES[index % CATEGORY_HUES.length];
+  const hueOf = (index: number) => chart.trioSteps[index % chart.trioSteps.length];
   // Square by square, in row order, so each category is one block
   const cells = rows.flatMap((row, index) => Array.from({ length: squares[index] }, () => ({ key: row.key, index })));
 
@@ -1418,9 +1417,8 @@ export const HalfDonut: React.FC<{
   const chart = useChartTheme();
   const [hovered, setHovered] = React.useState<number | null>(null);
   const total = rows.reduce((sum, row) => sum + row.value, 0);
-  // Start further along the palette than the waffle beside it, so the two panels don't share colours
   const colourOf = (index: number) =>
-    unsetLabels.includes(rows[index].label) ? chart.noData : CATEGORY_HUES[(index + 4) % CATEGORY_HUES.length];
+    unsetLabels.includes(rows[index].label) ? chart.noData : chart.trioSteps[index % chart.trioSteps.length];
   const focus = hovered !== null ? rows[hovered] : null;
 
   return (

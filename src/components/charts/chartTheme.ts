@@ -54,6 +54,20 @@ export const useChartTheme = () => {
     },
     /** Single-series bars */
     series: dark ? '#6366f1' : '#4f46e5',
+    /**
+     * Amber, blue and sky for the charts that only count things (openings,
+     * districts, unit and area types). Blue leads, sky supports, amber highlights.
+     * Kept off the licence-status charts, where amber means "to be applied".
+     */
+    trio: {
+      blue: dark ? '#3b82f6' : '#2563eb',
+      sky: dark ? '#38bdf8' : '#0ea5e9',
+      amber: dark ? '#fbbf24' : '#f59e0b',
+    },
+    /** The trio, then deeper and lighter steps of it, for more than three categories */
+    trioSteps: dark
+      ? ['#3b82f6', '#38bdf8', '#fbbf24', '#1d4ed8', '#7dd3fc', '#fcd34d', '#93c5fd', '#b45309']
+      : ['#2563eb', '#0ea5e9', '#f59e0b', '#1e3a8a', '#7dd3fc', '#fcd34d', '#93c5fd', '#b45309'],
     critical: '#e11d48',
     /** Low → high score; the low end recedes towards the surface in each theme */
     scoreBands: dark ? ['#184f95', '#256abf', '#5598e7', '#b7d3f6'] : ['#b7d3f6', '#6da7ec', '#2a78d6', '#104281'],
