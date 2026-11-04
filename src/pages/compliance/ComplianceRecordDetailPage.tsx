@@ -1,28 +1,22 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ClipboardCheck,
   ArrowLeft,
   Building2,
   MapPin,
-  Clock,
-  Calendar,
-  User,
   FileText,
   Upload,
-  Download,
-  Eye,
   RefreshCw,
-  CheckCircle2,
-  History,
   Plus,
   XCircle,
   Pencil,
-  Files,
+  Check,
+  Send,
+  MoreHorizontal,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Badge from '@/components/ui/Badge';
+import RecordStatus from '@/components/ui/RecordStatus';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
@@ -63,6 +57,22 @@ const FIELD_CLASS =
 const LABEL_CLASS = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5';
 const FILE_INPUT_CLASS =
   'block w-full text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 dark:file:bg-indigo-500/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100';
+
+// The stages a licence moves through, in order
+const STAGES = ['To be applied', 'Ready to apply', 'Applied', 'Approved'] as const;
+// Which stage each status sits at
+const stageOf = (status: ComplianceRecordStatus): number => {
+  if (status === 'pending') return 0;
+  if (status === 'ready_to_apply') return 1;
+  if (['approved', 'expiring_soon', 'expired'].includes(status)) return 3;
+  return 2; // applied, submitted, under review, correction, rejected, resubmitted
+};
+
+/** A long file name shortened in the middle, so its end and extension stay readable */
+const shortFileName = (name: string, max = 34) =>
+  name.length <= max ? name : `${name.slice(0, max - 15)}…${name.slice(-14)}`;
+
+const daysSince = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
 
 // Words too common to say which checklist line a file name belongs to
 const MATCH_STOP_WORDS = new Set(['the', 'and', 'for', 'of', 'scan', 'copy', 'final', 'doc', 'document', 'pdf', 'img']);
@@ -108,13 +118,22 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   const { can } = useAuth();
   const canUpload = can('document', 'upload');
   const canUpdateStatus = can('compliance_record', 'update');
+  const canVerify = can('document', 'update');
+  const canDeleteDocument = can('document', 'delete');
+  const [verifyingDocId, setVerifyingDocId] = useState<string | null>(null);
+  // Checklist: the open ⋯ menu, files being dragged over the list, the file under review, one being removed
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [reviewDocId, setReviewDocId] = useState<string | null>(null);
+  const [docToRemove, setDocToRemove] = useState<DocumentItem | null>(null);
+  const [isRemovingDoc, setIsRemovingDoc] = useState(false);
 
   const [record, setRecord] = useState<ComplianceRecordItem | null>(null);
   usePageTitle(record?.recordNumber);
   const [docTypes, setDocTypes] = useState<MasterDataItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'documents'>('overview');
-  const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({});
+  // A document whose earlier versions are open
+  const [historyDoc, setHistoryDoc] = useState<DocumentItem | null>(null);
 
   // Document requirements and comment history for this record
   const [workflowData, setWorkflowData] = useState<WorkflowApprovalsResponse | null>(null);
@@ -228,6 +247,47 @@ export const ComplianceRecordDetailPage: React.FC = () => {
     setAcknowledgementFile(null);
     setLicenceFile(null);
     setIsStatusModalOpen(true);
+  };
+
+  // Review: the file opens, with Verify and Reject beside it
+  const openReview = (doc: DocumentItem) => {
+    setReviewDocId(canVerify && doc.verificationStatus === 'pending' ? doc._id : null);
+    openPreview(doc);
+  };
+
+  const confirmRemoveDocument = async () => {
+    if (!docToRemove) return;
+    setIsRemovingDoc(true);
+    try {
+      await complianceRecordService.deleteDocument(docToRemove._id);
+      toast.success('Document removed');
+      setDocToRemove(null);
+      await Promise.all([fetchRecord(true), fetchWorkflow()]);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Could not remove the document'));
+    } finally {
+      setIsRemovingDoc(false);
+    }
+  };
+
+  // A ready record's next step: the status window, already set to Applied
+  const handleOpenMarkApplied = () => {
+    handleOpenStatusModal();
+    setStatusForm((prev) => ({ ...prev, status: APPLIED_STATUS }));
+  };
+
+  // Verify or reject an uploaded document from its checklist line
+  const handleVerifyDocument = async (docId: string, verificationStatus: 'verified' | 'rejected') => {
+    setVerifyingDocId(docId);
+    try {
+      await complianceRecordService.verifyDocument(docId, { verificationStatus });
+      toast.success(verificationStatus === 'verified' ? 'Document verified' : 'Document rejected');
+      await Promise.all([fetchRecord(true), fetchWorkflow()]);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Could not update the document'));
+    } finally {
+      setVerifyingDocId(null);
+    }
   };
 
   const handleSaveStatus = async (e: React.FormEvent) => {
@@ -531,85 +591,10 @@ export const ComplianceRecordDetailPage: React.FC = () => {
   }
 
   // Render Status Badge
-  const renderStatusBadge = (status: ComplianceRecordStatus) => {
-    switch (status) {
-      case 'approved':
-        return (
-          <Badge variant="success" size="md">
-            APPROVED
-          </Badge>
-        );
-      case 'submitted':
-        return (
-          <Badge variant="info" size="md">
-            SUBMITTED
-          </Badge>
-        );
-      case 'under_review':
-        return (
-          <Badge variant="info" size="md">
-            UNDER REVIEW
-          </Badge>
-        );
-      case 'correction':
-        return (
-          <Badge variant="warning" size="md">
-            NEEDS CORRECTION
-          </Badge>
-        );
-      case 'resubmitted':
-        return (
-          <Badge variant="info" size="md">
-            RESUBMITTED
-          </Badge>
-        );
-      case 'expiring_soon':
-        return (
-          <Badge variant="warning" size="md">
-            EXPIRING SOON
-          </Badge>
-        );
-      case 'expired':
-        return (
-          <Badge variant="danger" size="md">
-            EXPIRED
-          </Badge>
-        );
-      case 'rejected':
-        return (
-          <Badge variant="danger" size="md">
-            REJECTED
-          </Badge>
-        );
-      case 'in_progress':
-        return (
-          <Badge variant="info" size="md">
-            APPLIED
-          </Badge>
-        );
-      case 'ready_to_apply':
-        return (
-          <Badge variant="ready" size="md" dot>
-            READY TO APPLY
-          </Badge>
-        );
-      case 'not_applicable':
-        return (
-          <Badge variant="default" size="md">
-            NOT APPLICABLE
-          </Badge>
-        );
-      case 'pending':
-      default:
-        return (
-          <Badge variant="warning" size="md">
-            TO BE APPLIED
-          </Badge>
-        );
-    }
-  };
+  const renderStatusBadge = (status: ComplianceRecordStatus) => <RecordStatus status={status} size="md" />;
 
   const documentRequirements = workflowData?.documentRequirements || [];
+  const showChecklist = documentRequirements.length > 0 && record.status !== 'not_applicable';
   // Relative expiry hint
   const expiryDays = record.expiryDate ? daysFromToday(record.expiryDate) : null;
 
@@ -618,584 +603,702 @@ export const ComplianceRecordDetailPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Top Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(ROUTES.COMPLIANCE_RECORDS)}
-            className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                {record.rule?.name || 'Compliance Obligation'}
-              </h1>
-              {renderStatusBadge(record.status)}
-            </div>
-            <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1">
-              <span className="font-mono text-indigo-600 dark:text-indigo-300 font-semibold">
-                {record.recordNumber}
-              </span>
-              <span>•</span>
-              {record.licenceNumber && (
-                <>
-                  <span className="text-slate-600 dark:text-slate-300">
-                    Licence no. <span className="font-mono font-semibold">{record.licenceNumber}</span>
-                  </span>
-                  <span>•</span>
-                </>
-              )}
-              {record.acknowledgementNumber && (
-                <>
-                  <span className="text-slate-600 dark:text-slate-300">
-                    Ack. no. <span className="font-mono font-semibold">{record.acknowledgementNumber}</span>
-                  </span>
-                  <span>•</span>
-                </>
-              )}
-              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                <Building2 size={13} className="text-indigo-600 dark:text-indigo-400" />
-                {record.entity?.name}
-              </span>
-              <span>•</span>
-              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                <MapPin size={13} className="text-emerald-600 dark:text-emerald-400" />
-                {record.location?.name}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Acknowledgement and licence are uploaded here; other documents from the Documents tab */}
-        <div className="flex flex-wrap items-center gap-2">
-          {canUpdateStatus && (
-            <Button variant="outline" leftIcon={<Pencil size={15} />} onClick={handleOpenStatusModal}>
-              Update Status
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Tabs Bar */}
-      <div className="border-b border-slate-200 dark:border-slate-800 flex gap-2">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'overview'
-              ? 'border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400'
-              : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-          }`}
-        >
-          <ClipboardCheck size={16} />
-          Overview & Dates
-        </button>
-        <button
-          onClick={() => setActiveTab('documents')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'documents'
-              ? 'border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400'
-              : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-          }`}
-        >
-          <FileText size={16} />
-          Documents ({record.documents?.length || 0})
-        </button>
-      </div>
-
-      {/* Tab 1: Overview */}
-      {activeTab === 'overview' && (
-        <div className="space-y-6">
-          {/* Key Dates */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
-              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <CheckCircle2 size={14} />
-                Approved
-              </div>
-              <div
-                className={`text-lg font-bold mt-1 ${
-                  record.approvalDate ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'
-                }`}
-              >
-                {record.approvalDate ? new Date(record.approvalDate).toLocaleDateString() : 'Not yet'}
-              </div>
-              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                {record.approvalDate ? formatRelativeDays(record.approvalDate) : 'Not approved yet'}
-              </div>
-            </Card>
-
-            <Card className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
-              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Calendar size={14} />
-                Expiry Date
-              </div>
-              <div className="text-lg font-bold text-slate-900 dark:text-white mt-1">
-                {record.expiryDate ? new Date(record.expiryDate).toLocaleDateString() : '—'}
-              </div>
-              <div
-                className={`text-[11px] mt-1 ${
-                  expiryDays !== null && expiryDays < 0
-                    ? 'text-rose-600 dark:text-rose-400 font-semibold'
-                    : expiryDays !== null && expiryDays <= 30
-                      ? 'text-amber-600 dark:text-amber-400 font-semibold'
-                      : 'text-slate-400 dark:text-slate-500'
-                }`}
-              >
-                {!record.expiryDate
-                  ? 'Not entered yet'
-                  : expiryDays! < 0
-                    ? `Expired ${formatRelativeDays(record.expiryDate)}`
-                    : `Expires ${formatRelativeDays(record.expiryDate)}`}
-              </div>
-              {record.issueDate && (
-                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                  Issued {new Date(record.issueDate).toLocaleDateString()}
-                </div>
-              )}
-            </Card>
-          </div>
-
-          {/* Required Documents Checklist; a not applicable record needs none */}
-          {documentRequirements.length > 0 && record.status !== 'not_applicable' && (
-            <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
-              <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-                <div className="flex items-center gap-2">
-                  <FileText size={18} className="text-sky-600 dark:text-sky-400" />
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Required Documents</h3>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {documentRequirements.filter((r) => r.status !== 'missing').length} of {documentRequirements.length}{' '}
-                    uploaded
-                    {' · '}
-                    {documentRequirements.filter((r) => r.status === 'verified').length} verified
-                  </span>
-                  {canUpload && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={<Files size={13} />}
-                        onClick={() => bulkInputRef.current?.click()}
-                      >
-                        Upload several files
-                      </Button>
-                      <input
-                        ref={bulkInputRef}
-                        type="file"
-                        multiple
-                        accept={UPLOAD_ACCEPT}
-                        className="hidden"
-                        onChange={(e) => {
-                          startBulkUpload(Array.from(e.target.files || []));
-                          e.target.value = '';
-                        }}
-                      />
-                    </>
-                  )}
-                </div>
-              </div>
-              {canUpload && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 -mt-1">
-                  Tip: drag a file from your computer onto a line below to upload it there.
-                </p>
-              )}
-
-              {/* How close the record is to Ready to apply: only mandatory documents count */}
-              {(() => {
-                const mandatory = documentRequirements.filter((r) => r.isMandatory);
-                const met = mandatory.filter((r) => r.status === 'pending' || r.status === 'verified').length;
-                const left = mandatory.length - met;
-                const share = mandatory.length > 0 ? (met / mandatory.length) * 100 : 0;
-                const waitingToFile = ['pending', 'ready_to_apply'].includes(record.status);
-                return (
-                  <div
-                    className={`rounded-lg p-3 border ${
-                      left === 0
-                        ? 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800/50'
-                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3 text-xs">
-                      <span
-                        className={`flex items-center gap-1.5 font-semibold ${
-                          left === 0 ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-700 dark:text-slate-200'
-                        }`}
-                      >
-                        {left === 0 && <CheckCircle2 size={14} />}
-                        {left === 0
-                          ? waitingToFile
-                            ? 'Ready to apply: every mandatory document is in'
-                            : 'Every mandatory document is in'
-                          : `${left} mandatory ${left === 1 ? 'document' : 'documents'} to go before this is ready to apply`}
-                      </span>
-                      <span className="tabular-nums text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                        {met} / {mandatory.length} mandatory
-                      </span>
-                    </div>
-                    <div className="mt-2 h-2 rounded-full bg-white dark:bg-slate-900 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-[width] duration-500 ${left === 0 ? 'bg-cyan-500' : 'bg-amber-400'}`}
-                        style={{ width: `${share}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div className="space-y-2">
-                {documentRequirements.map((req, idx) => (
-                  <div
-                    key={`${req.documentTypeId}-${idx}`}
-                    onDragOver={(e) => {
-                      if (!canUpload) return;
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = 'copy';
-                      if (dropLine !== idx) setDropLine(idx);
-                    }}
-                    onDragLeave={(e) => {
-                      // Leaving for a child of the same line is not leaving the line
-                      if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropLine(null);
-                    }}
-                    onDrop={(e) => handleDropOnLine(e, req, idx)}
-                    className={`relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border rounded-lg transition-colors ${
-                      dropLine === idx
-                        ? 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-400 dark:border-cyan-600 border-dashed ring-2 ring-cyan-400/30'
-                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
-                    }`}
-                  >
-                    {/* Shown while a file is held over the line, or uploading to it */}
-                    {(dropLine === idx || uploadingLine === idx) && (
-                      <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-lg bg-cyan-50/90 dark:bg-slate-900/85 text-sm font-semibold text-cyan-700 dark:text-cyan-300 pointer-events-none">
-                        {uploadingLine === idx ? (
-                          <>
-                            <RefreshCw size={15} className="animate-spin" /> Uploading to {req.label}…
-                          </>
-                        ) : (
-                          <>
-                            <Upload size={15} /> Drop to upload as {req.label}
-                          </>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 shrink-0">
-                        {req.status === 'verified' ? (
-                          <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400" />
-                        ) : req.status === 'pending' ? (
-                          <Clock size={18} className="text-amber-600 dark:text-amber-400" />
-                        ) : req.status === 'rejected' ? (
-                          <XCircle size={18} className="text-rose-600 dark:text-rose-400" />
-                        ) : (
-                          <div className="w-[18px] h-[18px] rounded-full border-2 border-slate-300 dark:border-slate-600" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{req.label}</span>
-                          <Badge variant={req.isMandatory ? 'danger' : 'default'} size="sm">
-                            {req.isMandatory ? 'MANDATORY' : 'OPTIONAL'}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          {req.status === 'missing'
-                            ? 'Not uploaded yet'
-                            : req.status === 'pending'
-                              ? `Uploaded — awaiting verification (${req.documents.map((d) => d.name).join(', ')})`
-                              : req.status === 'rejected'
-                                ? 'Rejected by reviewer — upload a corrected version'
-                                : `Verified (${req.documents.map((d) => d.name).join(', ')})`}
-                        </div>
-                      </div>
-                    </div>
-
-                    {req.status === 'missing' ? (
-                      canUpload && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          leftIcon={<Upload size={13} />}
-                          onClick={() => openUploadFor(req)}
-                          className="self-end sm:self-center"
-                        >
-                          Upload
-                        </Button>
-                      )
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setActiveTab('documents')}
-                        className="self-end sm:self-center"
-                      >
-                        View in Documents
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Connected Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Rule Details */}
-            <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-                <ClipboardCheck size={18} className="text-indigo-600 dark:text-indigo-400" />
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Statutory Rule Specification</h3>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="text-slate-500 dark:text-slate-400 block">Rule Title & Code:</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    {record.rule?.name} ({record.rule?.code})
-                  </span>
-                </div>
-
-                {record.rule?.legalReference && (
-                  <div>
-                    <span className="text-slate-500 dark:text-slate-400 block">Statutory Act / Section:</span>
-                    <span className="text-indigo-600 dark:text-indigo-300 font-medium">
-                      {record.rule.legalReference}
-                    </span>
-                  </div>
-                )}
-
-                <div>
-                  <span className="text-slate-500 dark:text-slate-400 block">Category:</span>
-                  <span className="text-slate-700 dark:text-slate-200">
-                    {record.rule?.category?.label || 'General'}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-slate-500 dark:text-slate-400 block">Recurrence & Cycle:</span>
-                  <span className="text-slate-700 dark:text-slate-200">
-                    {record.rule?.frequency?.label || 'Annual'} (Every {record.rule?.renewalCycle || 365} days)
-                  </span>
-                </div>
-
-                {record.rule?.description && (
-                  <div>
-                    <span className="text-slate-500 dark:text-slate-400 block">Statutory Guidelines:</span>
-                    <p className="text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">{record.rule.description}</p>
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            {/* Company & Unit */}
-            <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-                <User size={18} className="text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Company & Unit</h3>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="text-slate-500 dark:text-slate-400 block">Parent Entity:</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-medium">
-                    {record.entity?.name} ({record.entity?.entityCode})
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-slate-500 dark:text-slate-400 block">Operating Unit / Facility:</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-medium">
-                    {record.location?.name} ({record.location?.locationCode})
-                  </span>
-                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">
-                    {[record.location?.address?.city, record.location?.address?.state].filter(Boolean).join(', ')}
-                  </p>
-                </div>
-
-                {record.comments && (
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                    <span className="text-slate-500 dark:text-slate-400 block mb-1">Latest Comment:</span>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg text-slate-700 dark:text-slate-200 italic border border-slate-200 dark:border-slate-700/60">
-                      "{record.comments}"
-                    </div>
-                    {latestCommentSource && (
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                        {latestCommentSource.performedBy?.fullName ||
-                          latestCommentSource.performedBy?.email ||
-                          'Reviewer'}{' '}
-                        · {latestCommentSource.action} ·{' '}
-                        {new Date(latestCommentSource.performedAt).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 2: Documents & Evidence */}
-      {activeTab === 'documents' && (
-        <Card className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+      {/* Header: what the licence is, where it stands, and what to do next */}
+      <Card className="p-5 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.COMPLIANCE_RECORDS)}
+              className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <ArrowLeft size={20} />
+            </button>
             <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Evidence Documents</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Certificates, inspection reports and authorisations. Replacing a file keeps every earlier version.
-              </p>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                  {record.rule?.name || 'Compliance Obligation'}
+                </h1>
+                {renderStatusBadge(record.status)}
+              </div>
+              <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <span className="font-mono text-indigo-600 dark:text-indigo-300 font-semibold">
+                  {record.recordNumber}
+                </span>
+                <span>•</span>
+                {record.licenceNumber && (
+                  <>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      Licence no. <span className="font-mono font-semibold">{record.licenceNumber}</span>
+                    </span>
+                    <span>•</span>
+                  </>
+                )}
+                {record.acknowledgementNumber && (
+                  <>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      Ack. no. <span className="font-mono font-semibold">{record.acknowledgementNumber}</span>
+                    </span>
+                    <span>•</span>
+                  </>
+                )}
+                <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                  <Building2 size={13} className="text-indigo-600 dark:text-indigo-400" />
+                  {record.entity?.name}
+                </span>
+                <span>•</span>
+                <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                  <MapPin size={13} className="text-emerald-600 dark:text-emerald-400" />
+                  {record.location?.name}
+                </span>
+              </div>
             </div>
-            {canUpload && (
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Plus size={14} />}
-                onClick={() => setIsUploadModalOpen(true)}
-              >
-                Upload Document
+          </div>
+
+          {/* Acknowledgement and licence are uploaded here; other documents from the Documents tab */}
+          <div className="flex flex-wrap items-center gap-2">
+            {canUpdateStatus && (
+              <Button variant="outline" leftIcon={<Pencil size={15} />} onClick={handleOpenStatusModal}>
+                Update Status
+              </Button>
+            )}
+            {canUpdateStatus && record.status === 'ready_to_apply' && (
+              <Button variant="primary" leftIcon={<Send size={15} />} onClick={handleOpenMarkApplied}>
+                Mark as Applied
               </Button>
             )}
           </div>
+        </div>
 
-          {!record.documents || record.documents.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 text-sm">No evidence documents uploaded yet.</div>
-          ) : (
-            <div className="space-y-3">
-              {record.documents.map((doc) => {
-                const versions = [...(doc.versions || [])].sort((a, b) => b.version - a.version);
-                const isExpanded = !!expandedDocs[doc._id];
+        {/* ── Where the licence stands: one step per stage ── */}
+        {record.status !== 'not_applicable' &&
+          (() => {
+            const current = stageOf(record.status);
+            const expired = record.status === 'expired';
+            const sentBack = ['rejected', 'correction'].includes(record.status);
+            return (
+              <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <ol className="flex items-start">
+                  {STAGES.map((stage, index) => {
+                    const done = index < current || (index === current && current === 3 && !expired);
+                    const here = index === current && !done;
+                    const warn = here && (expired || sentBack);
+                    const label = index === 3 && expired ? 'Expired' : index === 2 && sentBack ? 'Sent back' : stage;
+                    return (
+                      <li key={stage} className="flex-1 flex flex-col items-center relative min-w-0">
+                        {/* The line from the previous step */}
+                        {index > 0 && (
+                          <span
+                            className={`absolute top-3 right-1/2 w-full h-0.5 -translate-y-1/2 ${
+                              index <= current ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'
+                            }`}
+                          />
+                        )}
+                        <span
+                          className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                            done
+                              ? 'bg-emerald-500 text-white'
+                              : warn
+                                ? 'bg-rose-500 text-white ring-[3px] ring-rose-500/20'
+                                : here
+                                  ? `${index === 1 ? 'bg-cyan-500' : index === 2 ? 'bg-indigo-500' : 'bg-amber-500'} text-white ring-[3px] ${
+                                      index === 1
+                                        ? 'ring-cyan-500/20'
+                                        : index === 2
+                                          ? 'ring-indigo-500/20'
+                                          : 'ring-amber-500/20'
+                                    }`
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-600'
+                          }`}
+                        >
+                          {done ? <Check size={13} strokeWidth={3} /> : warn ? <XCircle size={13} /> : index + 1}
+                        </span>
+                        <span
+                          className={`mt-2 text-xs text-center px-1 ${
+                            here
+                              ? warn
+                                ? 'font-bold text-rose-600 dark:text-rose-400'
+                                : 'font-bold text-slate-900 dark:text-white'
+                              : done
+                                ? 'font-medium text-slate-700 dark:text-slate-300'
+                                : 'text-slate-400 dark:text-slate-500'
+                          }`}
+                        >
+                          {label}
+                        </span>
+                        {here && (
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 text-center px-1">
+                            {index === 0
+                              ? 'Collect the documents below'
+                              : index === 1
+                                ? 'File it with the authority'
+                                : index === 2
+                                  ? sentBack
+                                    ? 'Correct and resubmit'
+                                    : 'Waiting on the authority'
+                                  : 'Renew to continue'}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            );
+          })()}
+      </Card>
 
-                return (
-                  <div
-                    key={doc._id}
-                    className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-sm dark:shadow-none"
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700/40 flex items-center justify-center text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5">
-                          <FileText size={20} />
-                        </div>
+      <div className="space-y-6">
+        {/* The work on the left; the facts and history beside it */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="lg:col-span-2 space-y-6 min-w-0">
+            {/* Documents: the checklist the licence needs, then anything else on file */}
+            <Card className="relative p-0 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+              <div
+                onDragEnter={(e: React.DragEvent) => {
+                  if (canUpload && showChecklist && e.dataTransfer.types.includes('Files')) setIsDraggingFiles(true);
+                }}
+                onDragLeave={(e: React.DragEvent) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setIsDraggingFiles(false);
+                    setDropLine(null);
+                  }
+                }}
+                onDrop={() => setIsDraggingFiles(false)}
+              >
+                {(() => {
+                  const required = documentRequirements.filter((r) => r.isMandatory);
+                  const optional = documentRequirements.filter((r) => !r.isMandatory);
+                  const uploaded = required.filter((r) => r.status === 'pending' || r.status === 'verified').length;
+                  const verified = required.filter((r) => r.status === 'verified').length;
+                  // Files that fill no checklist line: the acknowledgement, the licence, anything else
+                  const onChecklist = new Set(documentRequirements.flatMap((r) => r.documents.map((d) => d._id)));
+                  const otherDocs = (record.documents || []).filter((d) => !showChecklist || !onChecklist.has(d._id));
+
+                  const STATUS: Record<DocumentRequirementItem['status'], { word: string; dot: string; text: string }> =
+                    {
+                      missing: {
+                        word: 'Missing',
+                        dot: 'border border-slate-400 dark:border-slate-500',
+                        text: 'text-slate-500 dark:text-slate-400',
+                      },
+                      pending: { word: 'To review', dot: 'bg-amber-500', text: 'text-slate-700 dark:text-slate-300' },
+                      verified: {
+                        word: 'Verified',
+                        dot: 'bg-emerald-500',
+                        text: 'text-emerald-700 dark:text-emerald-400',
+                      },
+                      rejected: { word: 'Rejected', dot: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-400' },
+                    };
+                  const GRID =
+                    'grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_6.5rem_auto] items-center gap-4 px-5 py-3 text-sm';
+
+                  // Everything about a file beyond its one main action
+                  const docMenu = (doc: DocumentItem, menuKey: string) => (
+                    <span className="relative">
+                      <button
+                        type="button"
+                        aria-label={`More actions for ${doc.name}`}
+                        onClick={() => setOpenMenu(openMenu === menuKey ? null : menuKey)}
+                        className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800"
+                      >
+                        <MoreHorizontal size={16} />
+                      </button>
+                      {openMenu === menuKey && (
+                        <>
+                          <span className="fixed inset-0 z-20" onClick={() => setOpenMenu(null)} />
+                          <span className="absolute right-0 top-full mt-1 z-30 w-44 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg text-sm">
+                            {[
+                              { label: 'View', show: true, act: () => openPreview(doc) },
+                              {
+                                label: 'Replace file',
+                                show: canUpload,
+                                act: () => {
+                                  setReplaceTargetDoc(doc);
+                                  setIsReplaceModalOpen(true);
+                                },
+                              },
+                              { label: 'Download', show: true, act: () => handleDownload(doc._id, doc.fileName) },
+                              {
+                                label: `Version history (${doc.versions?.length || 1})`,
+                                show: (doc.versions?.length || 0) > 1,
+                                act: () => setHistoryDoc(doc),
+                              },
+                              {
+                                label: 'Remove',
+                                show: canDeleteDocument,
+                                act: () => setDocToRemove(doc),
+                                danger: true,
+                              },
+                            ]
+                              .filter((item) => item.show)
+                              .map((item) => (
+                                <button
+                                  key={item.label}
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenu(null);
+                                    item.act();
+                                  }}
+                                  className={`block w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                                    item.danger
+                                      ? 'text-rose-600 dark:text-rose-400'
+                                      : 'text-slate-700 dark:text-slate-200'
+                                  }`}
+                                >
+                                  {item.label}
+                                </button>
+                              ))}
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  );
+
+                  const fileCell = (doc?: DocumentItem, extra = 0) =>
+                    doc ? (
+                      <span
+                        className="flex items-baseline gap-1.5 min-w-0 text-xs text-slate-500 dark:text-slate-400"
+                        title={doc.fileName}
+                      >
+                        <span className="truncate">{shortFileName(doc.fileName)}</span>
+                        <span className="shrink-0 tabular-nums">· {formatFileSize(doc.fileSize)}</span>
+                        {extra > 0 && <span className="shrink-0">· +{extra}</span>}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
+                    );
+
+                  const lineRow = (req: DocumentRequirementItem) => {
+                    const index = documentRequirements.indexOf(req);
+                    const latest = req.documents[req.documents.length - 1];
+                    const doc = latest ? record.documents?.find((d) => d._id === latest._id) : undefined;
+                    const status = STATUS[req.status];
+                    return (
+                      <li
+                        key={`${req.documentTypeId}-${index}`}
+                        onDragOver={(e) => {
+                          if (!canUpload) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'copy';
+                          if (dropLine !== index) setDropLine(index);
+                        }}
+                        onDrop={(e) => handleDropOnLine(e, req, index)}
+                        className={`relative ${GRID} transition-colors ${
+                          dropLine === index
+                            ? 'bg-cyan-50 dark:bg-cyan-900/20'
+                            : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/30'
+                        }`}
+                      >
+                        {/* While files are held over the list: where each one can go */}
+                        {isDraggingFiles && (
+                          <span
+                            className={`pointer-events-none absolute inset-1 rounded-md border-2 border-dashed ${
+                              dropLine === index ? 'border-cyan-500' : 'border-slate-200 dark:border-slate-700'
+                            }`}
+                          />
+                        )}
+                        <span
+                          className="min-w-0 truncate font-medium text-slate-900 dark:text-slate-100"
+                          title={req.label}
+                        >
+                          {req.label}
+                        </span>
+                        {uploadingLine === index ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs text-cyan-700 dark:text-cyan-300">
+                            <RefreshCw size={12} className="animate-spin" /> Uploading…
+                          </span>
+                        ) : (
+                          fileCell(doc, req.documents.length - 1)
+                        )}
+                        <span className={`inline-flex items-center gap-2 text-xs font-medium ${status.text}`}>
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${status.dot}`} />
+                          {status.word}
+                        </span>
+                        <span className="flex items-center justify-end gap-1">
+                          {req.status === 'missing' || req.status === 'rejected'
+                            ? canUpload && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openUploadFor(req)}
+                                  className="min-w-[76px]"
+                                >
+                                  Upload
+                                </Button>
+                              )
+                            : doc && (
+                                <Button
+                                  variant={req.status === 'pending' && canVerify ? 'outline' : 'ghost'}
+                                  size="sm"
+                                  onClick={() => openReview(doc)}
+                                  className="min-w-[76px]"
+                                >
+                                  {req.status === 'pending' && canVerify ? 'Review' : 'View'}
+                                </Button>
+                              )}
+                          {doc ? docMenu(doc, `line-${index}`) : <span className="w-[28px]" />}
+                        </span>
+                      </li>
+                    );
+                  };
+
+                  const otherRow = (doc: DocumentItem) => (
+                    <li key={doc._id} className={`${GRID} hover:bg-slate-50/70 dark:hover:bg-slate-800/30`}>
+                      <span
+                        className="min-w-0 truncate font-medium text-slate-900 dark:text-slate-100"
+                        title={doc.name}
+                      >
+                        {doc.name}
+                      </span>
+                      {fileCell(doc)}
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(doc.uploadedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                      </span>
+                      <span className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openPreview(doc)} className="min-w-[76px]">
+                          View
+                        </Button>
+                        {docMenu(doc, `doc-${doc._id}`)}
+                      </span>
+                    </li>
+                  );
+
+                  const section = (title: string, items: React.ReactNode[], action?: React.ReactNode) => (
+                    <section>
+                      <div className="flex items-center justify-between gap-3 px-5 py-2 bg-slate-50 dark:bg-slate-800/40 border-y border-slate-200 dark:border-slate-800">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          {title}
+                        </span>
+                        {action}
+                      </div>
+                      <ul className="divide-y divide-slate-100 dark:divide-slate-800">{items}</ul>
+                    </section>
+                  );
+
+                  return (
+                    <>
+                      <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-4">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">{doc.name}</span>
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50">
-                              v{doc.currentVersion || doc.version || 1}
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2 mt-1">
-                            <span className="truncate max-w-[220px]" title={doc.fileName}>
-                              {doc.fileName}
-                            </span>
-                            <span>•</span>
-                            <span>{formatFileSize(doc.fileSize)}</span>
-                            <span>•</span>
-                            <span>By {doc.uploadedBy?.fullName || doc.uploadedBy?.email || 'User'}</span>
-                            <span>•</span>
-                            <span>{new Date(doc.uploadedAt).toLocaleDateString()}</span>
-                          </div>
+                          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Documents</h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            {showChecklist
+                              ? `${uploaded} of ${required.length} required uploaded · ${verified} verified`
+                              : record.status === 'not_applicable'
+                                ? 'Not applicable to this unit, so no documents are required'
+                                : `${otherDocs.length} on file`}
+                          </p>
                         </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 self-end lg:self-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          leftIcon={<Eye size={13} />}
-                          onClick={() => openPreview(doc)}
-                        >
-                          Preview
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          leftIcon={<Download size={13} />}
-                          onClick={() => handleDownload(doc._id, doc.fileName)}
-                        >
-                          Download
-                        </Button>
-                        {canUpload && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            leftIcon={<RefreshCw size={13} />}
-                            onClick={() => {
-                              setReplaceTargetDoc(doc);
-                              setIsReplaceModalOpen(true);
-                            }}
-                            title="Replace with new version (preserves history)"
-                          >
-                            New Version
-                          </Button>
-                        )}
-                        {versions.length > 1 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            leftIcon={<History size={13} />}
-                            aria-expanded={isExpanded}
-                            onClick={() => setExpandedDocs((prev) => ({ ...prev, [doc._id]: !prev[doc._id] }))}
-                          >
-                            {isExpanded ? 'Hide history' : `History (${versions.length})`}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {isExpanded && (
-                      <div className="border-t border-slate-200 dark:border-slate-700/60 divide-y divide-slate-200 dark:divide-slate-700/60">
-                        {versions.map((v) => (
-                          <div
-                            key={v._id || v.version}
-                            className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs"
-                          >
-                            <div className="flex items-start gap-3 min-w-0">
-                              <span className="font-mono font-semibold text-indigo-700 dark:text-indigo-300 w-8 shrink-0">
-                                v{v.version}
-                              </span>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2 text-slate-700 dark:text-slate-300">
-                                  <span className="truncate max-w-[220px]" title={v.fileName}>
-                                    {v.fileName}
-                                  </span>
-                                  {v.status === 'active' ? (
-                                    <Badge variant="success" size="sm">
-                                      CURRENT
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="default" size="sm">
-                                      SUPERSEDED
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="text-slate-500 dark:text-slate-400 mt-0.5">
-                                  {formatFileSize(v.fileSize)} ·{' '}
-                                  {v.uploadedBy?.fullName || v.uploadedBy?.email || 'User'} ·{' '}
-                                  {new Date(v.uploadedAt).toLocaleString()}
-                                  {v.notes ? ` · "${v.notes}"` : ''}
-                                </div>
-                              </div>
-                            </div>
+                        {canUpload && showChecklist && (
+                          <>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
-                              leftIcon={<Download size={13} />}
-                              onClick={() => handleDownload(doc._id, v.fileName, v.version)}
+                              leftIcon={<Upload size={13} />}
+                              onClick={() => bulkInputRef.current?.click()}
                             >
-                              Download
+                              Upload files
                             </Button>
-                          </div>
-                        ))}
+                            <input
+                              ref={bulkInputRef}
+                              type="file"
+                              multiple
+                              accept={UPLOAD_ACCEPT}
+                              className="hidden"
+                              onChange={(e) => {
+                                startBulkUpload(Array.from(e.target.files || []));
+                                e.target.value = '';
+                              }}
+                            />
+                          </>
+                        )}
                       </div>
-                    )}
+
+                      {/* One segment per required document: grey missing, amber to review, green verified */}
+                      {showChecklist && (
+                        <div className="flex gap-1 px-5 pb-4">
+                          {required.map((req, i) => (
+                            <span
+                              key={i}
+                              title={`${req.label}: ${STATUS[req.status].word}`}
+                              className={`h-1 flex-1 rounded-full ${
+                                req.status === 'verified'
+                                  ? 'bg-emerald-500'
+                                  : req.status === 'pending'
+                                    ? 'bg-amber-400'
+                                    : req.status === 'rejected'
+                                      ? 'bg-rose-500'
+                                      : 'bg-slate-200 dark:bg-slate-700'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {showChecklist && required.length > 0 && section('Required', required.map(lineRow))}
+                      {showChecklist && optional.length > 0 && section('Optional', optional.map(lineRow))}
+                      {(otherDocs.length > 0 || canUpload) &&
+                        section(
+                          'Other documents',
+                          otherDocs.length > 0
+                            ? otherDocs.map(otherRow)
+                            : [
+                                <li key="none" className="px-5 py-3 text-xs text-slate-400 dark:text-slate-500">
+                                  Acknowledgements, licences and any other files appear here.
+                                </li>,
+                              ],
+                          canUpload && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUploadDocType('');
+                                setUploadDocName('');
+                                setUploadFile(null);
+                                setIsUploadModalOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-300 hover:underline"
+                            >
+                              <Plus size={12} /> Add
+                            </button>
+                          )
+                        )}
+                      <div className="h-2" />
+                    </>
+                  );
+                })()}
+              </div>
+            </Card>
+          </div>
+
+          <aside className="space-y-6 min-w-0">
+            {/* Summary: the facts that matter at this stage */}
+            <Card className="p-5 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white pb-3 border-b border-slate-200 dark:border-slate-800">
+                Summary
+              </h3>
+              <dl className="mt-3 space-y-2.5 text-xs">
+                {(() => {
+                  type Fact = { label: string; value: string; tone?: string; hint?: string };
+                  const facts: Fact[] = [];
+                  if (stageOf(record.status) === 3) {
+                    facts.push(
+                      {
+                        label: 'Approved on',
+                        value: record.approvalDate
+                          ? new Date(record.approvalDate).toLocaleDateString()
+                          : 'Not recorded',
+                      },
+                      {
+                        label: 'Expires on',
+                        value: record.expiryDate ? new Date(record.expiryDate).toLocaleDateString() : '—',
+                        hint: record.expiryDate
+                          ? expiryDays! < 0
+                            ? `expired ${formatRelativeDays(record.expiryDate)}`
+                            : formatRelativeDays(record.expiryDate)
+                          : undefined,
+                        tone:
+                          expiryDays !== null && expiryDays < 0
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : expiryDays !== null && expiryDays <= 30
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : undefined,
+                      },
+                      { label: 'Licence no.', value: record.licenceNumber || '—' }
+                    );
+                  } else {
+                    const mandatory = documentRequirements.filter((r) => r.isMandatory);
+                    const met = mandatory.filter((r) => r.status === 'pending' || r.status === 'verified').length;
+                    if (showChecklist && mandatory.length > 0) {
+                      facts.push({
+                        label: 'Documents',
+                        value: `${met} / ${mandatory.length}`,
+                        tone:
+                          met === mandatory.length
+                            ? 'text-cyan-600 dark:text-cyan-400'
+                            : 'text-amber-600 dark:text-amber-400',
+                      });
+                    }
+                    const dueDays = record.dueDate ? daysFromToday(record.dueDate) : null;
+                    facts.push({
+                      label: 'Due date',
+                      value: record.dueDate ? new Date(record.dueDate).toLocaleDateString() : 'Not set',
+                      hint:
+                        dueDays === null
+                          ? undefined
+                          : dueDays < 0
+                            ? `overdue by ${Math.abs(dueDays)}d`
+                            : `${dueDays}d left`,
+                      tone:
+                        dueDays !== null && dueDays < 0
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : dueDays !== null && dueDays <= 7
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : undefined,
+                    });
+                  }
+                  const assignee = record.assignedUser
+                    ? record.assignedUser.fullName || `${record.assignedUser.firstName} ${record.assignedUser.lastName}`
+                    : '';
+                  facts.push(
+                    {
+                      label: 'Assigned to',
+                      value: assignee || 'No one yet',
+                      tone: assignee ? undefined : 'text-slate-400 dark:text-slate-500',
+                    },
+                    {
+                      label: 'Open for',
+                      value: `${daysSince(record.createdAt)} days`,
+                      hint: `since ${new Date(record.createdAt).toLocaleDateString()}`,
+                    }
+                  );
+                  return facts.map((fact) => (
+                    <div key={fact.label} className="grid grid-cols-[6.5rem_1fr] gap-2">
+                      <dt className="text-slate-500 dark:text-slate-400">{fact.label}</dt>
+                      <dd className={`min-w-0 font-semibold ${fact.tone || 'text-slate-800 dark:text-slate-200'}`}>
+                        {fact.value}
+                        {fact.hint && (
+                          <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">{fact.hint}</span>
+                        )}
+                      </dd>
+                    </div>
+                  ));
+                })()}
+              </dl>
+            </Card>
+
+            {/* Details: the licence, who holds it and where */}
+            <Card className="p-5 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white pb-3 border-b border-slate-200 dark:border-slate-800">
+                Details
+              </h3>
+              <dl className="mt-3 space-y-3 text-xs">
+                {[
+                  { label: 'Licence', value: record.rule?.name, sub: record.rule?.code },
+                  { label: 'Category', value: record.rule?.category?.label || 'General' },
+                  {
+                    label: 'Renewal',
+                    value: `${record.rule?.frequency?.label || 'Annual'} · every ${record.rule?.renewalCycle || 365} days`,
+                  },
+                  ...(record.rule?.legalReference
+                    ? [{ label: 'Act / section', value: record.rule.legalReference }]
+                    : []),
+                  { label: 'Company', value: record.entity?.name, sub: record.entity?.entityCode },
+                  { label: 'Unit', value: record.location?.name, sub: record.location?.locationCode },
+                  {
+                    label: 'Address',
+                    value:
+                      [record.location?.address?.city, record.location?.address?.state].filter(Boolean).join(', ') ||
+                      '—',
+                  },
+                ].map((row) => (
+                  <div key={row.label} className="grid grid-cols-[6.5rem_1fr] gap-2">
+                    <dt className="text-slate-500 dark:text-slate-400">{row.label}</dt>
+                    <dd className="min-w-0 text-slate-800 dark:text-slate-200 font-medium break-words">
+                      {row.value || '—'}
+                      {row.sub && row.sub !== row.value && (
+                        <span className="block font-mono font-normal text-[11px] text-slate-500 dark:text-slate-400">
+                          {row.sub}
+                        </span>
+                      )}
+                    </dd>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      )}
+                ))}
+              </dl>
+
+              {record.comments && (
+                <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-xs">
+                  <div className="text-slate-500 dark:text-slate-400 mb-1">Latest comment</div>
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700/60">
+                    {record.comments}
+                  </div>
+                  {latestCommentSource && (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      {latestCommentSource.performedBy?.fullName ||
+                        latestCommentSource.performedBy?.email ||
+                        'Reviewer'}{' '}
+                      · {new Date(latestCommentSource.performedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              )}
+            </Card>
+          </aside>
+        </div>
+      </div>
+
+      {/* ── Remove a document from the checklist ─────────────────────────────── */}
+      <Modal
+        isOpen={!!docToRemove}
+        onClose={() => !isRemovingDoc && setDocToRemove(null)}
+        title="Remove document"
+        size="sm"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" disabled={isRemovingDoc} onClick={() => setDocToRemove(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" isLoading={isRemovingDoc} onClick={confirmRemoveDocument}>
+              Remove
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Remove <span className="font-semibold">{docToRemove?.name}</span> from this record? It is archived, not
+          destroyed, and stays in the history. A required document removed takes the record back to To be applied.
+        </p>
+      </Modal>
+
+      {/* ── Earlier versions of one document ─────────────────────────────────── */}
+      <Modal
+        isOpen={!!historyDoc}
+        onClose={() => setHistoryDoc(null)}
+        title={`Versions: ${historyDoc?.name || ''}`}
+        size="md"
+      >
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800 -mt-2">
+          {[...(historyDoc?.versions || [])]
+            .sort((a, b) => b.version - a.version)
+            .map((v) => (
+              <li key={v._id || v.version} className="flex items-center justify-between gap-3 py-3 text-xs">
+                <div className="flex items-start gap-3 min-w-0">
+                  <span className="font-mono font-semibold text-indigo-700 dark:text-indigo-300 w-8 shrink-0">
+                    v{v.version}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                      <span className="truncate" title={v.fileName}>
+                        {shortFileName(v.fileName, 40)}
+                      </span>
+                      {v.status === 'active' && (
+                        <span className="shrink-0 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                          Current
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-slate-500 dark:text-slate-400 mt-0.5">
+                      {formatFileSize(v.fileSize)} · {v.uploadedBy?.fullName || v.uploadedBy?.email || 'User'} ·{' '}
+                      {new Date(v.uploadedAt).toLocaleString()}
+                      {v.notes ? ` · "${v.notes}"` : ''}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => historyDoc && openPreview(historyDoc, v.version)}>
+                    View
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => historyDoc && handleDownload(historyDoc._id, v.fileName, v.version)}
+                  >
+                    Download
+                  </Button>
+                </div>
+              </li>
+            ))}
+        </ul>
+      </Modal>
 
       {/* ── Several checklist files at once ──────────────────────────────────── */}
       <Modal
@@ -1392,7 +1495,51 @@ export const ComplianceRecordDetailPage: React.FC = () => {
       </Modal>
 
       {/* ── Preview Document Modal ───────────────────────────────────────────── */}
-      <Modal isOpen={isPreviewModalOpen} onClose={closePreview} title={`Preview: ${previewDocTitle}`} size="xl">
+      <Modal
+        isOpen={isPreviewModalOpen}
+        onClose={() => {
+          setReviewDocId(null);
+          closePreview();
+        }}
+        title={reviewDocId ? `Review: ${previewDocTitle}` : `Preview: ${previewDocTitle}`}
+        size="xl"
+        footer={
+          reviewDocId ? (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Check the file, then verify it or send it back.
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  disabled={verifyingDocId !== null}
+                  onClick={async () => {
+                    await handleVerifyDocument(reviewDocId, 'rejected');
+                    setReviewDocId(null);
+                    closePreview();
+                  }}
+                  className="!text-rose-600 dark:!text-rose-400"
+                >
+                  Reject
+                </Button>
+                <Button
+                  variant="primary"
+                  leftIcon={<Check size={15} />}
+                  isLoading={verifyingDocId === reviewDocId}
+                  disabled={verifyingDocId !== null}
+                  onClick={async () => {
+                    await handleVerifyDocument(reviewDocId, 'verified');
+                    setReviewDocId(null);
+                    closePreview();
+                  }}
+                >
+                  Verify
+                </Button>
+              </div>
+            </div>
+          ) : undefined
+        }
+      >
         <div className="h-[550px] w-full bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
           <iframe src={previewDocUrl} title={previewDocTitle} className="w-full h-full border-0" />
         </div>

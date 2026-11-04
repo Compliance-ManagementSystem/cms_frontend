@@ -20,7 +20,12 @@ export interface SidebarItem {
   disabled?: boolean;
   roles?: string[];
   permission?: string;
+  /** A live count shown at the right of the item */
+  count?: SidebarCount;
 }
+
+/** What a sidebar count measures: records waiting to be filed, tasks past their due date */
+export type SidebarCount = 'readyToApply' | 'overdueTasks';
 
 export interface SidebarGroup {
   title: string;
@@ -42,7 +47,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
   },
 
   {
-    title: 'Master Data',
+    title: 'Records',
     items: [
       {
         label: 'Entities',
@@ -62,20 +67,6 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         roles: ['super_admin', 'admin'],
         permission: 'location:read',
       },
-    ],
-  },
-  {
-    title: 'Compliance',
-    items: [
-      // {
-      //   label: 'Compliance Rules',
-      //   path: ROUTES.COMPLIANCE_RULES,
-      //   icon: Scale,
-      //   phase: 7,
-      //   disabled: false,
-      //   roles: ['super_admin', 'admin'],
-      //   permission: 'compliance_rule:read',
-      // },
       {
         label: 'Compliance Records',
         path: ROUTES.COMPLIANCE_RECORDS,
@@ -84,6 +75,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         disabled: false,
         roles: ['super_admin', 'admin'],
         permission: 'compliance_record:read',
+        count: 'readyToApply',
       },
       {
         label: 'Tasks',
@@ -92,25 +84,12 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         phase: 10,
         disabled: false,
         roles: ['super_admin', 'admin'],
+        count: 'overdueTasks',
       },
     ],
   },
   {
-    title: 'Analytics',
-    items: [
-      {
-        label: 'Audit Trail',
-        path: ROUTES.AUDIT_LOGS,
-        icon: History,
-        phase: 13,
-        disabled: false,
-        roles: ['super_admin', 'admin'],
-        permission: 'audit_log:read',
-      },
-    ],
-  },
-  {
-    title: 'Administration',
+    title: 'Admin',
     roles: ['super_admin', 'admin'],
     items: [
       {
@@ -126,6 +105,15 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         icon: ShieldCheck,
         phase: 4,
         roles: ['super_admin', 'admin'],
+      },
+      {
+        label: 'Audit Trail',
+        path: ROUTES.AUDIT_LOGS,
+        icon: History,
+        phase: 13,
+        disabled: false,
+        roles: ['super_admin', 'admin'],
+        permission: 'audit_log:read',
       },
     ],
   },

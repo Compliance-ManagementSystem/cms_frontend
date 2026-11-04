@@ -12,11 +12,11 @@ import {
   MapPin,
   FileText,
   CheckCircle2,
-  ArrowRight,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import RecordStatus from '@/components/ui/RecordStatus';
 import Input from '@/components/ui/Input';
 import Table, { Column } from '@/components/ui/Table';
 import Modal from '@/components/ui/Modal';
@@ -390,83 +390,7 @@ export const ComplianceRecordListPage: React.FC = () => {
   };
 
   // Status Badge Mapper
-  const renderStatusBadge = (status: ComplianceRecordStatus) => {
-    switch (status) {
-      case 'approved':
-        return (
-          <Badge variant="success" size="sm">
-            APPROVED
-          </Badge>
-        );
-      case 'submitted':
-        return (
-          <Badge variant="info" size="sm">
-            SUBMITTED
-          </Badge>
-        );
-      case 'under_review':
-        return (
-          <Badge variant="info" size="sm">
-            UNDER REVIEW
-          </Badge>
-        );
-      case 'correction':
-        return (
-          <Badge variant="warning" size="sm">
-            NEEDS CORRECTION
-          </Badge>
-        );
-      case 'resubmitted':
-        return (
-          <Badge variant="info" size="sm">
-            RESUBMITTED
-          </Badge>
-        );
-      case 'expiring_soon':
-        return (
-          <Badge variant="warning" size="sm">
-            EXPIRING SOON
-          </Badge>
-        );
-      case 'expired':
-        return (
-          <Badge variant="danger" size="sm">
-            EXPIRED
-          </Badge>
-        );
-      case 'rejected':
-        return (
-          <Badge variant="danger" size="sm">
-            REJECTED
-          </Badge>
-        );
-      case 'in_progress':
-        return (
-          <Badge variant="info" size="sm">
-            APPLIED
-          </Badge>
-        );
-      case 'ready_to_apply':
-        return (
-          <Badge variant="ready" size="sm" dot>
-            READY TO APPLY
-          </Badge>
-        );
-      case 'not_applicable':
-        return (
-          <Badge variant="default" size="sm">
-            NOT APPLICABLE
-          </Badge>
-        );
-      case 'pending':
-      default:
-        return (
-          <Badge variant="warning" size="sm">
-            TO BE APPLIED
-          </Badge>
-        );
-    }
-  };
+  const renderStatusBadge = (status: ComplianceRecordStatus) => <RecordStatus status={status} />;
 
   // Table Columns
   const columns: Column<ComplianceRecordItem>[] = [
@@ -511,24 +435,7 @@ export const ComplianceRecordListPage: React.FC = () => {
     {
       key: 'status',
       header: 'Status',
-      cell: (row) => (
-        <div className="flex flex-col items-start gap-1.5">
-          <span className="whitespace-nowrap">{renderStatusBadge(row.status)}</span>
-          {row.status === 'ready_to_apply' && canUpdateStatus && (
-            <button
-              type="button"
-              onClick={(e) => {
-                // The row itself opens the record
-                e.stopPropagation();
-                openMarkApplied(row);
-              }}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300 hover:text-cyan-900 dark:hover:text-cyan-100 hover:underline whitespace-nowrap"
-            >
-              Mark as Applied <ArrowRight size={11} />
-            </button>
-          )}
-        </div>
-      ),
+      cell: (row) => renderStatusBadge(row.status),
     },
     {
       key: 'expiry',
@@ -603,25 +510,38 @@ export const ComplianceRecordListPage: React.FC = () => {
         );
       },
     },
-    // The row itself opens the record, so the only row action is delete
-    ...(canDelete
+    // The row itself opens the record; its own actions are the next step and delete
+    ...(canDelete || canUpdateStatus
       ? [
           {
             key: 'actions',
             header: '',
             align: 'right' as const,
             cell: (row: ComplianceRecordItem) => (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setRecordToDelete(row);
-                  setIsDeleteModalOpen(true);
-                }}
-                className="p-1.5 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-                title="Delete Record"
-              >
-                <Trash2 size={15} />
-              </button>
+              <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                {row.status === 'ready_to_apply' && canUpdateStatus && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openMarkApplied(row)}
+                    className="whitespace-nowrap"
+                  >
+                    Mark as Applied
+                  </Button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={() => {
+                      setRecordToDelete(row);
+                      setIsDeleteModalOpen(true);
+                    }}
+                    className="p-1.5 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                    title="Delete Record"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </div>
             ),
           },
         ]

@@ -20,6 +20,7 @@ import {
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import RecordStatus from '@/components/ui/RecordStatus';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -623,27 +624,7 @@ export const LocationDetailPage: React.FC = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <Badge
-                            variant={
-                              rec.status === 'approved'
-                                ? 'success'
-                                : rec.status === 'expired' || rec.status === 'rejected'
-                                  ? 'expired'
-                                  : rec.status === 'not_applicable'
-                                    ? 'default'
-                                    : rec.status === 'ready_to_apply'
-                                      ? 'ready'
-                                      : 'pending'
-                            }
-                            size="sm"
-                            dot
-                          >
-                            {rec.status === 'pending'
-                              ? 'TO BE APPLIED'
-                              : rec.status === 'in_progress'
-                                ? 'APPLIED'
-                                : rec.status.replace(/_/g, ' ').toUpperCase()}
-                          </Badge>
+                          <RecordStatus status={rec.status} />
                         </td>
                         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                           <Button

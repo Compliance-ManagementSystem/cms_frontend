@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ShieldCheck, Menu, Lock, LogOut, X } from 'lucide-react';
-import { SIDEBAR_GROUPS, SidebarItem } from '@/constants/sidebar';
+import { SIDEBAR_GROUPS, SidebarItem, SidebarCount } from '@/constants/sidebar';
+import { complianceRecordService } from '@/services/complianceRecordService';
+import { taskService } from '@/services/taskService';
 import { useAuth } from '@/hooks/useAuth';
 
 interface SidebarProps {
@@ -21,6 +23,27 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpen = fal
       onCloseMobile?.();
     }
   }, [location.pathname]);
+
+  // Live counts beside items: records ready to file, tasks overdue. Refreshed on each page change.
+  const [counts, setCounts] = useState<Partial<Record<SidebarCount, number>>>({});
+  useEffect(() => {
+    let cancelled = false;
+    const canSeeRecords = hasPermission('compliance_record:read');
+    Promise.all([
+      canSeeRecords
+        ? complianceRecordService.getRecords({ page: 1, limit: 1 }).then((data) => data.metrics?.ready_to_apply ?? 0)
+        : Promise.resolve(0),
+      taskService.getMetrics().then((metrics) => metrics.overdue ?? 0),
+    ])
+      .then(([readyToApply, overdueTasks]) => {
+        if (!cancelled) setCounts({ readyToApply, overdueTasks });
+      })
+      // A count is a hint: if it cannot load, the item simply shows none
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname, hasPermission]);
 
   // Filter items based on role and permission
   const isItemVisible = (item: SidebarItem): boolean => {
@@ -110,7 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpen = fal
       </div>
 
       {/* ── Navigation ──────────────────────────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
         {SIDEBAR_GROUPS.map((group) => {
           const visibleItems = group.items.filter(isItemVisible);
           if (visibleItems.length === 0) return null;
@@ -119,7 +142,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpen = fal
             <div key={group.title}>
               {/* Group title */}
               {!collapsed && (
-                <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+                <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
                   {group.title}
                 </p>
               )}
@@ -168,24 +191,16 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpen = fal
                           }
                         }}
                         className={[
-                          'relative flex items-center gap-3 px-3 py-2.5 rounded-lg border',
+                          'relative flex items-center gap-3 px-3 py-2 rounded-lg',
                           'transition-colors duration-150 group select-none',
                           'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50',
                           collapsed ? 'justify-center' : '',
                           isActive
-                            ? 'bg-blue-900/30 text-blue-400 border-blue-800/40 shadow-sm shadow-blue-950/40'
-                            : 'border-transparent text-slate-400 hover:text-slate-100 hover:bg-slate-800/70',
+                            ? 'bg-blue-500/10 text-blue-300'
+                            : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60',
                         ].join(' ')}
                         title={collapsed ? item.label : undefined}
                       >
-                        {/* Active indicator bar - smoothly transitions opacity */}
-                        <span
-                          className={`nav-active-indicator transition-opacity duration-150 pointer-events-none ${
-                            isActive ? 'opacity-100' : 'opacity-0'
-                          }`}
-                          aria-hidden="true"
-                        />
-
                         <Icon
                           size={18}
                           className={[
@@ -196,11 +211,38 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpen = fal
 
                         {!collapsed && <span className="text-sm font-medium truncate flex-1">{item.label}</span>}
 
-                        {!collapsed && item.badge && item.badge > 0 && (
-                          <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                            {item.badge > 99 ? '99+' : item.badge}
-                          </span>
-                        )}
+                        {/* The live count at the right: cyan for work ready, red for work late */}
+                        {(() => {
+                          const value = item.count ? counts[item.count] : item.badge;
+                          if (!value || value <= 0) return null;
+                          const tone =
+                            item.count === 'overdueTasks'
+                              ? 'bg-rose-500/15 text-rose-300'
+                              : item.count === 'readyToApply'
+                                ? 'bg-cyan-500/15 text-cyan-300'
+                                : 'bg-blue-500/15 text-blue-300';
+                          const title =
+                            item.count === 'overdueTasks'
+                              ? `${value} overdue`
+                              : item.count === 'readyToApply'
+                                ? `${value} ready to apply`
+                                : undefined;
+                          return collapsed ? (
+                            <span
+                              className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${
+                                item.count === 'overdueTasks' ? 'bg-rose-400' : 'bg-cyan-400'
+                              }`}
+                              title={title}
+                            />
+                          ) : (
+                            <span
+                              className={`text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md min-w-[22px] text-center ${tone}`}
+                              title={title}
+                            >
+                              {value > 99 ? '99+' : value}
+                            </span>
+                          );
+                        })()}
 
                         {/* CSS Tooltip for collapsed state - no state triggers */}
                         {collapsed && (
