@@ -279,7 +279,7 @@ export const locationService = {
 
   /** Every matching location, for dropdowns. The list endpoint returns at most 100 a page. */
   /** COMs and clusters already on units: each COM with its units' clusters, most common first */
-  getPeopleOptions: async (): Promise<{ coms: Array<{ name: string; clusters: string[] }>; clusters: string[] }> => {
+  getPeopleOptions: async (): Promise<{ coms: Array<{ name: string; cluster?: string }>; clusters: string[] }> => {
     const res = await axiosInstance.get('/locations/people-options');
     return res.data.data;
   },

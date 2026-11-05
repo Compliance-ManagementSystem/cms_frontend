@@ -405,13 +405,11 @@ const LocationForm: React.FC<LocationFormProps> = ({
   const [locationTypes, setLocationTypes] = useState<MasterDataItem[]>([]);
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
-  // Known COMs (with their clusters) and clusters, offered as the user types
+  // The COM and Cluster lists from Master Data; each COM carries its cluster
   const [peopleOptions, setPeopleOptions] = useState<{
-    coms: Array<{ name: string; clusters: string[] }>;
+    coms: Array<{ name: string; cluster?: string }>;
     clusters: string[];
   }>({ coms: [], clusters: [] });
-  // The cluster last filled in from a COM, so a later COM can replace it but never one typed by hand
-  const autoCluster = useRef('');
 
   useEffect(() => {
     locationService
@@ -420,15 +418,11 @@ const LocationForm: React.FC<LocationFormProps> = ({
       .catch(() => {});
   }, []);
 
-  // Picking a known COM fills its cluster, unless a cluster was typed by hand
+  // Picking a COM fills in their cluster, which can still be changed
   const setCom = (value: string) => {
     setField('com', value);
-    const known = peopleOptions.coms.find((com) => com.name.toLowerCase() === value.trim().toLowerCase());
-    const cluster = known?.clusters[0];
-    if (cluster && (!form.cluster || form.cluster === autoCluster.current)) {
-      autoCluster.current = cluster;
-      setField('cluster', cluster);
-    }
+    const cluster = peopleOptions.coms.find((com) => com.name === value)?.cluster;
+    if (cluster) setField('cluster', cluster);
   };
 
   // Reference data
@@ -957,42 +951,70 @@ const LocationForm: React.FC<LocationFormProps> = ({
               placeholder="Full name"
               required
             />
-            <Input
-              label="COM (Clinic Operations Manager)"
-              name="com"
-              error={errors.com}
-              value={form.com}
-              onChange={(e) => setCom(e.target.value)}
-              placeholder="Pick or type a name"
-              list="location-com-options"
-              autoComplete="off"
-              hint={
-                peopleOptions.coms.length > 0 ? 'Choose from the list, or type a new name for a new COM' : undefined
-              }
-              required
-            />
-            <datalist id="location-com-options">
-              {peopleOptions.coms.map((com) => (
-                <option key={com.name} value={com.name}>
-                  {com.clusters.length > 0 ? com.clusters.join(', ') : undefined}
-                </option>
-              ))}
-            </datalist>
-            <Input
-              label="Cluster"
-              name="cluster"
-              value={form.cluster}
-              onChange={(e) => setField('cluster', e.target.value)}
-              placeholder="Pick or type a cluster"
-              list="location-cluster-options"
-              autoComplete="off"
-              hint="Filled in from the COM; change it if this unit reports elsewhere"
-            />
-            <datalist id="location-cluster-options">
-              {peopleOptions.clusters.map((cluster) => (
-                <option key={cluster} value={cluster} />
-              ))}
-            </datalist>
+            <div>
+              <label className={LABEL_CLASS} htmlFor="location-com">
+                COM (Clinic Operations Manager)
+                <RequiredMark />
+              </label>
+              {peopleOptions.coms.length > 0 ? (
+                <select
+                  id="location-com"
+                  value={form.com}
+                  onChange={(e) => setCom(e.target.value)}
+                  className={fieldClass(errors.com)}
+                >
+                  <option value="">Select COM</option>
+                  {form.com && !peopleOptions.coms.some((com) => com.name === form.com) && (
+                    <option value={form.com}>{form.com}</option>
+                  )}
+                  {peopleOptions.coms.map((com) => (
+                    <option key={com.name} value={com.name}>
+                      {com.cluster ? `${com.name} · ${com.cluster}` : com.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="location-com"
+                  value={form.com}
+                  onChange={(e) => setField('com', e.target.value)}
+                  placeholder="Full name"
+                  className={fieldClass(errors.com)}
+                />
+              )}
+              <FieldError message={errors.com} />
+            </div>
+            <div>
+              <label className={LABEL_CLASS} htmlFor="location-cluster">
+                Cluster
+              </label>
+              {peopleOptions.clusters.length > 0 ? (
+                <select
+                  id="location-cluster"
+                  value={form.cluster}
+                  onChange={(e) => setField('cluster', e.target.value)}
+                  className={fieldClass()}
+                >
+                  <option value="">Select cluster</option>
+                  {form.cluster && !peopleOptions.clusters.includes(form.cluster) && (
+                    <option value={form.cluster}>{form.cluster}</option>
+                  )}
+                  {peopleOptions.clusters.map((cluster) => (
+                    <option key={cluster} value={cluster}>
+                      {cluster}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="location-cluster"
+                  value={form.cluster}
+                  onChange={(e) => setField('cluster', e.target.value)}
+                  placeholder="e.g. Puri"
+                  className={fieldClass()}
+                />
+              )}
+            </div>
             <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-5">
               <div>
                 <label className={LABEL_CLASS} htmlFor="location-status">
