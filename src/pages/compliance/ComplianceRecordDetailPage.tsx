@@ -31,6 +31,7 @@ import {
   WorkflowApprovalsResponse,
 } from '@/services/complianceRecordService';
 import { adminService, MasterDataItem } from '@/services/adminService';
+import { lookupService, LookupUser } from '@/services/lookupService';
 import { UPLOAD_ACCEPT, checkUploadFile, pickUploadFile } from '@/utils/validation';
 import { ROUTES } from '@/constants/routes';
 import { getErrorMessage } from '@/utils/errors';
@@ -195,6 +196,33 @@ export const ComplianceRecordDetailPage: React.FC = () => {
     },
     [id, navigate, toast]
   );
+
+  // People the record can be assigned to: active users of its entity, and those across all entities
+  const [assignableUsers, setAssignableUsers] = useState<LookupUser[]>([]);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const recordEntityId = record?.entity?._id;
+
+  useEffect(() => {
+    if (!canUpdateStatus || !recordEntityId) return;
+    lookupService
+      .getUsers(recordEntityId)
+      .then((res) => setAssignableUsers(res.users || []))
+      .catch(() => setAssignableUsers([]));
+  }, [canUpdateStatus, recordEntityId]);
+
+  const handleAssign = async (userId: string) => {
+    if (!id) return;
+    setIsAssigning(true);
+    try {
+      await complianceRecordService.updateRecord(id, { assignedUser: userId });
+      toast.success(userId ? 'Record assigned' : 'Assignment removed');
+      await fetchRecord(true);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to assign the record'));
+    } finally {
+      setIsAssigning(false);
+    }
+  };
 
   // Fetch document requirements and the comment trail
   const fetchWorkflow = useCallback(async () => {
@@ -1078,7 +1106,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
               </h3>
               <dl className="mt-3 space-y-2.5 text-xs">
                 {(() => {
-                  type Fact = { label: string; value: string; tone?: string; hint?: string };
+                  type Fact = { label: string; value: string; tone?: string; hint?: string; node?: React.ReactNode };
                   const facts: Fact[] = [];
                   if (stageOf(record.status) === 3) {
                     facts.push(
@@ -1144,6 +1172,26 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                       label: 'Assigned to',
                       value: assignee || 'No one yet',
                       tone: assignee ? undefined : 'text-slate-400 dark:text-slate-500',
+                      node: canUpdateStatus ? (
+                        <select
+                          aria-label="Assigned to"
+                          value={record.assignedUser?._id || ''}
+                          onChange={(e) => handleAssign(e.target.value)}
+                          disabled={isAssigning}
+                          className="w-full max-w-[14rem] -my-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                        >
+                          <option value="">No one yet</option>
+                          {record.assignedUser && !assignableUsers.some((u) => u._id === record.assignedUser?._id) && (
+                            <option value={record.assignedUser._id}>{assignee}</option>
+                          )}
+                          {assignableUsers.map((u) => (
+                            <option key={u._id} value={u._id}>
+                              {`${u.firstName} ${u.lastName}`.trim()}
+                              {u.role?.name ? ` · ${u.role.name}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : undefined,
                     },
                     {
                       label: 'Open for',
@@ -1155,7 +1203,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     <div key={fact.label} className="grid grid-cols-[6.5rem_1fr] gap-2">
                       <dt className="text-slate-500 dark:text-slate-400">{fact.label}</dt>
                       <dd className={`min-w-0 font-semibold ${fact.tone || 'text-slate-800 dark:text-slate-200'}`}>
-                        {fact.value}
+                        {fact.node ?? fact.value}
                         {fact.hint && (
                           <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">{fact.hint}</span>
                         )}

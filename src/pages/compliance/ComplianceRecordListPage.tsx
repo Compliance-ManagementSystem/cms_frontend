@@ -560,6 +560,9 @@ export const ComplianceRecordListPage: React.FC = () => {
       : []),
   ];
 
+  // Locations the entity chosen in the new-record form owns or operates at
+  const entityLocations = locations.filter((l) => !createForm.entity || operatesAt(l, createForm.entity));
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -933,14 +936,18 @@ export const ComplianceRecordListPage: React.FC = () => {
               className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:shadow-none"
             >
               <option value="">-- Choose Location --</option>
-              {locations
-                .filter((l) => !createForm.entity || operatesAt(l, createForm.entity))
-                .map((l) => (
-                  <option key={l._id} value={l._id}>
-                    {l.name} ({l.locationCode})
-                  </option>
-                ))}
+              {entityLocations.map((l) => (
+                <option key={l._id} value={l._id}>
+                  {l.name} ({l.locationCode})
+                </option>
+              ))}
             </select>
+            {createForm.entity && entityLocations.length === 0 && (
+              <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
+                {entities.find((e) => e._id === createForm.entity)?.entityCode || 'This entity'} has no locations.
+                Choose another entity.
+              </p>
+            )}
           </div>
 
           <div>
