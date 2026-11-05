@@ -79,6 +79,7 @@ export const LocationListPage: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   const [selectedState, setSelectedState] = useState(searchParams.get('state') || '');
   const [selectedOpening, setSelectedOpening] = useState(searchParams.get('opening') || '');
+  const [selectedManpower, setSelectedManpower] = useState(searchParams.get('manpower') || '');
 
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
   const [metrics, setMetrics] = useState({ total: 0, active: 0, inactive: 0, attention: 0 });
@@ -119,8 +120,18 @@ export const LocationListPage: React.FC = () => {
       status: activeCard === 'active' ? 'active' : activeCard === 'inactive' ? 'inactive' : selectedStatus || undefined,
       attention: activeCard === 'attention' ? ('true' as const) : undefined,
       opening: (selectedOpening || undefined) as 'opened' | 'upcoming' | undefined,
+      manpower: (selectedManpower || undefined) as 'ready' | 'not_ready' | undefined,
     }),
-    [debouncedSearch, selectedEntity, selectedType, selectedState, selectedStatus, selectedOpening, activeCard]
+    [
+      debouncedSearch,
+      selectedEntity,
+      selectedType,
+      selectedState,
+      selectedStatus,
+      selectedOpening,
+      selectedManpower,
+      activeCard,
+    ]
   );
 
   const fetchLocations = useCallback(async () => {
@@ -170,6 +181,7 @@ export const LocationListPage: React.FC = () => {
     setSelectedStatus('');
     setSelectedState('');
     setSelectedOpening('');
+    setSelectedManpower('');
     resetPage();
   };
 
@@ -180,7 +192,8 @@ export const LocationListPage: React.FC = () => {
     selectedType ||
     selectedStatus ||
     selectedState ||
-    selectedOpening
+    selectedOpening ||
+    selectedManpower
   );
 
   // Export every page of the current filter as CSV
@@ -207,6 +220,7 @@ export const LocationListPage: React.FC = () => {
         'Compliance Records',
         'Records Valid %',
         'Expired',
+        'Manpower',
         'Status',
       ];
       const rows = exportRows.map((loc) =>
@@ -222,6 +236,7 @@ export const LocationListPage: React.FC = () => {
           loc.health?.total ?? loc.complianceCount ?? 0,
           loc.health?.total ? loc.health.percentage : '',
           loc.health?.expired ?? 0,
+          loc.manpower?.ready ? 'Ready' : 'Not ready',
           loc.status || 'active',
         ]
           .map(csvCell)
@@ -372,6 +387,22 @@ export const LocationListPage: React.FC = () => {
           </div>
         );
       },
+    },
+    {
+      key: 'manpower',
+      header: 'Manpower',
+      cell: (row) =>
+        row.manpower?.ready ? (
+          <Badge variant="success" size="sm" dot>
+            Ready
+          </Badge>
+        ) : (
+          <span title={`${row.manpower?.issueCount ?? 0} ${row.manpower?.issueCount === 1 ? 'item' : 'items'} pending`}>
+            <Badge variant="danger" size="sm">
+              Not ready
+            </Badge>
+          </span>
+        ),
     },
     {
       key: 'status',
@@ -593,6 +624,22 @@ export const LocationListPage: React.FC = () => {
               <option value="">All</option>
               <option value="opened">Opened</option>
               <option value="upcoming">To be opened</option>
+            </select>
+          </div>
+
+          <div className="w-36">
+            <label className={LABEL_CLASS}>Manpower</label>
+            <select
+              value={selectedManpower}
+              onChange={(e) => {
+                setSelectedManpower(e.target.value);
+                resetPage();
+              }}
+              className={SELECT_CLASS}
+            >
+              <option value="">All</option>
+              <option value="ready">Ready</option>
+              <option value="not_ready">Not ready</option>
             </select>
           </div>
 

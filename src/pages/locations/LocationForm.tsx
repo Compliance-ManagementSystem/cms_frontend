@@ -73,6 +73,8 @@ interface FormState {
   unitIncharge: string;
   /** Clinic Operations Manager */
   com: string;
+  /** Report cluster, e.g. Puri, CTTK */
+  cluster: string;
   /** Clinic photo keys; the first is the avatar */
   photos: string[];
   noticePhoto: string;
@@ -216,6 +218,7 @@ const toFormState = (loc?: LocationItem, defaultEntityId = ''): FormState => ({
   locationType: loc?.locationType?.code || '',
   unitIncharge: loc?.unitIncharge || '',
   com: loc?.com || '',
+  cluster: loc?.cluster || '',
   photos: loc?.photos || [],
   noticePhoto: loc?.noticePhoto || '',
   openingDate: dateInput(loc?.openingDate),
@@ -348,7 +351,7 @@ const STEPS = [
 /** Fields on each step; a field name or a prefix such as "address." */
 const STEP_FIELDS: string[][] = [
   ['entity', 'name', 'code', 'locationType', 'operatingModel', 'description'],
-  ['unitIncharge', 'com', 'status', 'openingDate', 'closingDate', 'isUpcoming', 'coEntities'],
+  ['unitIncharge', 'com', 'cluster', 'status', 'openingDate', 'closingDate', 'isUpcoming', 'coEntities'],
   ['address.', 'areaType', 'latitude', 'longitude', 'geoCoordinates'],
   ['photos', 'noticePhoto'],
 ];
@@ -402,6 +405,31 @@ const LocationForm: React.FC<LocationFormProps> = ({
   const [locationTypes, setLocationTypes] = useState<MasterDataItem[]>([]);
   const [states, setStates] = useState<MasterDataItem[]>([]);
   const [districts, setDistricts] = useState<MasterDataItem[]>([]);
+  // Known COMs (with their clusters) and clusters, offered as the user types
+  const [peopleOptions, setPeopleOptions] = useState<{
+    coms: Array<{ name: string; clusters: string[] }>;
+    clusters: string[];
+  }>({ coms: [], clusters: [] });
+  // The cluster last filled in from a COM, so a later COM can replace it but never one typed by hand
+  const autoCluster = useRef('');
+
+  useEffect(() => {
+    locationService
+      .getPeopleOptions()
+      .then(setPeopleOptions)
+      .catch(() => {});
+  }, []);
+
+  // Picking a known COM fills its cluster, unless a cluster was typed by hand
+  const setCom = (value: string) => {
+    setField('com', value);
+    const known = peopleOptions.coms.find((com) => com.name.toLowerCase() === value.trim().toLowerCase());
+    const cluster = known?.clusters[0];
+    if (cluster && (!form.cluster || form.cluster === autoCluster.current)) {
+      autoCluster.current = cluster;
+      setField('cluster', cluster);
+    }
+  };
 
   // Reference data
   useEffect(() => {
@@ -679,6 +707,7 @@ const LocationForm: React.FC<LocationFormProps> = ({
       locationType: form.locationType,
       unitIncharge: form.unitIncharge.trim(),
       com: form.com.trim(),
+      cluster: form.cluster.trim(),
       photos: form.photos,
       noticePhoto: form.noticePhoto || null,
       openingDate: form.openingDate || null,
@@ -933,10 +962,37 @@ const LocationForm: React.FC<LocationFormProps> = ({
               name="com"
               error={errors.com}
               value={form.com}
-              onChange={(e) => setField('com', e.target.value)}
-              placeholder="Full name"
+              onChange={(e) => setCom(e.target.value)}
+              placeholder="Pick or type a name"
+              list="location-com-options"
+              autoComplete="off"
+              hint={
+                peopleOptions.coms.length > 0 ? 'Choose from the list, or type a new name for a new COM' : undefined
+              }
               required
             />
+            <datalist id="location-com-options">
+              {peopleOptions.coms.map((com) => (
+                <option key={com.name} value={com.name}>
+                  {com.clusters.length > 0 ? com.clusters.join(', ') : undefined}
+                </option>
+              ))}
+            </datalist>
+            <Input
+              label="Cluster"
+              name="cluster"
+              value={form.cluster}
+              onChange={(e) => setField('cluster', e.target.value)}
+              placeholder="Pick or type a cluster"
+              list="location-cluster-options"
+              autoComplete="off"
+              hint="Filled in from the COM; change it if this unit reports elsewhere"
+            />
+            <datalist id="location-cluster-options">
+              {peopleOptions.clusters.map((cluster) => (
+                <option key={cluster} value={cluster} />
+              ))}
+            </datalist>
             <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-5">
               <div>
                 <label className={LABEL_CLASS} htmlFor="location-status">

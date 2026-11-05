@@ -7,6 +7,7 @@
 import axiosInstance from '@/api/axiosInstance';
 import type { EntityAddress } from './entityService';
 import type { LicenceItem } from './licenceService';
+import type { ManpowerStatus } from './manpowerService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -97,6 +98,8 @@ export interface LocationItem {
   unitIncharge?: string;
   /** Name of the COM (Clinic Operations Manager) */
   com?: string;
+  /** Report cluster the clinic belongs to, e.g. Puri, CTTK */
+  cluster?: string;
   /** Clinic photo keys; the first is the avatar */
   photos?: string[];
   noticePhoto?: string | null;
@@ -121,6 +124,8 @@ export interface LocationItem {
   complianceCount?: number;
   /** Compliance health of this location's records (list responses) */
   health?: LocationHealth;
+  /** Whether doctors, nurses and DMLT/phlebo are in place with their documents (list responses) */
+  manpower?: { ready: boolean; issueCount: number };
   createdAt: string;
   updatedAt: string;
 }
@@ -128,6 +133,7 @@ export interface LocationItem {
 export interface LocationDetailData {
   location: LocationItem;
   health: LocationHealth;
+  manpower?: ManpowerStatus;
   complianceStats: {
     total: number;
     approved: number;
@@ -193,6 +199,8 @@ export interface LocationQueryParams {
   status?: string;
   /** Only locations with at least one expired compliance record */
   attention?: 'true';
+  /** Locations whose manpower is, or is not, ready for licence applications */
+  manpower?: 'ready' | 'not_ready';
   /** Units already opened, or planned ones (marked TBO or opening in the future) */
   opening?: 'opened' | 'upcoming';
   sortBy?: string;
@@ -215,6 +223,8 @@ export interface CreateLocationPayload {
   unitIncharge?: string;
   /** Name of the COM (Clinic Operations Manager) */
   com?: string;
+  /** Report cluster the clinic belongs to, e.g. Puri, CTTK */
+  cluster?: string;
   /** Clinic photo keys; the first is the avatar */
   photos?: string[];
   noticePhoto?: string | null;
@@ -268,6 +278,12 @@ export const locationService = {
   },
 
   /** Every matching location, for dropdowns. The list endpoint returns at most 100 a page. */
+  /** COMs and clusters already on units: each COM with its units' clusters, most common first */
+  getPeopleOptions: async (): Promise<{ coms: Array<{ name: string; clusters: string[] }>; clusters: string[] }> => {
+    const res = await axiosInstance.get('/locations/people-options');
+    return res.data.data;
+  },
+
   getAllLocations: async (params?: Omit<LocationQueryParams, 'page' | 'limit'>) => {
     const first = await locationService.getLocations({ ...params, page: 1, limit: 100 });
     const rest = await Promise.all(

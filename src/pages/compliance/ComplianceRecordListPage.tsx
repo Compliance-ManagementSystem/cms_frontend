@@ -112,6 +112,7 @@ export const ComplianceRecordListPage: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   const [selectedEntity, setSelectedEntity] = useState(searchParams.get('entity') || '');
   const [selectedState, setSelectedState] = useState(searchParams.get('state') || '');
+  const [selectedCom, setSelectedCom] = useState(searchParams.get('com') || '');
   const [selectedLocation, setSelectedLocation] = useState(searchParams.get('location') || '');
   const [expiringWithinDays, setExpiringWithinDays] = useState(Number(searchParams.get('expiringWithin')) || 0);
   const [selectedRule, setSelectedRule] = useState(searchParams.get('rule') || '');
@@ -203,6 +204,7 @@ export const ComplianceRecordListPage: React.FC = () => {
         entity: selectedEntity || undefined,
         location: selectedLocation || undefined,
         state: selectedState || undefined,
+        com: selectedCom || undefined,
         rule: selectedRule || undefined,
         units: liveUnitsOnly ? 'live' : undefined,
       });
@@ -226,6 +228,7 @@ export const ComplianceRecordListPage: React.FC = () => {
     selectedStatus,
     selectedEntity,
     selectedState,
+    selectedCom,
     selectedLocation,
     selectedRule,
     dueDateFrom,
@@ -246,6 +249,7 @@ export const ComplianceRecordListPage: React.FC = () => {
     setSelectedStatus('');
     setSelectedEntity('');
     setSelectedState('');
+    setSelectedCom('');
     setSelectedLocation('');
     setSelectedRule('');
     setDueDateFrom('');
@@ -273,7 +277,14 @@ export const ComplianceRecordListPage: React.FC = () => {
   const stateOptions = [...new Set(locations.map((l) => l.address?.state?.trim()).filter(Boolean) as string[])].sort();
   const sameState = (l: LocationItem) =>
     !selectedState || l.address?.state?.trim().toLowerCase() === selectedState.toLowerCase();
-  const filterLocations = locations.filter((l) => (!selectedEntity || operatesAt(l, selectedEntity)) && sameState(l));
+  // COMs come from the units too, each listed once
+  const comOptions = [...new Set(locations.map((l) => l.com?.trim()).filter(Boolean) as string[])].sort();
+  const filterLocations = locations.filter(
+    (l) =>
+      (!selectedEntity || operatesAt(l, selectedEntity)) &&
+      sameState(l) &&
+      (!selectedCom || l.com?.trim() === selectedCom)
+  );
 
   const hasActiveFilters = !!(
     search ||
@@ -281,6 +292,7 @@ export const ComplianceRecordListPage: React.FC = () => {
     selectedStatus ||
     selectedEntity ||
     selectedState ||
+    selectedCom ||
     selectedLocation ||
     selectedRule ||
     dueDateFrom ||
@@ -712,6 +724,27 @@ export const ComplianceRecordListPage: React.FC = () => {
               {stateOptions.map((state) => (
                 <option key={state} value={state}>
                   {state}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="w-36">
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">COM</label>
+            <select
+              value={selectedCom}
+              onChange={(e) => {
+                setSelectedCom(e.target.value);
+                setSelectedLocation('');
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className={SELECT_CLASS}
+            >
+              <option value="">All COMs</option>
+              {selectedCom && !comOptions.includes(selectedCom) && <option value={selectedCom}>{selectedCom}</option>}
+              {comOptions.map((com) => (
+                <option key={com} value={com}>
+                  {com}
                 </option>
               ))}
             </select>

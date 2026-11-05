@@ -16,6 +16,7 @@ import {
   FileCheck2,
   Tag,
   Camera,
+  Users,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -36,8 +37,9 @@ import { getErrorMessage } from '@/utils/errors';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import LocationPhoto from '@/components/locations/LocationPhoto';
 import { openLocationPhoto } from '@/utils/locationPhoto';
+import ManpowerTab from '@/components/locations/ManpowerTab';
 
-type TabType = 'overview' | 'compliance' | 'documents' | 'tasks' | 'history';
+type TabType = 'overview' | 'manpower' | 'compliance' | 'documents' | 'tasks' | 'history';
 
 export const LocationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +48,7 @@ export const LocationDetailPage: React.FC = () => {
   const { can } = useAuth();
   const canUpdate = can('location', 'update');
   const canUploadDocument = can('document', 'upload');
+  const canVerifyDocument = can('document', 'update');
 
   // Dialogs
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -71,6 +74,15 @@ export const LocationDetailPage: React.FC = () => {
   useEffect(() => {
     fetchLocationDetails();
   }, [fetchLocationDetails]);
+
+  // Refreshes the readiness badge after a manpower change without reloading the page
+  const refreshManpowerStatus = useCallback(() => {
+    if (!id) return;
+    locationService
+      .getLocationById(id)
+      .then((details) => setData((prev) => (prev ? { ...prev, manpower: details.manpower } : details)))
+      .catch(() => {});
+  }, [id]);
 
   const handleViewDocument = (documentId: string) => {
     openDocumentInNewTab(documentId).catch((err) => toast.error(getErrorMessage(err, 'Failed to open document')));
@@ -102,10 +114,11 @@ export const LocationDetailPage: React.FC = () => {
     );
   }
 
-  const { location, health, complianceStats, complianceRecords, documents, tasks, auditLogs } = data;
+  const { location, health, manpower, complianceStats, complianceRecords, documents, tasks, auditLogs } = data;
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'overview', label: 'Overview', icon: <MapPin size={16} /> },
+    { key: 'manpower', label: 'Manpower', icon: <Users size={16} /> },
     { key: 'compliance', label: 'Compliance', icon: <ClipboardCheck size={16} />, count: complianceStats?.total || 0 },
     {
       key: 'documents',
@@ -213,6 +226,17 @@ export const LocationDetailPage: React.FC = () => {
                   <span className={`w-2 h-2 rounded-full ${statusTone.dot}`} aria-hidden />
                   {statusLabel}
                 </span>
+                {manpower && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('manpower')}
+                    title={manpower.ready ? 'Doctors, nurses and DMLT/phlebo in place' : manpower.issues.join('\n')}
+                  >
+                    <Badge variant={manpower.ready ? 'success' : 'danger'} size="md" dot={manpower.ready}>
+                      {manpower.ready ? 'Ready to apply' : 'Manpower not ready'}
+                    </Badge>
+                  </button>
+                )}
                 {(location.locationType?.label || location.locationType?.code) && (
                   <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
                     <Tag size={14} className="text-slate-400 dark:text-slate-500" aria-hidden />
@@ -533,6 +557,7 @@ export const LocationDetailPage: React.FC = () => {
                 {[
                   { label: 'Unit In-charge', name: location.unitIncharge },
                   { label: 'COM (Clinic Operations Manager)', name: location.com },
+                  { label: 'Cluster', name: location.cluster },
                 ].map(({ label, name }) => (
                   <div
                     key={label}
@@ -564,6 +589,17 @@ export const LocationDetailPage: React.FC = () => {
             </Card>
           </div>
         </div>
+      )}
+
+      {/* ── Manpower ── */}
+      {activeTab === 'manpower' && (
+        <ManpowerTab
+          locationId={location._id}
+          canEdit={canUpdate}
+          canUpload={canUploadDocument}
+          canVerify={canVerifyDocument}
+          onChanged={refreshManpowerStatus}
+        />
       )}
 
       {/* ── Compliance ── */}

@@ -7,6 +7,7 @@ import {
   History,
   Users,
   ShieldCheck,
+  FileCheck2,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from './routes';
@@ -104,6 +105,13 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         path: ROUTES.ADMIN_ROLES,
         icon: ShieldCheck,
         phase: 4,
+        roles: ['super_admin', 'admin'],
+      },
+      {
+        label: 'Manpower Documents',
+        path: ROUTES.ADMIN_MANPOWER_DOCUMENTS,
+        icon: FileCheck2,
+        phase: 6,
         roles: ['super_admin', 'admin'],
       },
       {

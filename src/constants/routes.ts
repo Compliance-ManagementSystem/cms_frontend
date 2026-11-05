@@ -40,6 +40,7 @@ export const ROUTES = {
   // Administration
   ADMIN_USERS: '/admin/users',
   ADMIN_ROLES: '/admin/roles',
+  ADMIN_MANPOWER_DOCUMENTS: '/admin/manpower-documents',
 } as const;
 
 export type RouteKey = keyof typeof ROUTES;

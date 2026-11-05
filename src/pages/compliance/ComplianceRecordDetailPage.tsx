@@ -1184,6 +1184,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     : []),
                   { label: 'Company', value: record.entity?.name, sub: record.entity?.entityCode },
                   { label: 'Unit', value: record.location?.name, sub: record.location?.locationCode },
+                  { label: 'COM', value: record.location?.com || 'Not assigned' },
+                  ...(record.location?.cluster ? [{ label: 'Cluster', value: record.location.cluster }] : []),
                   {
                     label: 'Address',
                     value:

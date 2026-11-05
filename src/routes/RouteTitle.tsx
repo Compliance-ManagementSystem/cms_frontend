@@ -11,6 +11,7 @@ const ROUTE_TITLES: Array<[path: string, title: string]> = [
   [ROUTES.DASHBOARD, 'Dashboard'],
   [ROUTES.ADMIN_USERS, 'Users'],
   [ROUTES.ADMIN_ROLES, 'Roles'],
+  [ROUTES.ADMIN_MANPOWER_DOCUMENTS, 'Manpower Documents'],
   [ROUTES.ENTITIES, 'Entities'],
   [ROUTES.ENTITY_CREATE, 'New entity'],
   [ROUTES.ENTITY_EDIT, 'Edit entity'],

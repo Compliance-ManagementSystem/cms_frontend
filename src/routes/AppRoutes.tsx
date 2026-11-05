@@ -16,6 +16,7 @@ const NotFound = React.lazy(() => import('@/pages/NotFound'));
 // Administration
 const AdminUsers = React.lazy(() => import('@/pages/admin/UsersPage'));
 const AdminRoles = React.lazy(() => import('@/pages/admin/RolesPage'));
+const AdminManpowerDocuments = React.lazy(() => import('@/pages/admin/ManpowerDocumentsPage'));
 
 // Entity Management
 const EntityListPage = React.lazy(() => import('@/pages/entities/EntityListPage'));
@@ -126,6 +127,16 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
               <Suspense fallback={<PageLoader />}>
                 <AdminRoles />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.ADMIN_MANPOWER_DOCUMENTS}
+          element={
+            <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <Suspense fallback={<PageLoader />}>
+                <AdminManpowerDocuments />
               </Suspense>
             </ProtectedRoute>
           }

@@ -184,6 +184,9 @@ export interface ComplianceRecordItem {
       city?: string;
       state?: string;
     };
+    /** COM (Clinic Operations Manager) and report cluster of the unit */
+    com?: string;
+    cluster?: string;
     manager?: {
       _id: string;
       firstName: string;
@@ -268,6 +271,8 @@ export interface RecordQueryParams {
   expiryDateTo?: string;
   /** State of the record's unit */
   state?: string;
+  /** The unit's COM, by name */
+  com?: string;
   /** 'live': only units still open or planned, as the dashboard counts them */
   units?: 'live';
   sortBy?: string;
