@@ -17,3 +17,17 @@ export const formatRelativeDays = (date: string | Date): string => {
   const unit = count === 1 ? 'day' : 'days';
   return days > 0 ? `in ${count} ${unit}` : `${count} ${unit} ago`;
 };
+
+/** "5 Nov 2027": day first and the month in words, so it never reads as 11 May */
+export const formatDate = (date: string | Date): string =>
+  new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** "5 Nov 2027, 14:30" */
+export const formatDateTime = (date: string | Date): string =>
+  new Date(date).toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });

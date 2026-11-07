@@ -6,6 +6,7 @@ import {
   MapPin,
   FileText,
   Upload,
+  ChevronDown,
   RefreshCw,
   Plus,
   XCircle,
@@ -21,7 +22,7 @@ import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
-import { daysFromToday, formatRelativeDays } from '@/utils/dates';
+import { daysFromToday, formatDate, formatDateTime, formatRelativeDays } from '@/utils/dates';
 import {
   complianceRecordService,
   ComplianceRecordItem,
@@ -705,67 +706,62 @@ export const ComplianceRecordDetailPage: React.FC = () => {
             const expired = record.status === 'expired';
             const sentBack = ['rejected', 'correction'].includes(record.status);
             return (
-              <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <ol className="flex items-start">
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <ol className="flex items-center gap-2 overflow-x-auto">
                   {STAGES.map((stage, index) => {
                     const done = index < current || (index === current && current === 3 && !expired);
                     const here = index === current && !done;
                     const warn = here && (expired || sentBack);
                     const label = index === 3 && expired ? 'Expired' : index === 2 && sentBack ? 'Sent back' : stage;
+                    const hint =
+                      index === 0
+                        ? 'Collect the documents below'
+                        : index === 1
+                          ? 'File it with the authority'
+                          : index === 2
+                            ? sentBack
+                              ? 'Correct and resubmit'
+                              : 'Waiting on the authority'
+                            : 'Renew to continue';
                     return (
-                      <li key={stage} className="flex-1 flex flex-col items-center relative min-w-0">
-                        {/* The line from the previous step */}
-                        {index > 0 && (
-                          <span
-                            className={`absolute top-3 right-1/2 w-full h-0.5 -translate-y-1/2 ${
-                              index <= current ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'
-                            }`}
-                          />
-                        )}
+                      <li
+                        key={stage}
+                        className={`flex items-center gap-2 min-w-0 ${index < STAGES.length - 1 ? 'flex-1' : ''}`}
+                      >
                         <span
-                          className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                             done
                               ? 'bg-emerald-500 text-white'
                               : warn
-                                ? 'bg-rose-500 text-white ring-[3px] ring-rose-500/20'
+                                ? 'bg-rose-500 text-white'
                                 : here
-                                  ? `${index === 1 ? 'bg-cyan-500' : index === 2 ? 'bg-indigo-500' : 'bg-amber-500'} text-white ring-[3px] ${
-                                      index === 1
-                                        ? 'ring-cyan-500/20'
-                                        : index === 2
-                                          ? 'ring-indigo-500/20'
-                                          : 'ring-amber-500/20'
-                                    }`
-                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-600'
+                                  ? `${index === 1 ? 'bg-cyan-500' : index === 2 ? 'bg-indigo-500' : 'bg-amber-500'} text-white`
+                                  : 'text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-600'
                           }`}
                         >
-                          {done ? <Check size={13} strokeWidth={3} /> : warn ? <XCircle size={13} /> : index + 1}
+                          {done ? <Check size={11} strokeWidth={3} /> : warn ? <XCircle size={11} /> : index + 1}
                         </span>
                         <span
-                          className={`mt-2 text-xs text-center px-1 ${
+                          title={here ? hint : undefined}
+                          className={`shrink-0 whitespace-nowrap text-xs ${
                             here
                               ? warn
-                                ? 'font-bold text-rose-600 dark:text-rose-400'
-                                : 'font-bold text-slate-900 dark:text-white'
+                                ? 'font-semibold text-rose-600 dark:text-rose-400'
+                                : 'font-semibold text-slate-900 dark:text-white'
                               : done
-                                ? 'font-medium text-slate-700 dark:text-slate-300'
+                                ? 'font-medium text-slate-600 dark:text-slate-300'
                                 : 'text-slate-400 dark:text-slate-500'
                           }`}
                         >
                           {label}
                         </span>
-                        {here && (
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 text-center px-1">
-                            {index === 0
-                              ? 'Collect the documents below'
-                              : index === 1
-                                ? 'File it with the authority'
-                                : index === 2
-                                  ? sentBack
-                                    ? 'Correct and resubmit'
-                                    : 'Waiting on the authority'
-                                  : 'Renew to continue'}
-                          </span>
+                        {/* The line on to the next step */}
+                        {index < STAGES.length - 1 && (
+                          <span
+                            className={`flex-1 min-w-4 h-px ${
+                              index < current ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'
+                            }`}
+                          />
                         )}
                       </li>
                     );
@@ -818,8 +814,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                       },
                       rejected: { word: 'Rejected', dot: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-400' },
                     };
-                  const GRID =
-                    'grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_6.5rem_auto] items-center gap-4 px-5 py-3 text-sm';
+                  const GRID = 'grid grid-cols-[minmax(0,1fr)_6.5rem_auto] items-center gap-4 px-5 py-3 text-sm';
 
                   // Everything about a file beyond its one main action
                   const docMenu = (doc: DocumentItem, menuKey: string) => (
@@ -883,25 +878,31 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     </span>
                   );
 
+                  // The file under a document's name, once there is one
                   const fileCell = (doc?: DocumentItem, extra = 0) =>
-                    doc ? (
+                    doc && (
                       <span
-                        className="flex items-baseline gap-1.5 min-w-0 text-xs text-slate-500 dark:text-slate-400"
+                        className="mt-0.5 flex items-baseline gap-1.5 min-w-0 text-xs text-slate-500 dark:text-slate-400"
                         title={doc.fileName}
                       >
                         <span className="truncate">{shortFileName(doc.fileName)}</span>
                         <span className="shrink-0 tabular-nums">· {formatFileSize(doc.fileSize)}</span>
                         {extra > 0 && <span className="shrink-0">· +{extra}</span>}
                       </span>
-                    ) : (
-                      <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
                     );
 
                   const lineRow = (req: DocumentRequirementItem) => {
                     const index = documentRequirements.indexOf(req);
                     const latest = req.documents[req.documents.length - 1];
                     const doc = latest ? record.documents?.find((d) => d._id === latest._id) : undefined;
-                    const status = STATUS[req.status];
+                    const status =
+                      req.status === 'missing' && req.isMandatory
+                        ? {
+                            ...STATUS.missing,
+                            dot: 'border border-amber-500',
+                            text: 'text-amber-700 dark:text-amber-400',
+                          }
+                        : STATUS[req.status];
                     return (
                       <li
                         key={`${req.documentTypeId}-${index}`}
@@ -926,19 +927,18 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                             }`}
                           />
                         )}
-                        <span
-                          className="min-w-0 truncate font-medium text-slate-900 dark:text-slate-100"
-                          title={req.label}
-                        >
-                          {req.label}
-                        </span>
-                        {uploadingLine === index ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-cyan-700 dark:text-cyan-300">
-                            <RefreshCw size={12} className="animate-spin" /> Uploading…
+                        <span className="min-w-0 flex flex-col">
+                          <span className="truncate font-medium text-slate-900 dark:text-slate-100" title={req.label}>
+                            {req.label}
                           </span>
-                        ) : (
-                          fileCell(doc, req.documents.length - 1)
-                        )}
+                          {uploadingLine === index ? (
+                            <span className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-cyan-700 dark:text-cyan-300">
+                              <RefreshCw size={12} className="animate-spin" /> Uploading…
+                            </span>
+                          ) : (
+                            fileCell(doc, req.documents.length - 1)
+                          )}
+                        </span>
                         <span className={`inline-flex items-center gap-2 text-xs font-medium ${status.text}`}>
                           <span className={`w-2 h-2 rounded-full shrink-0 ${status.dot}`} />
                           {status.word}
@@ -946,14 +946,13 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                         <span className="flex items-center justify-end gap-1">
                           {req.status === 'missing' || req.status === 'rejected'
                             ? canUpload && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
+                                <button
+                                  type="button"
                                   onClick={() => openUploadFor(req)}
-                                  className="min-w-[76px]"
+                                  className="inline-flex min-w-[76px] items-center justify-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                                 >
-                                  Upload
-                                </Button>
+                                  <Upload size={13} /> Upload
+                                </button>
                               )
                             : doc && (
                                 <Button
@@ -973,16 +972,13 @@ export const ComplianceRecordDetailPage: React.FC = () => {
 
                   const otherRow = (doc: DocumentItem) => (
                     <li key={doc._id} className={`${GRID} hover:bg-slate-50/70 dark:hover:bg-slate-800/30`}>
-                      <span
-                        className="min-w-0 truncate font-medium text-slate-900 dark:text-slate-100"
-                        title={doc.name}
-                      >
-                        {doc.name}
+                      <span className="min-w-0 flex flex-col">
+                        <span className="truncate font-medium text-slate-900 dark:text-slate-100" title={doc.name}>
+                          {doc.name}
+                        </span>
+                        {fileCell(doc)}
                       </span>
-                      {fileCell(doc)}
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {new Date(doc.uploadedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{formatDate(doc.uploadedAt)}</span>
                       <span className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => openPreview(doc)} className="min-w-[76px]">
                           View
@@ -1112,13 +1108,11 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     facts.push(
                       {
                         label: 'Approved on',
-                        value: record.approvalDate
-                          ? new Date(record.approvalDate).toLocaleDateString()
-                          : 'Not recorded',
+                        value: record.approvalDate ? formatDate(record.approvalDate) : 'Not recorded',
                       },
                       {
                         label: 'Expires on',
-                        value: record.expiryDate ? new Date(record.expiryDate).toLocaleDateString() : '—',
+                        value: record.expiryDate ? formatDate(record.expiryDate) : '—',
                         hint: record.expiryDate
                           ? expiryDays! < 0
                             ? `expired ${formatRelativeDays(record.expiryDate)}`
@@ -1136,20 +1130,25 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   } else {
                     const mandatory = documentRequirements.filter((r) => r.isMandatory);
                     const met = mandatory.filter((r) => r.status === 'pending' || r.status === 'verified').length;
-                    if (showChecklist && mandatory.length > 0) {
-                      facts.push({
-                        label: 'Documents',
-                        value: `${met} / ${mandatory.length}`,
-                        tone:
-                          met === mandatory.length
-                            ? 'text-cyan-600 dark:text-cyan-400'
-                            : 'text-amber-600 dark:text-amber-400',
-                      });
-                    }
+                    const left = mandatory.length - met;
+                    const nextStep =
+                      record.status === 'not_applicable'
+                        ? null
+                        : ['correction', 'rejected'].includes(record.status)
+                          ? { value: 'Correct and resubmit', tone: 'text-rose-600 dark:text-rose-400' }
+                          : stageOf(record.status) === 2
+                            ? { value: 'Wait for the authority' }
+                            : showChecklist && left > 0
+                              ? {
+                                  value: `Upload ${left} document${left === 1 ? '' : 's'}`,
+                                  tone: 'text-amber-600 dark:text-amber-400',
+                                }
+                              : { value: 'File it with the authority', tone: 'text-cyan-600 dark:text-cyan-400' };
+                    if (nextStep) facts.push({ label: 'Next step', ...nextStep });
                     const dueDays = record.dueDate ? daysFromToday(record.dueDate) : null;
                     facts.push({
                       label: 'Due date',
-                      value: record.dueDate ? new Date(record.dueDate).toLocaleDateString() : 'Not set',
+                      value: record.dueDate ? formatDate(record.dueDate) : 'Not set',
                       hint:
                         dueDays === null
                           ? undefined
@@ -1173,30 +1172,37 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                       value: assignee || 'No one yet',
                       tone: assignee ? undefined : 'text-slate-400 dark:text-slate-500',
                       node: canUpdateStatus ? (
-                        <select
-                          aria-label="Assigned to"
-                          value={record.assignedUser?._id || ''}
-                          onChange={(e) => handleAssign(e.target.value)}
-                          disabled={isAssigning}
-                          className="w-full max-w-[14rem] -my-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
-                        >
-                          <option value="">No one yet</option>
-                          {record.assignedUser && !assignableUsers.some((u) => u._id === record.assignedUser?._id) && (
-                            <option value={record.assignedUser._id}>{assignee}</option>
-                          )}
-                          {assignableUsers.map((u) => (
-                            <option key={u._id} value={u._id}>
-                              {`${u.firstName} ${u.lastName}`.trim()}
-                              {u.role?.name ? ` · ${u.role.name}` : ''}
-                            </option>
-                          ))}
-                        </select>
+                        // The chosen name and a chevron; the real select sits invisibly on top, so it is
+                        // only as wide as the name and opens the usual list
+                        <span className="relative -my-0.5 -ml-1.5 inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 focus-within:ring-2 focus-within:ring-indigo-500/30">
+                          <span className="truncate">{assignee || 'No one yet'}</span>
+                          <ChevronDown size={12} className="shrink-0 text-slate-400 dark:text-slate-500" />
+                          <select
+                            aria-label="Assigned to"
+                            value={record.assignedUser?._id || ''}
+                            onChange={(e) => handleAssign(e.target.value)}
+                            disabled={isAssigning}
+                            className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait"
+                          >
+                            <option value="">No one yet</option>
+                            {record.assignedUser &&
+                              !assignableUsers.some((u) => u._id === record.assignedUser?._id) && (
+                                <option value={record.assignedUser._id}>{assignee}</option>
+                              )}
+                            {assignableUsers.map((u) => (
+                              <option key={u._id} value={u._id}>
+                                {`${u.firstName} ${u.lastName}`.trim()}
+                                {u.role?.name ? ` · ${u.role.name}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </span>
                       ) : undefined,
                     },
                     {
                       label: 'Open for',
                       value: `${daysSince(record.createdAt)} days`,
-                      hint: `since ${new Date(record.createdAt).toLocaleDateString()}`,
+                      hint: `since ${formatDate(record.createdAt)}`,
                     }
                   );
                   return facts.map((fact) => (
@@ -1219,41 +1225,62 @@ export const ComplianceRecordDetailPage: React.FC = () => {
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white pb-3 border-b border-slate-200 dark:border-slate-800">
                 Details
               </h3>
-              <dl className="mt-3 space-y-3 text-xs">
-                {[
-                  { label: 'Licence', value: record.rule?.name, sub: record.rule?.code },
-                  { label: 'Category', value: record.rule?.category?.label || 'General' },
+              {(
+                [
                   {
-                    label: 'Renewal',
-                    value: `${record.rule?.frequency?.label || 'Annual'} · every ${record.rule?.renewalCycle || 365} days`,
+                    title: 'Licence',
+                    rows: [
+                      { label: 'Category', value: record.rule?.category?.label || 'General' },
+                      {
+                        label: 'Renewal',
+                        value: `${record.rule?.frequency?.label || 'Annual'} · every ${record.rule?.renewalCycle || 365} days`,
+                      },
+                      ...(record.rule?.legalReference
+                        ? [{ label: 'Act / section', value: record.rule.legalReference }]
+                        : []),
+                    ],
                   },
-                  ...(record.rule?.legalReference
-                    ? [{ label: 'Act / section', value: record.rule.legalReference }]
-                    : []),
-                  { label: 'Company', value: record.entity?.name, sub: record.entity?.entityCode },
-                  { label: 'Unit', value: record.location?.name, sub: record.location?.locationCode },
-                  { label: 'COM', value: record.location?.com || 'Not assigned' },
-                  ...(record.location?.cluster ? [{ label: 'Cluster', value: record.location.cluster }] : []),
                   {
-                    label: 'Address',
-                    value:
-                      [record.location?.address?.city, record.location?.address?.state].filter(Boolean).join(', ') ||
-                      '—',
+                    title: 'Unit',
+                    rows: [
+                      { label: 'Unit', value: record.location?.name, sub: record.location?.locationCode },
+                      { label: 'COM', value: record.location?.com || 'Not assigned' },
+                      ...(record.location?.cluster ? [{ label: 'Cluster', value: record.location.cluster }] : []),
+                      {
+                        label: 'Address',
+                        value:
+                          [record.location?.address?.city, record.location?.address?.state]
+                            .filter(Boolean)
+                            .join(', ') || '—',
+                      },
+                    ],
                   },
-                ].map((row) => (
-                  <div key={row.label} className="grid grid-cols-[6.5rem_1fr] gap-2">
-                    <dt className="text-slate-500 dark:text-slate-400">{row.label}</dt>
-                    <dd className="min-w-0 text-slate-800 dark:text-slate-200 font-medium break-words">
-                      {row.value || '—'}
-                      {row.sub && row.sub !== row.value && (
-                        <span className="block font-mono font-normal text-[11px] text-slate-500 dark:text-slate-400">
-                          {row.sub}
-                        </span>
-                      )}
-                    </dd>
+                ] as Array<{ title: string; rows: Array<{ label: string; value?: string; sub?: string }> }>
+              ).map((group, groupIndex) => (
+                <div
+                  key={group.title}
+                  className={groupIndex > 0 ? 'mt-4 pt-4 border-t border-slate-100 dark:border-slate-800' : 'mt-3'}
+                >
+                  <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    {group.title}
                   </div>
-                ))}
-              </dl>
+                  <dl className="space-y-3 text-xs">
+                    {group.rows.map((row) => (
+                      <div key={row.label} className="grid grid-cols-[6.5rem_1fr] gap-2">
+                        <dt className="text-slate-500 dark:text-slate-400">{row.label}</dt>
+                        <dd className="min-w-0 text-slate-800 dark:text-slate-200 font-medium break-words">
+                          {row.value || '—'}
+                          {row.sub && row.sub !== row.value && (
+                            <span className="block font-mono font-normal text-[11px] text-slate-500 dark:text-slate-400">
+                              {row.sub}
+                            </span>
+                          )}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              ))}
 
               {record.comments && (
                 <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-xs">
@@ -1266,7 +1293,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                       {latestCommentSource.performedBy?.fullName ||
                         latestCommentSource.performedBy?.email ||
                         'Reviewer'}{' '}
-                      · {new Date(latestCommentSource.performedAt).toLocaleDateString()}
+                      · {formatDate(latestCommentSource.performedAt)}
                     </p>
                   )}
                 </div>
@@ -1328,7 +1355,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                     </div>
                     <div className="text-slate-500 dark:text-slate-400 mt-0.5">
                       {formatFileSize(v.fileSize)} · {v.uploadedBy?.fullName || v.uploadedBy?.email || 'User'} ·{' '}
-                      {new Date(v.uploadedAt).toLocaleString()}
+                      {formatDateTime(v.uploadedAt)}
                       {v.notes ? ` · "${v.notes}"` : ''}
                     </div>
                   </div>
