@@ -165,7 +165,7 @@ export const useFormErrors = (serverErrors?: FieldErrors) => {
 
 /** Mirrors the API's upload limits (server/src/middlewares/upload.middleware.ts) */
 export const MAX_UPLOAD_MB = 15;
-const UPLOAD_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv'];
+const UPLOAD_EXTENSIONS = ['pdf'];
 
 /** For a file input's `accept` attribute */
 export const UPLOAD_ACCEPT = UPLOAD_EXTENSIONS.map((ext) => `.${ext}`).join(',');
@@ -174,7 +174,7 @@ export const UPLOAD_ACCEPT = UPLOAD_EXTENSIONS.map((ext) => `.${ext}`).join(',')
 export const checkUploadFile = (file: File): string | null => {
   const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
   if (!UPLOAD_EXTENSIONS.includes(extension)) {
-    return `"${file.name}" is not a supported file type. Upload a PDF, image (PNG, JPG), Word, Excel, text or CSV file.`;
+    return `"${file.name}" is not a PDF. Only PDF files can be uploaded.`;
   }
   if (file.size === 0) {
     return `"${file.name}" is empty. Choose another file.`;

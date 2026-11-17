@@ -128,7 +128,7 @@ const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
             className={FILE_CLASS}
           />
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            PDF, image, Word, Excel, text or CSV, up to {MAX_UPLOAD_MB} MB
+            PDF only, up to {MAX_UPLOAD_MB} MB
           </p>
         </div>
 

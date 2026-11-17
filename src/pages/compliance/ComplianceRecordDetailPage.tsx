@@ -1684,7 +1684,7 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                 <input
                   id="record-acknowledgement-file"
                   type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  accept={UPLOAD_ACCEPT}
                   onChange={(e) => setAcknowledgementFile(pickUploadFile(e, toast.error))}
                   className={FILE_INPUT_CLASS}
                 />
@@ -1744,8 +1744,8 @@ export const ComplianceRecordDetailPage: React.FC = () => {
                   <input
                     id="record-licence-file"
                     type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => setLicenceFile(e.target.files?.[0] || null)}
+                    accept={UPLOAD_ACCEPT}
+                    onChange={(e) => setLicenceFile(pickUploadFile(e, toast.error))}
                     className={FILE_INPUT_CLASS}
                   />
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
