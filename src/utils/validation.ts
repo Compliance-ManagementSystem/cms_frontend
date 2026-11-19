@@ -164,7 +164,7 @@ export const useFormErrors = (serverErrors?: FieldErrors) => {
 // ── File uploads ──────────────────────────────────────────────────────────────
 
 /** Mirrors the API's upload limits (server/src/middlewares/upload.middleware.ts) */
-export const MAX_UPLOAD_MB = 15;
+export const MAX_UPLOAD_MB = 5;
 const UPLOAD_EXTENSIONS = ['pdf'];
 
 /** For a file input's `accept` attribute */

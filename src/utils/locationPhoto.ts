@@ -2,7 +2,7 @@ import { locationService } from '@/services/locationService';
 
 export type PhotoSize = 'full' | 'thumb';
 
-// Signed-in requests get a signed Cloudinary URL for a photo, which the browser
+// Signed-in requests get a signed S3 URL for a photo, which the browser
 // then loads directly. A key's image never changes, so each URL is requested once
 // per page load.
 const cache = new Map<string, Promise<string>>();
