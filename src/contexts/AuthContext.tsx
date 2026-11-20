@@ -220,6 +220,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [setAuthTokens]
   );
 
+  // Change own password: other devices are signed out, this one gets new tokens
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const res = await axiosInstance.post('/auth/change-password', { currentPassword, newPassword });
+      const data = res.data?.data;
+      if (data?.accessToken) setAuthTokens(data.accessToken, data.refreshToken);
+    },
+    [setAuthTokens]
+  );
+
   // Check if user has one of the allowed roles
   const hasRole = useCallback(
     (roleOrRoles: RoleCode | RoleCode[] | string | string[]): boolean => {
@@ -263,11 +273,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       permissions,
       login,
       logout,
+      changePassword,
       hasRole,
       hasPermission,
       can,
     }),
-    [user, token, isLoading, permissions, login, logout, hasRole, hasPermission, can]
+    [user, token, isLoading, permissions, login, logout, changePassword, hasRole, hasPermission, can]
   );
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;

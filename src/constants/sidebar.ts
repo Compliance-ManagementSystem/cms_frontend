@@ -6,7 +6,6 @@ import {
   CheckSquare,
   History,
   Users,
-  ShieldCheck,
   FileCheck2,
   type LucideIcon,
 } from 'lucide-react';
@@ -100,13 +99,14 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         phase: 4,
         roles: ['super_admin', 'admin'],
       },
-      {
-        label: 'Roles',
-        path: ROUTES.ADMIN_ROLES,
-        icon: ShieldCheck,
-        phase: 4,
-        roles: ['super_admin', 'admin'],
-      },
+      // Roles is hidden from the sidebar; the page still opens at /admin/roles
+      // {
+      //   label: 'Roles',
+      //   path: ROUTES.ADMIN_ROLES,
+      //   icon: ShieldCheck,
+      //   phase: 4,
+      //   roles: ['super_admin', 'admin'],
+      // },
       {
         label: 'Manpower Documents',
         path: ROUTES.ADMIN_MANPOWER_DOCUMENTS,

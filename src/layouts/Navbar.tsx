@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Search, Moon, Sun, ChevronDown, LogOut, Shield, Building, Menu } from 'lucide-react';
+import { Bell, Search, Moon, Sun, ChevronDown, LogOut, Shield, Building, Menu, KeyRound } from 'lucide-react';
 import { SIDEBAR_GROUPS } from '@/constants/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -9,6 +9,7 @@ import { notificationService, type NotificationItem } from '@/services/notificat
 import { socketService } from '@/services/socketService';
 import GlobalSearch from '@/layouts/GlobalSearch';
 import env from '@/config/env';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
 
 interface NavbarProps {
   sidebarCollapsed: boolean;
@@ -32,6 +33,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -326,6 +328,18 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
                 </div>
               </div>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setDropdownOpen(false);
+                  setChangePasswordOpen(true);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
+              >
+                <KeyRound className="w-4 h-4" />
+                Change Password
+              </button>
+
               {/* Sign out button */}
               <button
                 type="button"
@@ -339,6 +353,7 @@ const Navbar: React.FC<NavbarProps> = ({ sidebarCollapsed, onOpenMobileSidebar }
           )}
         </div>
       </div>
+      <ChangePasswordModal isOpen={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
     </header>
   );
 };

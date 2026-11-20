@@ -22,6 +22,7 @@ import Input from '@/components/ui/Input';
 import Table, { Column } from '@/components/ui/Table';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
 import { adminService, UserItem, RoleItem } from '@/services/adminService';
 import { z } from 'zod';
 import FieldError from '@/components/ui/FieldError';
@@ -84,6 +85,14 @@ const UsersPage: React.FC = () => {
   });
 
   const { errors, setErrors, validate, clear } = useFormErrors();
+
+  // Only a Super Admin manages Super Admin accounts and resets passwords
+  const { user: currentUser, hasRole } = useAuth();
+  const isSuperAdmin = hasRole('super_admin');
+  const canManage = (user: UserItem) => isSuperAdmin || user.role?.code !== 'super_admin';
+  const assignableRoles = roles.filter((r) => isSuperAdmin || r.code !== 'super_admin');
+  const isEditingSelf = selectedUser?._id === currentUser?._id;
+  const canResetPassword = isSuperAdmin && !isEditingSelf;
 
   const setFormField = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
@@ -300,41 +309,44 @@ const UsersPage: React.FC = () => {
       key: 'actions',
       header: 'Actions',
       align: 'right',
-      cell: (user) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleToggleStatus(user)}
-            title={user.status === 'active' ? 'Deactivate user' : 'Reactivate user'}
-            className={
-              user.status === 'active'
-                ? 'text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300'
-                : 'text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300'
-            }
-          >
-            {user.status === 'active' ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleOpenEdit(user)}
-            title="Edit user details"
-            className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-          >
-            <Edit2 size={15} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleOpenDelete(user)}
-            title="Delete user"
-            className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-          >
-            <Trash2 size={15} />
-          </Button>
-        </div>
-      ),
+      cell: (user) =>
+        !canManage(user) ? (
+          <span className="text-xs text-slate-400 dark:text-slate-500">Super Admin only</span>
+        ) : (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleToggleStatus(user)}
+              title={user.status === 'active' ? 'Deactivate user' : 'Reactivate user'}
+              className={
+                user.status === 'active'
+                  ? 'text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300'
+                  : 'text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300'
+              }
+            >
+              {user.status === 'active' ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleOpenEdit(user)}
+              title="Edit user details"
+              className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            >
+              <Edit2 size={15} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleOpenDelete(user)}
+              title="Delete user"
+              className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+            >
+              <Trash2 size={15} />
+            </Button>
+          </div>
+        ),
     },
   ];
 
@@ -534,7 +546,7 @@ const UsersPage: React.FC = () => {
                 <option value="" disabled>
                   Select Role
                 </option>
-                {roles.map((r) => (
+                {assignableRoles.map((r) => (
                   <option key={r._id} value={r._id}>
                     {r.name} ({r.code})
                   </option>
@@ -587,8 +599,12 @@ const UsersPage: React.FC = () => {
       <Modal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
-        title={`Edit User: ${selectedUser?.fullName}`}
-        description="Update profile details, role permissions, or reset credentials."
+        title={`Edit User: ${selectedUser?.firstName ?? ''} ${selectedUser?.lastName ?? ''}`}
+        description={
+          canResetPassword
+            ? 'Update profile details, role permissions, or reset credentials.'
+            : 'Update profile details and role.'
+        }
         size="lg"
         id="edit-user-modal"
       >
@@ -643,7 +659,7 @@ const UsersPage: React.FC = () => {
                 name="role"
                 required
               >
-                {roles.map((r) => (
+                {assignableRoles.map((r) => (
                   <option key={r._id} value={r._id}>
                     {r.name} ({r.code})
                   </option>
@@ -668,16 +684,25 @@ const UsersPage: React.FC = () => {
             </div>
           </div>
 
-          <Input
-            label="Reset Password (Optional)"
-            name="password"
-            error={errors.password}
-            type="password"
-            leftAddon={<Lock size={15} />}
-            placeholder="Leave blank to keep existing password"
-            value={formData.password}
-            onChange={(e) => setFormField('password', e.target.value)}
-          />
+          {canResetPassword ? (
+            <Input
+              label="Reset Password (Optional)"
+              name="password"
+              error={errors.password}
+              type="password"
+              leftAddon={<Lock size={15} />}
+              placeholder="Leave blank to keep existing password"
+              hint="They will be signed out on every device."
+              value={formData.password}
+              onChange={(e) => setFormField('password', e.target.value)}
+            />
+          ) : (
+            isEditingSelf && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                To change your own password, use Change Password in your profile menu (top right).
+              </p>
+            )
+          )}
 
           <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700/60">
             <Button variant="ghost" type="button" onClick={() => setIsEditOpen(false)}>

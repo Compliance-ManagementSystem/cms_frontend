@@ -48,6 +48,7 @@ export interface AuthContextType {
   permissions: string[];
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   hasRole: (roleOrRoles: RoleCode | RoleCode[] | string | string[]) => boolean;
   hasPermission: (permissionCode: string) => boolean;
   can: (resource: string, action: string) => boolean;
