@@ -19,6 +19,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Input from '@/components/ui/Input';
+import PasswordInput from '@/components/ui/PasswordInput';
 import Table, { Column } from '@/components/ui/Table';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
@@ -571,11 +572,10 @@ const UsersPage: React.FC = () => {
             </div>
           </div>
 
-          <Input
+          <PasswordInput
             label="Temporary Password"
             name="password"
             error={errors.password}
-            type="password"
             required
             leftAddon={<Lock size={15} />}
             placeholder="Min 8 chars with uppercase, lowercase & number"
@@ -685,11 +685,10 @@ const UsersPage: React.FC = () => {
           </div>
 
           {canResetPassword ? (
-            <Input
+            <PasswordInput
               label="Reset Password (Optional)"
               name="password"
               error={errors.password}
-              type="password"
               leftAddon={<Lock size={15} />}
               placeholder="Leave blank to keep existing password"
               hint="They will be signed out on every device."

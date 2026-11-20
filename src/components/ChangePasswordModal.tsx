@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { Lock } from 'lucide-react';
 import { z } from 'zod';
 import Modal from '@/components/ui/Modal';
-import Input from '@/components/ui/Input';
+import PasswordInput from '@/components/ui/PasswordInput';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
@@ -86,10 +86,9 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
       id="change-password-modal"
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-        <Input
+        <PasswordInput
           label="Current Password"
           name="currentPassword"
-          type="password"
           autoComplete="current-password"
           required
           leftAddon={<Lock size={15} />}
@@ -97,10 +96,9 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
           error={errors.currentPassword}
           onChange={(e) => setField('currentPassword', e.target.value)}
         />
-        <Input
+        <PasswordInput
           label="New Password"
           name="newPassword"
-          type="password"
           autoComplete="new-password"
           required
           leftAddon={<Lock size={15} />}
@@ -109,10 +107,9 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
           error={errors.newPassword}
           onChange={(e) => setField('newPassword', e.target.value)}
         />
-        <Input
+        <PasswordInput
           label="Confirm New Password"
           name="confirmPassword"
-          type="password"
           autoComplete="new-password"
           required
           leftAddon={<Lock size={15} />}
